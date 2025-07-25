@@ -1,0 +1,45 @@
+source 'https://github.com/CocoaPods/Specs.git'
+platform :ios, '15.0'
+inhibit_all_warnings!
+
+target :XZVientiane do
+pod 'Masonry'
+pod 'MJRefresh'
+pod 'JSONModel'
+# pod 'WebViewJavascriptBridge'  # 注释掉，包含UIWebView会被Apple拒绝
+pod 'AFNetworking'
+pod 'Qiniu'
+pod 'GTMBase64'
+pod 'SAMKeychain'
+pod 'SDWebImage', '~> 5.0.6'
+
+# 友盟SDK套件
+pod 'UMCCommon'
+
+# UMShare - 使用子规格，排除完整版微信SDK，避免与手动集成的微信SDK冲突
+pod 'UMShare/Core'       # 核心功能
+pod 'UMShare/UI'         # UI组件
+pod 'UMShare/Social/ReducedWeChat'  # 精简版微信（仅分享功能，不包含支付）
+pod 'UMShare/Social/ReducedQQ'      # 精简版QQ
+pod 'UMShare/Social/ReducedSina'    # 精简版微博
+pod 'UMShare/Social/AlipayShare'    # 支付宝分享
+pod 'UMShare/Social/DingDing'       # 钉钉分享
+
+pod 'UMPush'
+pod 'AlipaySDK-iOS'
+
+# 高德SDK套件配置 - 使用特定版本解决Xcode 16兼容性问题
+pod 'AMap3DMap', '~> 10.0.600'     # 使用10.0.600版本解决Xcode 16兼容性
+pod 'AMapFoundation'                # 基础SDK
+pod 'AMapSearch'                    # 搜索功能SDK
+pod 'AMapLocation'                  # 定位功能SDK
+end
+
+# 解决Xcode 16兼容性问题的配置
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+    end
+  end
+end
