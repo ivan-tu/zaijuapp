@@ -250,24 +250,17 @@
     _placeholderColor = placeholderColor;
     NSAssert(_placeholderColor, @"Please set placeholder before setting placeholdercolor");
 
-    if ([[[UIDevice currentDevice] systemVersion] integerValue] < 6)
+    // 使用官方API设置placeholder颜色
+    if ([self.placeholder isKindOfClass:[NSNull class]] || !self.placeholder || [self.placeholder isEqualToString:@""])
     {
-        [_textField setValue:_placeholderColor forKeyPath:@"_placeholderLabel.textColor"];
+        // placeholder为空，不设置
     }
     else
-    {//TODO: ///asdfasdf
-        //        _textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:self.placeholder attributes:@{NSForegroundColorAttributeName:placeholderColor}];
-        if ([self.placeholder isKindOfClass:[NSNull class]] || !self.placeholder || [self.placeholder isEqualToString:@""])
-        {
-            //
-        }
-        else
-        {
-            _textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:self.placeholder attributes:
-                                                @{NSForegroundColorAttributeName:placeholderColor,
-                                                  NSFontAttributeName:_textField.font
-                                                  }];
-        }
+    {
+        _textField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:self.placeholder attributes:
+                                            @{NSForegroundColorAttributeName:placeholderColor,
+                                              NSFontAttributeName:_textField.font
+                                              }];
     }
 }
 

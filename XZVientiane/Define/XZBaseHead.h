@@ -17,7 +17,8 @@
 #ifdef DEBUG
     #define ZJLog(...) NSLog(__VA_ARGS__)
 #else
-    #define ZJLog(...) 
+    // Release版本不输出日志，使用do-while避免空语句警告
+    #define ZJLog(...) do {} while(0)
 #endif
 
 // 如果需要在Release版本中也输出某些重要日志，使用ZJLogAlways

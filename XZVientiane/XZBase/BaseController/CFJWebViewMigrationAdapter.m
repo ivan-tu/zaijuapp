@@ -178,7 +178,10 @@
         webView.customUserAgent = userAgent;
     } else {
         // iOS 9以下版本的兼容处理
-        [webView setValue:userAgent forKey:@"applicationNameForUserAgent"];
+        // 注意：应用最低支持iOS 15.0，此代码分支不会执行
+        // 保留代码仅作为历史参考
+        // [webView setValue:userAgent forKey:@"applicationNameForUserAgent"];
+        NSLog(@"在局⚠️ 当前iOS版本低于9.0，无法设置自定义UserAgent");
     }
 }
 

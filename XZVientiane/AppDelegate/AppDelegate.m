@@ -356,15 +356,17 @@
     [[NSNotificationCenter defaultCenter] postNotificationName:@"AppDidEnterBackgroundNotification" object:nil];
     
     self.backgroundTaskIdentifier = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"deleyTimeTask" expirationHandler:^{
+        NSLog(@"在局⚠️ 后台任务即将超时，立即结束");
         if (self.backgroundTaskIdentifier != UIBackgroundTaskInvalid) {
             [[UIApplication sharedApplication] endBackgroundTask:self.backgroundTaskIdentifier];
             self.backgroundTaskIdentifier = UIBackgroundTaskInvalid;
         }
     }];
     
-    // 结束后台任务，避免超时
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    // 严格遵守2秒后台执行时间限制，提前100ms结束以确保安全
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.9 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (self.backgroundTaskIdentifier != UIBackgroundTaskInvalid) {
+            NSLog(@"在局✅ 后台任务正常结束");
             [[UIApplication sharedApplication] endBackgroundTask:self.backgroundTaskIdentifier];
             self.backgroundTaskIdentifier = UIBackgroundTaskInvalid;
         }
@@ -832,6 +834,10 @@
     NSLog(@"在局📡 [AppDelegate] networkStatus 开始检查网络权限");
     WEAK_SELF;
     if (@available(iOS 9.0, *)) {
+        // 创建一个信号量，确保权限检查完成后再继续
+        dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+        __block BOOL hasReceivedCallback = NO;
+        
         // 确保在后台线程执行
         void (^checkBlock)(void) = ^{
             //2.根据权限执行相应的交互
@@ -841,6 +847,12 @@
          */
         cellularData.cellularDataRestrictionDidUpdateNotifier = ^(CTCellularDataRestrictedState state) {
             STRONG_SELF;
+            
+            // 标记已收到回调
+            if (!hasReceivedCallback) {
+                hasReceivedCallback = YES;
+                dispatch_semaphore_signal(semaphore);
+            }
             
             // 防止在短时间内重复弹窗
             if (self.lastNetworkAlertDate && 
@@ -955,14 +967,9 @@
                                             [vc performSelector:@selector(domainOperate)];
                                         }
                                         
-                                        // 备用方案：如果有webView，尝试重新加载
-                                        if ([vc respondsToSelector:@selector(webView)]) {
-                                            WKWebView *webView = [vc valueForKey:@"webView"];
-                                            if (webView && [webView respondsToSelector:@selector(reload)]) {
-                                                NSLog(@"在局🔄 [AppDelegate] 方法2: 直接reload WebView");
-                                                [webView reload];
-                                            }
-                                        }
+                                        // 注意：不要调用 [webView reload]
+                                        // 因为WebView是通过loadHTMLString:baseURL:加载的
+                                        // reload会尝试加载baseURL（manifest目录），导致"file is directory"错误
                                         
                                         // 最后备用方案：强制重新初始化WebView
                                         if ([vc respondsToSelector:@selector(reloadWebViewContent)]) {
@@ -994,6 +1001,20 @@
     
     // 执行检查
     checkBlock();
+    
+    // 在后台线程等待权限回调，设置超时时间为2秒
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC));
+        long result = dispatch_semaphore_wait(semaphore, timeout);
+        
+        if (result != 0) {
+            // 超时处理，假设网络权限已开启
+            NSLog(@"在局⏱️ [AppDelegate] 网络权限检查超时，假设权限已开启");
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
+            });
+        }
+    });
     
     } // 结束 if (@available(iOS 9.0, *))
 }

@@ -660,9 +660,9 @@ static inline BOOL isIPhoneXSeries() {
     configuration.preferences.javaScriptEnabled = YES;
     configuration.preferences.javaScriptCanOpenWindowsAutomatically = YES;
     
-    // 关键：根据资料指导，WKWebView有更好的安全机制，不需要设置私有API
+    // 关键：WKWebView有更好的安全机制，不需要设置私有API
     // 注意：allowFileAccessFromFileURLs 和 allowUniversalAccessFromFileURLs 是私有API
-    // WKWebView通过loadFileURL:allowingReadAccessToURL:来安全地加载本地文件
+    // WKWebView使用loadHTMLString:baseURL:加载HTML内容，baseURL用于指定资源路径
     
     // 根据资料建议，配置默认网页首选项
     if (@available(iOS 14.0, *)) {
@@ -689,7 +689,7 @@ static inline BOOL isIPhoneXSeries() {
     
     // 根据资料建议，添加调试脚本（仅在Debug模式）
     #ifdef DEBUG
-    NSString *debugScript = @"window.isWKWebView = true; console.log('WKWebView JavaScript环境已就绪');";
+    NSString *debugScript = @"window.isWKWebView = true;";
     WKUserScript *userScript = [[WKUserScript alloc] initWithSource:debugScript
                                                       injectionTime:WKUserScriptInjectionTimeAtDocumentStart 
                                                    forMainFrameOnly:NO];
@@ -804,7 +804,8 @@ static inline BOOL isIPhoneXSeries() {
     
     // 设置一个10秒的超时，避免刷新一直显示 - 使用可取消的定时器
     __weak typeof(self) weakSelf = self;
-    NSTimer *refreshTimeoutTimer = [NSTimer scheduledTimerWithTimeInterval:10.0 repeats:NO block:^(NSTimer * _Nonnull timer) {
+    // 增加刷新超时时间以适应Release版本
+    NSTimer *refreshTimeoutTimer = [NSTimer scheduledTimerWithTimeInterval:15.0 repeats:NO block:^(NSTimer * _Nonnull timer) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) {
             return;
@@ -1259,52 +1260,59 @@ static inline BOOL isIPhoneXSeries() {
         NSLog(@"在局🚀 [直接数据模式] WebView delegate设置: navigationDelegate=%@, UIDelegate=%@", 
               self.webView.navigationDelegate, self.webView.UIDelegate);
         
-        // 关键修复：确保WebView在正确的状态下进行加载
+        // 关键修复：简化dispatch调用，避免Release版本中的嵌套问题
+        NSLog(@"在局🔧 [直接数据模式] 准备在主队列中执行loadHTMLString");
+        
+        // 验证WebView状态
+        if (!self.webView) {
+            NSLog(@"在局❌ [直接数据模式] WebView为nil！");
+            return;
+        }
+        
+        // 检查WebView的navigation delegate状态（但不强制重新设置）
+        if (!self.webView.navigationDelegate) {
+            NSLog(@"在局❌ [直接数据模式] navigationDelegate丢失！这是严重问题");
+            if (self.bridge) {
+                NSLog(@"在局🔧 [直接数据模式] Bridge存在但delegate丢失，可能是时序问题");
+            } else {
+                NSLog(@"在局❌ [直接数据模式] Bridge不存在，无法恢复delegate");
+                return;
+            }
+        } else {
+            NSLog(@"在局✅ [直接数据模式] navigationDelegate正常: %@", self.webView.navigationDelegate);
+        }
+        
+        // 确保WebView在window中且有正确frame
+        if (!self.webView.superview) {
+            NSLog(@"在局❌ [直接数据模式] WebView没有superview！");
+            return;
+        }
+        
+        NSLog(@"在局🔧 [直接数据模式] WebView状态验证完成:");
+        NSLog(@"在局🔧 [直接数据模式] - frame: %@", NSStringFromCGRect(self.webView.frame));
+        NSLog(@"在局🔧 [直接数据模式] - superview: %@", self.webView.superview);
+        NSLog(@"在局🔧 [直接数据模式] - navigationDelegate: %@", self.webView.navigationDelegate);
+        
+        // 停止任何正在进行的加载
+        [self.webView stopLoading];
+        
+        // 使用单层dispatch_async确保在主线程执行，避免嵌套问题
         dispatch_async(dispatch_get_main_queue(), ^{
-            NSLog(@"在局🔧 [直接数据模式] 主队列中执行loadHTMLString");
+            NSLog(@"在局🚀 [直接数据模式] 主队列中开始loadHTMLString");
             
-            // 验证WebView状态
-            if (!self.webView) {
-                NSLog(@"在局❌ [直接数据模式] WebView在主队列中为nil！");
-                return;
+            // 对于第二个Tab，启动加载监控
+            if (self.tabBarController && self.tabBarController.selectedIndex > 0) {
+                NSLog(@"在局👁️ [直接数据模式] 第二个Tab，启动加载监控");
+                [self startWebViewLoadingMonitor];
             }
             
-            // 确保WebView的navigation delegate仍然正确设置
-            if (!self.webView.navigationDelegate) {
-                NSLog(@"在局❌ [直接数据模式] navigationDelegate丢失，重新设置");
-                self.webView.navigationDelegate = self.bridge;
-            }
+            // 直接使用loadHTMLString:baseURL:方法
+            NSLog(@"在局🚀 [直接数据模式] 即将调用loadHTMLString，HTML长度: %lu", (unsigned long)allHtmlStr.length);
+            [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
+            NSLog(@"在局🚀 [直接数据模式] loadHTMLString调用完成，等待navigation delegate...");
             
-            // 确保WebView在window中且有正确frame
-            if (!self.webView.superview) {
-                NSLog(@"在局❌ [直接数据模式] WebView没有superview！");
-                return;
-            }
-            
-            NSLog(@"在局🔧 [直接数据模式] WebView状态验证完成:");
-            NSLog(@"在局🔧 [直接数据模式] - frame: %@", NSStringFromCGRect(self.webView.frame));
-            NSLog(@"在局🔧 [直接数据模式] - superview: %@", self.webView.superview);
-            NSLog(@"在局🔧 [直接数据模式] - navigationDelegate: %@", self.webView.navigationDelegate);
-            
-            // 停止任何正在进行的加载
-            [self.webView stopLoading];
-            
-            // 等待一个runloop cycle确保停止完成
-            dispatch_async(dispatch_get_main_queue(), ^{
-                NSLog(@"在局🚀 [直接数据模式] 开始loadHTMLString");
-                
-                // 对于第二个Tab，启动加载监控
-                if (self.tabBarController && self.tabBarController.selectedIndex > 0) {
-                    NSLog(@"在局👁️ [直接数据模式] 第二个Tab，启动加载监控");
-                    [self startWebViewLoadingMonitor];
-                }
-                
-                [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
-                NSLog(@"在局🚀 [直接数据模式] loadHTMLString调用完成，等待didFinishNavigation...");
-                
-                // 启动定时器监控页面加载
-                [self startPageLoadMonitor];
-            });
+            // 启动定时器监控页面加载
+            [self startPageLoadMonitor];
         });
     } else {
         // 使用CustomHybridProcessor处理
@@ -1400,60 +1408,113 @@ static inline BOOL isIPhoneXSeries() {
                 
                 NSLog(@"在局🔥 [CustomHybridProcessor] 步骤10: 执行loadHTMLString");
                 
-                // 关键修复：确保WebView在正确的状态下进行加载
+                // 关键修复：简化dispatch调用，避免Release版本中的嵌套问题
+                NSLog(@"在局🔧 [CustomHybridProcessor] 准备在主队列中执行loadHTMLString");
+                
+                // 验证WebView状态
+                if (!self.webView) {
+                    NSLog(@"在局❌ [CustomHybridProcessor] WebView为nil！");
+                    return;
+                }
+                
+                // 检查WebView的navigation delegate状态（但不强制重新设置）
+                if (!self.webView.navigationDelegate) {
+                    NSLog(@"在局❌ [CustomHybridProcessor] navigationDelegate丢失！这是严重问题");
+                    if (self.bridge) {
+                        NSLog(@"在局🔧 [CustomHybridProcessor] Bridge存在但delegate丢失，可能是时序问题");
+                    } else {
+                        NSLog(@"在局❌ [CustomHybridProcessor] Bridge不存在，无法恢复delegate");
+                        return;
+                    }
+                } else {
+                    NSLog(@"在局✅ [CustomHybridProcessor] navigationDelegate正常: %@", self.webView.navigationDelegate);
+                }
+                
+                // 确保WebView在window中且有正确frame
+                if (!self.webView.superview) {
+                    NSLog(@"在局❌ [CustomHybridProcessor] WebView没有superview！");
+                    return;
+                }
+                
+                NSLog(@"在局🔧 [CustomHybridProcessor] WebView状态验证完成:");
+                NSLog(@"在局🔧 [CustomHybridProcessor] - frame: %@", NSStringFromCGRect(self.webView.frame));
+                NSLog(@"在局🔧 [CustomHybridProcessor] - superview: %@", self.webView.superview);
+                NSLog(@"在局🔧 [CustomHybridProcessor] - navigationDelegate: %@", self.webView.navigationDelegate);
+                
+                // 停止任何正在进行的加载
+                [self.webView stopLoading];
+                
+                // 关键修复：增加dispatch执行追踪，解决Release版本中断问题
+                NSLog(@"在局🎯 [DISPATCH-DEBUG] 准备提交dispatch_async任务到主队列");
+                NSLog(@"在局🎯 [DISPATCH-DEBUG] 当前线程: %@", [NSThread currentThread]);
+                NSLog(@"在局🎯 [DISPATCH-DEBUG] 是否主线程: %@", [NSThread isMainThread] ? @"YES" : @"NO");
+                
+                // 检查主队列状态
+                if (dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL) != NULL) {
+                    NSLog(@"在局🎯 [DISPATCH-DEBUG] 当前队列标签: %s", dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL));
+                }
+                
+                // 添加任务计数器
+                static int dispatchTaskId = 0;
+                int currentTaskId = ++dispatchTaskId;
+                NSLog(@"在局🎯 [DISPATCH-DEBUG] 创建dispatch任务ID: %d", currentTaskId);
+                
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    NSLog(@"在局🔧 [CustomHybridProcessor] 主队列中执行loadHTMLString");
+                    NSLog(@"在局🔥🔥🔥 [DISPATCH-DEBUG] ===== dispatch_async回调开始执行！任务ID: %d =====", currentTaskId);
+                    NSLog(@"在局🔥 [DISPATCH-DEBUG] 回调执行线程: %@", [NSThread currentThread]);
+                    NSLog(@"在局🔥 [DISPATCH-DEBUG] 回调是否主线程: %@", [NSThread isMainThread] ? @"YES" : @"NO");
                     
-                    // 验证WebView状态
+                    // 检查self状态
+                    if (!self) {
+                        NSLog(@"在局❌ [DISPATCH-DEBUG] self已释放！任务ID: %d", currentTaskId);
+                        return;
+                    }
+                    
+                    // 检查WebView状态
                     if (!self.webView) {
-                        NSLog(@"在局❌ [CustomHybridProcessor] WebView在主队列中为nil！");
+                        NSLog(@"在局❌ [DISPATCH-DEBUG] WebView已释放！任务ID: %d", currentTaskId);
                         return;
                     }
                     
-                    // 确保WebView的navigation delegate仍然正确设置
-                    if (!self.webView.navigationDelegate) {
-                        NSLog(@"在局❌ [CustomHybridProcessor] navigationDelegate丢失，重新设置");
-                        self.webView.navigationDelegate = self.bridge;
+                    NSLog(@"在局🚀 [CustomHybridProcessor] 主队列中开始loadHTMLString - 任务ID: %d", currentTaskId);
+                    
+                    // 对于第二个Tab，启动加载监控
+                    if (self.tabBarController && self.tabBarController.selectedIndex > 0) {
+                        NSLog(@"在局👁️ [CustomHybridProcessor] 第二个Tab，启动加载监控");
+                        [self startWebViewLoadingMonitor];
                     }
                     
-                    // 确保WebView在window中且有正确frame
-                    if (!self.webView.superview) {
-                        NSLog(@"在局❌ [CustomHybridProcessor] WebView没有superview！");
-                        return;
-                    }
+                    // 再次验证关键对象状态
+                    NSLog(@"在局🔍 [DISPATCH-DEBUG] 执行前最终检查 - WebView: %@", self.webView);
+                    NSLog(@"在局🔍 [DISPATCH-DEBUG] HTML字符串长度: %lu", (unsigned long)allHtmlStr.length);
+                    NSLog(@"在局🔍 [DISPATCH-DEBUG] BaseURL: %@", baseURL);
                     
-                    NSLog(@"在局🔧 [CustomHybridProcessor] WebView状态验证完成:");
-                    NSLog(@"在局🔧 [CustomHybridProcessor] - frame: %@", NSStringFromCGRect(self.webView.frame));
-                    NSLog(@"在局🔧 [CustomHybridProcessor] - superview: %@", self.webView.superview);
-                    NSLog(@"在局🔧 [CustomHybridProcessor] - navigationDelegate: %@", self.webView.navigationDelegate);
+                    // 直接使用loadHTMLString:baseURL:方法
+                    NSLog(@"在局🚀 [CustomHybridProcessor] 即将调用loadHTMLString，HTML长度: %lu - 任务ID: %d", (unsigned long)allHtmlStr.length, currentTaskId);
                     
-                    // 停止任何正在进行的加载
-                    [self.webView stopLoading];
-                    
-                    // 等待一个runloop cycle确保停止完成
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        NSLog(@"在局🚀 [CustomHybridProcessor] 开始loadHTMLString");
-                        
-                        // 对于第二个Tab，启动加载监控
-                        if (self.tabBarController && self.tabBarController.selectedIndex > 0) {
-                            NSLog(@"在局👁️ [CustomHybridProcessor] 第二个Tab，启动加载监控");
-                            [self startWebViewLoadingMonitor];
-                        }
-                        
+                    @try {
                         [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
-                        NSLog(@"在局🚀 [CustomHybridProcessor] loadHTMLString调用完成，等待didFinishNavigation...");
-                        NSLog(@"在局🔥 [CustomHybridProcessor] ===== 回调执行成功完成 =====");
-                        
-                        // 启动定时器监控页面加载
-                        [self startPageLoadMonitor];
-                    });
+                        NSLog(@"在局✅ [DISPATCH-DEBUG] loadHTMLString调用成功完成！任务ID: %d", currentTaskId);
+                    } @catch (NSException *exception) {
+                        NSLog(@"在局💥 [DISPATCH-DEBUG] loadHTMLString调用异常！任务ID: %d, 异常: %@", currentTaskId, exception);
+                    }
+                    
+                    NSLog(@"在局🚀 [CustomHybridProcessor] loadHTMLString调用完成，等待navigation delegate... - 任务ID: %d", currentTaskId);
+                    
+                    // 启动定时器监控页面加载
+                    [self startPageLoadMonitor];
+                    
+                    NSLog(@"在局🔥🔥🔥 [DISPATCH-DEBUG] ===== dispatch_async回调执行完成！任务ID: %d =====", currentTaskId);
+                    NSLog(@"在局🔥 [CustomHybridProcessor] ===== 回调执行成功完成 =====");
                 });
+                
+                NSLog(@"在局🎯 [DISPATCH-DEBUG] dispatch_async任务已提交，任务ID: %d", currentTaskId);
                 
                 // 延迟测试JavaScript桥接是否正常工作
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     @try {
                         NSLog(@"在局🧪 [桥接测试] 开始测试JavaScript桥接");
-                        [self safelyEvaluateJavaScript:@"(function(){if(window.WebViewJavascriptBridge){WebViewJavascriptBridge.callHandler('bridgeTest',{test:'from_js'},function(response){console.log('桥接测试响应:',response);});return 'WebViewJavascriptBridge存在';}else{return 'WebViewJavascriptBridge不存在';}})()" 
+                        [self safelyEvaluateJavaScript:@"(function(){if(window.WebViewJavascriptBridge){WebViewJavascriptBridge.callHandler('bridgeTest',{test:'from_js'},function(response){});return 'WebViewJavascriptBridge存在';}else{return 'WebViewJavascriptBridge不存在';}})()" 
                                         completionHandler:^(id result, NSError *error) {
                             if (error) {
                                 NSLog(@"在局❌ [桥接测试] JavaScript执行错误: %@", error.localizedDescription);
@@ -1862,13 +1923,21 @@ static inline BOOL isIPhoneXSeries() {
         });
     }
     
-    if (state != UIApplicationStateActive) {
-        NSLog(@"在局[XZWKWebView] 应用不在前台，取消JavaScript执行");
+    // 特殊处理：某些关键JavaScript（如桥接初始化）需要在非活跃状态下也能执行
+    BOOL isEssentialScript = [javaScriptString containsString:@"WebViewJavascriptBridge"] ||
+                           [javaScriptString containsString:@"wx.app"] ||
+                           [javaScriptString containsString:@"bridgeTest"] ||
+                           [javaScriptString containsString:@"typeof app"];
+    
+    if (state != UIApplicationStateActive && !isEssentialScript) {
+        NSLog(@"在局[XZWKWebView] 应用不在前台，取消非关键JavaScript执行");
         if (completionHandler) {
             NSError *error = [NSError errorWithDomain:@"XZWebView" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"应用不在前台"}];
             completionHandler(nil, error);
         }
         return;
+    } else if (state != UIApplicationStateActive && isEssentialScript) {
+        NSLog(@"在局[XZWKWebView] 应用不在前台，但允许执行关键JavaScript: %.50@...", javaScriptString);
     }
     
     // 使用weak引用避免在回调时崩溃
@@ -1906,7 +1975,13 @@ static inline BOOL isIPhoneXSeries() {
                 bgState = [[UIApplication sharedApplication] applicationState];
             });
         }
-        if (bgState != UIApplicationStateActive) {
+        // 同样的关键脚本检查
+        BOOL isEssentialInBlock = [javaScriptString containsString:@"WebViewJavascriptBridge"] ||
+                                 [javaScriptString containsString:@"wx.app"] ||
+                                 [javaScriptString containsString:@"bridgeTest"] ||
+                                 [javaScriptString containsString:@"typeof app"];
+        
+        if (bgState != UIApplicationStateActive && !isEssentialInBlock) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (completionHandler) {
                     NSError *error = [NSError errorWithDomain:@"XZWebView" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"应用不在前台"}];
@@ -2011,20 +2086,27 @@ static inline BOOL isIPhoneXSeries() {
             state = [[UIApplication sharedApplication] applicationState];
         });
     }
-    if (state != UIApplicationStateActive) {
-        NSLog(@"在局[XZWKWebView] 应用不在前台，跳过objcCallJs: %@", dic[@"action"]);
-        return;
-    }
-    
+    // 某些关键的objcCallJs操作需要在非活跃状态下也能执行
     NSString *action = dic[@"action"];
     id data = dic[@"data"];
+    
+    BOOL isEssentialAction = [action isEqualToString:@"bridgeInit"] ||
+                           [action isEqualToString:@"pageReady"] ||
+                           [action isEqualToString:@"checkBridge"];
+    
+    if (state != UIApplicationStateActive && !isEssentialAction) {
+        NSLog(@"在局[XZWKWebView] 应用不在前台，跳过非关键objcCallJs: %@", action);
+        return;
+    } else if (state != UIApplicationStateActive && isEssentialAction) {
+        NSLog(@"在局[XZWKWebView] 应用不在前台，但允许执行关键objcCallJs: %@", action);
+    }
     
     // 确保在主线程执行
     dispatch_async(dispatch_get_main_queue(), ^{
         // 再次检查应用状态 - 已在主线程中
         UIApplicationState currentState = [[UIApplication sharedApplication] applicationState];
-        if (currentState != UIApplicationStateActive) {
-            NSLog(@"在局[XZWKWebView] 主线程检查：应用不在前台，取消JavaScript调用");
+        if (currentState != UIApplicationStateActive && !isEssentialAction) {
+            NSLog(@"在局[XZWKWebView] 主线程检查：应用不在前台，取消非关键JavaScript调用");
             return;
         }
         
@@ -2243,7 +2325,6 @@ static inline BOOL isIPhoneXSeries() {
     }
     
     [self safelyEvaluateJavaScript:@"(function(){"
-        "console.log('在局🔍 [桥接初始化] 开始检查JavaScript环境');"
         "var result = {};"
         ""
         "// 检查各种JavaScript对象的存在性"
@@ -2251,69 +2332,54 @@ static inline BOOL isIPhoneXSeries() {
         "result.appExists = typeof app !== 'undefined';"
         "result.pageReadyExists = typeof pageReady !== 'undefined';"
         "result.pageReadyCalled = window._pageReadyCalled === true;"
-        ""
-        "console.log('在局🔍 [桥接初始化] 环境检查结果:', {"
-        "    bridgeExists: result.bridgeExists,"
-        "    appExists: result.appExists,"
-        "    pageReadyExists: result.pageReadyExists,"
-        "    pageReadyCalled: result.pageReadyCalled"
-        "});"
+        "result.checkTime = new Date().getTime();"
         ""
         "// 对于非首页标签，可能需要重新初始化JavaScript环境"
         "if (!result.appExists || !result.bridgeExists) {"
-        "    console.log('在局⚠️ [桥接初始化] JavaScript环境未完全初始化，尝试重新加载');"
         "    // 触发JavaScript环境重新初始化"
         "    if (typeof initJavaScriptEnvironment === 'function') {"
         "        initJavaScriptEnvironment();"
-        "        console.log('在局✅ [桥接初始化] JavaScript环境重新初始化完成');"
+        "        result.reinit = true;"
         "    }"
         "}"
         ""
         "// 确保pageReady被调用"
         "if (!window._pageReadyCalled) {"
-        "    console.log('在局🔥 [桥接初始化] 准备触发pageReady');"
         "    window._pageReadyCalled = true;"
         ""
         "    // 尝试多种方式触发pageReady"
         "    if (window.WebViewJavascriptBridge && window.WebViewJavascriptBridge.callHandler) {"
-        "        console.log('在局✅ [桥接初始化] 使用WebViewJavascriptBridge发送pageReady');"
         "        try {"
         "            window.WebViewJavascriptBridge.callHandler('pageReady', {"
         "                manual: true,"
         "                source: 'performJavaScriptBridgeInitialization',"
         "                timestamp: new Date().getTime()"
         "            }, function(response) {"
-        "                console.log('在局✅ [桥接初始化] pageReady回调成功:', response);"
+        "                // 回调处理"
         "            });"
         "            result.success = true;"
         "            result.method = 'callHandler';"
         "        } catch(e) {"
-        "            console.log('在局❌ [桥接初始化] callHandler异常:', e.message);"
         "            result.error = e.message;"
         "        }"
         "    } else if (typeof pageReady === 'function') {"
         "        // 备用方案：直接调用pageReady函数"
-        "        console.log('在局🔄 [桥接初始化] 直接调用pageReady函数');"
         "        try {"
         "            pageReady();"
         "            result.success = true;"
         "            result.method = 'direct';"
         "        } catch(e) {"
-        "            console.log('在局❌ [桥接初始化] pageReady函数调用异常:', e.message);"
         "            result.error = e.message;"
         "        }"
         "    } else {"
-        "        console.log('在局❌ [桥接初始化] 无法触发pageReady - 环境未就绪');"
         "        result.error = 'environment_not_ready';"
         ""
         "        // 最后的备用方案：模拟pageReady事件"
-        "        console.log('在局🔄 [桥接初始化] 尝试触发自定义pageReady事件');"
         "        var event = new CustomEvent('pageReady', {detail: {manual: true}});"
         "        window.dispatchEvent(event);"
         "        result.fallback = 'custom_event';"
         "    }"
         "} else {"
-        "    console.log('在局⚠️ [桥接初始化] pageReady已经被调用过，跳过');"
         "    result.skipped = true;"
         "}"
         ""
@@ -2627,7 +2693,7 @@ static inline BOOL isIPhoneXSeries() {
                     NSLog(@"在局🔍 [JavaScript回调调试] app.tips测试结果: %@", result ?: @"测试失败");
                     
                     // 5. 手动测试一个简单的app.request调用
-                    [self safelyEvaluateJavaScript:@"try { if(typeof app !== 'undefined' && typeof app.request === 'function') { app.request('//test/callback', {}, function(res) { console.log('手动测试回调成功:', res); app.tips('手动测试回调成功!'); }); return 'app.request手动测试已发起'; } else { return 'app.request不可用'; } } catch(e) { return 'app.request手动测试失败: ' + e.message; }" completionHandler:^(id result, NSError *error) {
+                    [self safelyEvaluateJavaScript:@"try { if(typeof app !== 'undefined' && typeof app.request === 'function') { app.request('//test/callback', {}, function(res) { app.tips('手动测试回调成功!'); }); return 'app.request手动测试已发起'; } else { return 'app.request不可用'; } } catch(e) { return 'app.request手动测试失败: ' + e.message; }" completionHandler:^(id result, NSError *error) {
                         NSLog(@"在局🔍 [JavaScript回调调试] app.request手动测试: %@", result ?: @"测试失败");
                         
                         // 6. 检查是否有JavaScript错误
@@ -2657,8 +2723,17 @@ static inline BOOL isIPhoneXSeries() {
     
     // 检查navigation delegate是否正常
     if (!self.webView.navigationDelegate) {
-        NSLog(@"在局⚠️ [健康检查] navigationDelegate丢失，重新设置");
-        self.webView.navigationDelegate = self.bridge;
+        NSLog(@"在局❌ [健康检查] navigationDelegate丢失！这表明Bridge有严重问题");
+        if (self.bridge) {
+            NSLog(@"在局⚠️ [健康检查] Bridge存在但delegate丢失，这不应该发生");
+            // 不要手动设置delegate，Bridge应该自己管理
+            // 记录这个异常情况，但让Bridge自己处理
+        } else {
+            NSLog(@"在局❌ [健康检查] Bridge不存在，需要重新创建桥接");
+            [self setupJavaScriptBridge];
+        }
+    } else {
+        NSLog(@"在局✅ [健康检查] navigationDelegate正常: %@", self.webView.navigationDelegate);
     }
     
     // 检查WebView是否在视图层级中
@@ -2841,8 +2916,24 @@ static inline BOOL isIPhoneXSeries() {
         }
         
         // 创建新的桥接
+        NSLog(@"在局 🔧 [JavaScript桥接] 创建WKWebViewJavascriptBridge...");
         self.bridge = [WKWebViewJavascriptBridge bridgeForWebView:(WKWebView *)self.webView];
+        
+        if (!self.bridge) {
+            NSLog(@"在局 ❌ [JavaScript桥接] Bridge创建失败！");
+            return;
+        }
+        
+        NSLog(@"在局 🔧 [JavaScript桥接] 设置WebViewDelegate为self");
         [self.bridge setWebViewDelegate:self];
+        
+        // 验证Bridge是否正确设置为navigationDelegate
+        NSLog(@"在局 🔍 [JavaScript桥接] 验证delegate设置 - navigationDelegate: %@", self.webView.navigationDelegate);
+        if (self.webView.navigationDelegate != self.bridge) {
+            NSLog(@"在局 ❌ [JavaScript桥接] delegate设置异常！期望: %@, 实际: %@", self.bridge, self.webView.navigationDelegate);
+        } else {
+            NSLog(@"在局 ✅ [JavaScript桥接] navigationDelegate设置正确");
+        }
         
         // 设置桥接处理器
         __weak typeof(self) weakSelf = self;
@@ -2881,8 +2972,8 @@ static inline BOOL isIPhoneXSeries() {
         
         NSLog(@"在局 ✅ [JavaScript桥接] 桥接设置完成，已注册3个处理器: xzBridge, pageReady, bridgeTest");
         
-        // 验证桥接是否正常工作
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // 验证桥接是否正常工作，增加延迟以适应Release版本
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self verifyBridgeSetup];
         });
     } else {
@@ -2938,14 +3029,12 @@ static inline BOOL isIPhoneXSeries() {
     // 这里可以手动注入必要的JavaScript代码来确保桥接正常工作
     NSString *bridgeInitScript = @"(function(){"
         "if (window.WebViewJavascriptBridge) {"
-        "    console.log('在局 ✅ [桥接注入] WebViewJavascriptBridge已存在');"
         "    return 'already_exists';"
         "} else {"
-        "    console.log('在局 ⚠️ [桥接注入] WebViewJavascriptBridge不存在，等待自动注入');"
         "    // WKWebViewJavascriptBridge会自动注入，这里只是触发检查"
         "    if (window.WVJBCallbacks) {"
         "        window.WVJBCallbacks.push(function(bridge) {"
-        "            console.log('在局 ✅ [桥接注入] 桥接回调触发');"
+        "            // 桥接回调触发"
         "        });"
         "    }"
         "    return 'waiting_for_injection';"
@@ -3062,8 +3151,8 @@ static inline BOOL isIPhoneXSeries() {
         self.healthCheckTimer = nil;
     }
     
-    // 设置3秒超时监控
-    self.healthCheckTimer = [NSTimer scheduledTimerWithTimeInterval:3.0
+    // 设置5秒超时监控（增加时间以适应Release版本）
+    self.healthCheckTimer = [NSTimer scheduledTimerWithTimeInterval:5.0
                                                              target:self
                                                            selector:@selector(checkPageLoadStatus)
                                                            userInfo:nil
@@ -3079,22 +3168,16 @@ static inline BOOL isIPhoneXSeries() {
         
         // 手动触发pageReady
         [self safelyEvaluateJavaScript:@"(function(){"
-            "console.log('在局🔥 [手动触发] 准备手动触发pageReady');"
             "if (window.webViewCall && typeof window.webViewCall === 'function') {"
-            "    console.log('在局✅ [手动触发] 找到webViewCall，执行pageReady');"
             "    window.webViewCall('pageReady');"
             "    return 'pageReady_triggered';"
             "} else if (window.WebViewJavascriptBridge && window.WebViewJavascriptBridge.callHandler) {"
-            "    console.log('在局✅ [手动触发] 使用WebViewJavascriptBridge触发pageReady');"
             "    window.WebViewJavascriptBridge.callHandler('xzBridge', {action:'pageReady', data:{}});"
             "    return 'pageReady_via_bridge';"
             "} else {"
-            "    console.log('在局❌ [手动触发] 无法触发pageReady，JavaScript环境未就绪');"
             "    // 尝试重新初始化桥接"
             "    if (window.wx && window.wx.app && window.wx.app.connect) {"
-            "        console.log('在局🔄 [手动触发] 尝试重新初始化桥接');"
             "        window.wx.app.connect(function() {"
-            "            console.log('在局✅ [手动触发] 桥接重新初始化成功');"
             "            if (window.webViewCall) {"
             "                window.webViewCall('pageReady');"
             "            }"
