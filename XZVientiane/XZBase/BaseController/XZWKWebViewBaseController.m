@@ -1296,9 +1296,23 @@ static inline BOOL isIPhoneXSeries() {
         // 停止任何正在进行的加载
         [self.webView stopLoading];
         
-        // 使用单层dispatch_async确保在主线程执行，避免嵌套问题
+        // 直接数据模式也增加详细的dispatch追踪
+        NSLog(@"在局🎯 [DISPATCH-DEBUG-DIRECT] 准备提交dispatch_async任务到主队列");
+        
+        static int directDispatchTaskId = 1000;
+        int currentDirectTaskId = ++directDispatchTaskId;
+        NSLog(@"在局🎯 [DISPATCH-DEBUG-DIRECT] 创建直接数据模式任务ID: %d", currentDirectTaskId);
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            NSLog(@"在局🚀 [直接数据模式] 主队列中开始loadHTMLString");
+            NSLog(@"在局🔥🔥🔥 [DISPATCH-DEBUG-DIRECT] ===== 直接数据模式 dispatch回调开始执行！任务ID: %d =====", currentDirectTaskId);
+            
+            // 检查self和WebView状态
+            if (!self || !self.webView) {
+                NSLog(@"在局❌ [DISPATCH-DEBUG-DIRECT] self或WebView已释放！任务ID: %d", currentDirectTaskId);
+                return;
+            }
+            
+            NSLog(@"在局🚀 [直接数据模式] 主队列中开始loadHTMLString - 任务ID: %d", currentDirectTaskId);
             
             // 对于第二个Tab，启动加载监控
             if (self.tabBarController && self.tabBarController.selectedIndex > 0) {
@@ -1307,12 +1321,40 @@ static inline BOOL isIPhoneXSeries() {
             }
             
             // 直接使用loadHTMLString:baseURL:方法
-            NSLog(@"在局🚀 [直接数据模式] 即将调用loadHTMLString，HTML长度: %lu", (unsigned long)allHtmlStr.length);
-            [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
-            NSLog(@"在局🚀 [直接数据模式] loadHTMLString调用完成，等待navigation delegate...");
+            NSLog(@"在局🚀 [直接数据模式] 即将调用loadHTMLString，HTML长度: %lu - 任务ID: %d", (unsigned long)allHtmlStr.length, currentDirectTaskId);
+            
+            @try {
+                [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
+                NSLog(@"在局✅ [DISPATCH-DEBUG-DIRECT] loadHTMLString调用成功完成！任务ID: %d", currentDirectTaskId);
+            } @catch (NSException *exception) {
+                NSLog(@"在局💥 [DISPATCH-DEBUG-DIRECT] loadHTMLString调用异常！任务ID: %d, 异常: %@", currentDirectTaskId, exception);
+            }
+            
+            NSLog(@"在局🚀 [直接数据模式] loadHTMLString调用完成，等待navigation delegate... - 任务ID: %d", currentDirectTaskId);
             
             // 启动定时器监控页面加载
             [self startPageLoadMonitor];
+            
+            NSLog(@"在局🔥🔥🔥 [DISPATCH-DEBUG-DIRECT] ===== 直接数据模式 dispatch回调执行完成！任务ID: %d =====", currentDirectTaskId);
+        });
+        
+        NSLog(@"在局🎯 [DISPATCH-DEBUG-DIRECT] 直接数据模式 dispatch_async任务已提交，任务ID: %d", currentDirectTaskId);
+        
+        // 直接数据模式也增加fallback机制
+        NSLog(@"在局🕰️ [FALLBACK-DIRECT] 设置3秒fallback机制以防直接数据模式dispatch未执行");
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (self && self.webView && !self.isWebViewLoading) {
+                NSLog(@"在局⚠️ [FALLBACK-DIRECT] 3秒后检查发现WebView仍未开始加载，执行直接数据模式fallback");
+                
+                @try {
+                    [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
+                    NSLog(@"在局✅ [FALLBACK-DIRECT] 直接数据模式 Fallback loadHTMLString调用成功");
+                } @catch (NSException *exception) {
+                    NSLog(@"在局💥 [FALLBACK-DIRECT] 直接数据模式 Fallback loadHTMLString异常: %@", exception);
+                }
+            } else {
+                NSLog(@"在局✅ [FALLBACK-DIRECT] 3秒检查：直接数据模式WebView已开始加载或self已释放，无需fallback");
+            }
         });
     } else {
         // 使用CustomHybridProcessor处理
@@ -1509,6 +1551,25 @@ static inline BOOL isIPhoneXSeries() {
                 });
                 
                 NSLog(@"在局🎯 [DISPATCH-DEBUG] dispatch_async任务已提交，任务ID: %d", currentTaskId);
+                
+                // Release版本fallback机制：如果dispatch在短时间内未执行，直接在主线程调用
+                NSLog(@"在局🕰️ [FALLBACK] 设置3秒fallback机制以防dispatch未执行");
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    // 检查是否已经成功调用loadHTMLString（通过检查WebView的loading状态）
+                    if (self && self.webView && !self.isWebViewLoading) {
+                        NSLog(@"在局⚠️ [FALLBACK] 3秒后检查发现WebView仍未开始加载，执行fallback");
+                        NSLog(@"在局🆘 [FALLBACK] 直接在主线程调用loadHTMLString作为fallback");
+                        
+                        @try {
+                            [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
+                            NSLog(@"在局✅ [FALLBACK] Fallback loadHTMLString调用成功");
+                        } @catch (NSException *exception) {
+                            NSLog(@"在局💥 [FALLBACK] Fallback loadHTMLString异常: %@", exception);
+                        }
+                    } else {
+                        NSLog(@"在局✅ [FALLBACK] 3秒检查：WebView已开始加载或self已释放，无需fallback");
+                    }
+                });
                 
                 // 延迟测试JavaScript桥接是否正常工作
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
