@@ -27,7 +27,7 @@ DEF_SINGLETON(XZPackageH5)
 //        @"https://test.mendianquan.com/p/useTicket/list/list",
 //                      @"https://test.mendianquan.com/p/message/list/list",
 //                      @"https://test.mendianquan.com/p/user/me/me",
-                      @"https://m.caiwel.com/p/home/index/index"];
+	];
     }
     return _ulrArray;
 }

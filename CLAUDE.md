@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **App Name**: 在局 (XZVientiane)
 - **Platform**: iOS (Objective-C)
 - **Bundle ID**: cc.tuiya.hi3
-- **Current Version**: 1.0.9 (Build: 202507290123)
+- **Current Version**: 1.0.9 (Build: 202507292207)
 - **Team ID**: PCRMMV2NNZ
 - **Xcode Workspace**: XZVientiane.xcworkspace
 - **Minimum iOS Version**: 15.0

@@ -10,6 +10,7 @@
 #import "HTMLWebViewController.h"
 #import "../../ThirdParty/WKWebViewJavascriptBridge/WKWebViewJavascriptBridge.h"
 #import <objc/runtime.h>
+#import "UIColor+addition.h"
 //model
 #import "XZOrderModel.h"
 #import "ClientSettingModel.h"
@@ -337,7 +338,6 @@ static inline BOOL isIPhoneXSeries() {
 //        STRONG_SELF;
 //        if (!self) return;
 //        
-//        NSLog(@"在局🔥 [CFJClientH5Controller] 收到网络权限恢复通知，强制重新加载页面");
 //        
 //        // 只处理首页（第一个Tab）
 //        if (self.tabBarController.selectedIndex == 0) {
@@ -471,7 +471,6 @@ static inline BOOL isIPhoneXSeries() {
     
     // 防止重复执行
     if (self.delayedUIOperationsExecuted) {
-        NSLog(@"在局 ⚠️ [CFJClientH5Controller] UI操作已执行，跳过");
         return;
     }
     self.delayedUIOperationsExecuted = YES;
@@ -506,9 +505,13 @@ static inline BOOL isIPhoneXSeries() {
     if ([self isHaveNativeHeader:self.pinUrl]) {
         NSLog(@"在局 ✨ [CFJClientH5Controller] 隐藏导航栏");
         [self.navigationController setNavigationBarHidden:YES animated:NO];
+        // 更新状态栏样式
+        [self setNeedsStatusBarAppearanceUpdate];
     } else {
         NSLog(@"在局 ✨ [CFJClientH5Controller] 显示导航栏");
         [self.navigationController setNavigationBarHidden:NO animated:NO];
+        // 更新状态栏样式
+        [self setNeedsStatusBarAppearanceUpdate];
     }
     
     // 隐藏导航条黑线
@@ -537,23 +540,40 @@ static inline BOOL isIPhoneXSeries() {
     
     // 导航栏样式设置
     NSString *statusBarBackgroundColor = [[NSUserDefaults standardUserDefaults] objectForKey:@"StatusBarBackgroundColor"];
+    
+    // 设置导航栏背景色
     if (bgColor && bgColor.length) {
         self.navigationController.navigationBar.barTintColor = [UIColor colorWithHexString:bgColor];
-    } else {
+    } else if (statusBarBackgroundColor && statusBarBackgroundColor.length) {
         self.navigationController.navigationBar.barTintColor = [UIColor colorWithHexString:statusBarBackgroundColor];
+    } else {
+        // 默认设置白色背景
+        self.navigationController.navigationBar.barTintColor = [UIColor whiteColor];
     }
+    
+    // 设置导航栏前景色（返回按钮、标题等）
     if (color && color.length) {
         self.navigationController.navigationBar.tintColor = [UIColor colorWithHexString:color];
         self.navigationController.navigationBar.titleTextAttributes = [NSDictionary dictionaryWithObject:[UIColor colorWithHexString:color] forKey:NSForegroundColorAttributeName];
     } else {
-        if ([statusBarBackgroundColor isEqualToString:@"#000000"] || [statusBarBackgroundColor isEqualToString:@"black"]) {
+        // 根据背景色自动选择前景色
+        NSString *effectiveBgColor = (bgColor && bgColor.length) ? bgColor : statusBarBackgroundColor;
+        if ([effectiveBgColor isEqualToString:@"#000000"] || [effectiveBgColor isEqualToString:@"black"]) {
+            // 如果背景是黑色，使用白色前景
             self.navigationController.navigationBar.tintColor = [UIColor whiteColor];
             self.navigationController.navigationBar.titleTextAttributes = [NSDictionary dictionaryWithObject:[UIColor whiteColor] forKey:NSForegroundColorAttributeName];
         } else {
+            // 其他情况（包括白色背景、无背景色等）都使用黑色前景，确保返回按钮可见
             self.navigationController.navigationBar.tintColor = [UIColor blackColor];
             self.navigationController.navigationBar.titleTextAttributes = [NSDictionary dictionaryWithObject:[UIColor blackColor] forKey:NSForegroundColorAttributeName];
         }
     }
+    
+    NSLog(@"在局 🎨 [导航栏样式] bgColor: %@, color: %@, statusBarBgColor: %@, 最终tintColor: %@", 
+          bgColor ?: @"nil", 
+          color ?: @"nil", 
+          statusBarBackgroundColor ?: @"nil",
+          self.navigationController.navigationBar.tintColor);
     
     // TabBar显示控制
     NSArray *arrController = self.navigationController.viewControllers;
@@ -583,7 +603,6 @@ static inline BOOL isIPhoneXSeries() {
 - (void)viewDidAppear:(BOOL)animated {
     // iOS 18紧急修复：防止重复调用
     if (self.viewDidAppearCalled) {
-        NSLog(@"在局⚠️ [viewDidAppear] 已经被调用过，跳过重复执行");
         return;
     }
     self.viewDidAppearCalled = YES;
@@ -591,7 +610,6 @@ static inline BOOL isIPhoneXSeries() {
     // iOS 16-18修复：标记UI操作已执行
     self.delayedUIOperationsExecuted = YES;
     
-    NSLog(@"在局 🎉🎉🎉 [CFJClientH5Controller] ===== viewDidAppear 终于被调用了！=====");
     NSLog(@"在局 ✨ [CFJClientH5Controller] viewDidAppear开始 - animated: %d", animated);
     NSLog(@"在局 ✨ [CFJClientH5Controller] 时间戳: %@", [NSDate date]);
     NSLog(@"在局 ✨ [CFJClientH5Controller] 主线程检查: %@", [NSThread isMainThread] ? @"是主线程" : @"不是主线程");
@@ -675,11 +693,25 @@ static inline BOOL isIPhoneXSeries() {
     if (self.cancelSignal) {
         self.cancelSignal();
     }
+    
+    // 检查是否正在被pop（包括手势返回）
     NSArray *viewControllers = self.navigationController.viewControllers;//获取当前的视图控制其
     if ([viewControllers indexOfObject:self] == NSNotFound) {
+        NSLog(@"在局 🔄 [CFJClientH5Controller] 检测到页面正在被移除（可能是手势返回）");
+        
         //页面卸载
         NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageUnload" data:nil];
         [self objcCallJs:callJsDic];
+        
+        // 如果是内页，确保WebView被正确清理
+        if (self.navigationController.viewControllers.count > 0 && self.pinUrl && self.pinUrl.length > 0) {
+            NSLog(@"在局 🧹 [CFJClientH5Controller] 清理内页WebView资源");
+            // 停止加载
+            if (self.webView) {
+                [self.webView stopLoading];
+                self.webView.navigationDelegate = nil;
+            }
+        }
     }
     else {
         //页面隐藏
@@ -698,14 +730,8 @@ static inline BOOL isIPhoneXSeries() {
 }
 
 - (void)viewDidLoad {
-    NSLog(@"在局 🚀 [CFJClientH5Controller] viewDidLoad开始");
-    NSLog(@"在局 🚀 [CFJClientH5Controller] self: %@", self);
-    NSLog(@"在局 🚀 [CFJClientH5Controller] navigationController: %@", self.navigationController);
     
     [super viewDidLoad];
-    NSLog(@"在局 🚀 [CFJClientH5Controller] super viewDidLoad调用完成");
-    NSLog(@"在局 🚀 [CFJClientH5Controller] viewDidLoad - tabIndex: %ld, url: %@", 
-          (long)self.tabBarController.selectedIndex, self.pinUrl);
     
     if (self.isCheck) {
         self.JFlocationManager = [[JFLocation alloc] init];
@@ -754,28 +780,26 @@ static inline BOOL isIPhoneXSeries() {
 #pragma mark - 导航条处理
 
 - (void)setUpNavWithDic:(NSDictionary *)dic {
-    self.navigationController.navigationBar.tintColor = [UIColor whiteColor];
+    // 先清空之前的颜色设置，避免复用问题
+    color = nil;
+    bgColor = nil;
+    
     if (self.navigationController.childViewControllers.count >= 1) {
         UIBarButtonItem *backButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"" style:UIBarButtonItemStylePlain target:nil action:nil];
         [self.navigationItem setBackBarButtonItem:backButtonItem];
     }
+    
     NSDictionary *Dic = [dic objectForKey:@"nav"];
     color = [dic objectForKey:@"textColor"];
     bgColor = [dic objectForKey:@"navBgcolor"];
     NSDictionary *leftDic = [Dic objectForKey:@"leftItem"];
     NSDictionary *rightDic = [Dic objectForKey:@"rightItem"];
     NSDictionary *middleDic = [Dic objectForKey:@"middleItem"];
-    //todo 待修改
-    if (color && color.length) {
-        self.navigationController.navigationBar.titleTextAttributes = [NSDictionary dictionaryWithObject:[UIColor colorWithHexString:color] forKey:NSForegroundColorAttributeName];
-        self.navigationController.navigationBar.tintColor = [UIColor colorWithHexString:color];
-    }
-    if (bgColor && bgColor.length) {
-        self.navigationController.navigationBar.barTintColor = [UIColor colorWithHexString:bgColor];
-    } else {
-        NSString *statusBarBackgroundColor = [[NSUserDefaults standardUserDefaults] objectForKey:@"StatusBarBackgroundColor"];
-        self.navigationController.navigationBar.barTintColor = [UIColor colorWithHexString:statusBarBackgroundColor];
-    }
+    
+    NSLog(@"在局 🎨 [setUpNavWithDic] 设置导航栏配置 - color: %@, bgColor: %@", color ?: @"nil", bgColor ?: @"nil");
+    
+    // 注意：实际的导航栏颜色设置将在 performDelayedUIOperations 中执行
+    // 这里只是保存配置，避免重复设置导致的问题
     if (leftDic) {
         if (![[leftDic objectForKey:@"buttonPicture"] length] && ![[leftDic objectForKey:@"text"] length]){
             UIBarButtonItem *backButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"" style:UIBarButtonItemStylePlain target:nil action:nil];
@@ -1054,17 +1078,12 @@ static inline BOOL isIPhoneXSeries() {
 
 //页面出现
 - (void)viewWillAppear:(BOOL)animated {
-    NSLog(@"在局 🌟 [CFJClientH5Controller] viewWillAppear开始 - animated: %d", animated);
-    NSLog(@"在局 🌟 [CFJClientH5Controller] self: %@", self);
-    NSLog(@"在局 🌟 [CFJClientH5Controller] navigationController: %@", self.navigationController);
-    NSLog(@"在局 🌟 [CFJClientH5Controller] viewControllers.count: %lu", (unsigned long)self.navigationController.viewControllers.count);
     
     // iOS 18修复：重置viewDidAppear标志
     self.viewDidAppearCalled = NO;
     
     // iOS 18修复：确保视图转场正常
     [super viewWillAppear:animated];
-    NSLog(@"在局 🌟 [CFJClientH5Controller] super viewWillAppear调用完成");
     
     // iOS 16-18修复：处理viewDidAppear延迟问题
     // 问题：iOS 16-18中，TabBar切换和手势返回时viewDidAppear可能有延迟
@@ -1082,24 +1101,16 @@ static inline BOOL isIPhoneXSeries() {
         });
     }
     
-    NSLog(@"在局 🌟 [CFJClientH5Controller] viewWillAppear - tabIndex: %ld, url: %@", 
-          (long)self.tabBarController.selectedIndex, self.pinUrl);
     
     // 检查view的状态
-    NSLog(@"在局 🌟 [CFJClientH5Controller] view是否加载: %@", self.isViewLoaded ? @"YES" : @"NO");
-    NSLog(@"在局 🌟 [CFJClientH5Controller] view.window: %@", self.view.window);
-    NSLog(@"在局 🌟 [CFJClientH5Controller] presentingViewController: %@", self.presentingViewController);
-    NSLog(@"在局 🌟 [CFJClientH5Controller] presentedViewController: %@", self.presentedViewController);
     
     // 检查转场协调器 - 移除可能导致问题的动画监听
     if (self.transitionCoordinator) {
-        NSLog(@"在局 🌟 [CFJClientH5Controller] 存在转场协调器，跳过复杂操作");
     }
     
     // 确保系统的返回手势是启用的
     if (self.navigationController && self.navigationController.viewControllers.count > 1) {
         self.navigationController.interactivePopGestureRecognizer.enabled = YES;
-        NSLog(@"在局 🌟 [CFJClientH5Controller] 启用返回手势");
     }
     
     // 🚨 紧急修复：不要在viewWillAppear中做任何可能阻塞的操作
@@ -1107,44 +1118,29 @@ static inline BOOL isIPhoneXSeries() {
     
     // 延迟到viewDidAppear后设置圆角，避免影响Tab切换动画
     if (!(self.pushType == isPushNormal)) {
-        NSLog(@"在局 🌟 [CFJClientH5Controller] 将在viewDidAppear后设置WebView圆角");
     }
 
 #pragma mark ----- 隐藏某些页面（延迟到viewDidAppear）
     // 延迟所有UI操作到viewDidAppear，确保Tab切换动画流畅
-    NSLog(@"在局 🌟 [CFJClientH5Controller] 所有UI操作将延迟到viewDidAppear执行");
     
     // TabBar处理也延迟到viewDidAppear
-    NSLog(@"在局 🌟 [CFJClientH5Controller] TabBar显示控制将延迟到viewDidAppear");
     
     // 添加关键诊断信息
-    NSLog(@"在局 🔍 [viewWillAppear] 即将结束 - 开始诊断");
-    NSLog(@"在局 🔍 [viewWillAppear] 主线程检查: %@", [NSThread isMainThread] ? @"是主线程" : @"不是主线程");
-    NSLog(@"在局 🔍 [viewWillAppear] 视图加载状态: %@", self.isViewLoaded ? @"已加载" : @"未加载");
-    NSLog(@"在局 🔍 [viewWillAppear] 视图窗口: %@", self.view.window ? @"有窗口" : @"无窗口");
-    NSLog(@"在局 🔍 [viewWillAppear] 导航控制器: %@", self.navigationController ? @"存在" : @"不存在");
     
     // 检查动画状态
     if (self.navigationController) {
-        NSLog(@"在局 🔍 [viewWillAppear] 导航控制器视图图层动画数量: %lu", (unsigned long)self.navigationController.view.layer.animationKeys.count);
-        NSLog(@"在局 🔍 [viewWillAppear] 导航控制器viewControllers数量: %lu", (unsigned long)self.navigationController.viewControllers.count);
     }
     
     // 检查TabBar控制器状态
     if (self.tabBarController) {
-        NSLog(@"在局 🔍 [viewWillAppear] TabBar选中索引: %ld", (long)self.tabBarController.selectedIndex);
-        NSLog(@"在局 🔍 [viewWillAppear] TabBar视图控制器数量: %lu", (unsigned long)self.tabBarController.viewControllers.count);
-        NSLog(@"在局 🔍 [viewWillAppear] TabBar转场状态: %@", self.tabBarController.transitionCoordinator ? @"正在转场" : @"无转场");
     }
     
     // 强制主线程调度检查
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSLog(@"在局 🔍 [viewWillAppear] 延迟检查 - viewDidAppear是否会被调用...");
     });
     
     // 简化流程：不在viewWillAppear中创建WebView，等待viewDidAppear自然调用
     
-    NSLog(@"在局 ✅ [viewWillAppear] 方法即将完成返回");
     
     // iOS 18紧急修复：统一在上面的逻辑中处理，删除重复代码
 }
@@ -1171,7 +1167,6 @@ static inline BOOL isIPhoneXSeries() {
     NSString *function = [jsDic objectForKey:@"action"];
     NSDictionary *dataDic = [jsDic objectForKey:@"data"];
     
-    NSLog(@"在局🎯 [handleJavaScriptCall] 被调用，function: %@", function);
     
     // 优先处理网络请求
     if ([function isEqualToString:@"request"]) {
@@ -1292,22 +1287,16 @@ static inline BOOL isIPhoneXSeries() {
     
     //跳转
        if ([function isEqualToString:@"navigateTo"]) {
-           NSLog(@"在局🎯 [navigateTo] 开始处理导航请求");
            
            // 检查当前线程
            if (![NSThread isMainThread]) {
-               NSLog(@"在局⚠️ [navigateTo] 不在主线程，切换到主线程");
            }
            
            dispatch_async(dispatch_get_main_queue(), ^{
                NSString * Url = (NSString *)dataDic;
-               NSLog(@"在局📍 [navigateTo] 原始URL: %@", Url);
-               NSLog(@"在局📍 [navigateTo] 当前navigationController: %@", self.navigationController);
-               NSLog(@"在局📍 [navigateTo] 当前viewControllers数量: %lu", (unsigned long)self.navigationController.viewControllers.count);
                
                if (![Url containsString:@"https://"]) {
                    Url = [NSString stringWithFormat:@"%@%@", JDomain, Url];
-                   NSLog(@"在局📍 [navigateTo] 拼接后的URL: %@", Url);
                }
                
                // 检查是否为配置域名的内部链接
@@ -1320,7 +1309,6 @@ static inline BOOL isIPhoneXSeries() {
                    configuredDomain = @"zaiju.com";
                    isInternalLink = [Url containsString:configuredDomain];
                }
-               NSLog(@"在局📍 [navigateTo] 配置域名: %@, 是否内部链接: %d", configuredDomain, isInternalLink);
                
                if (!isInternalLink) {
                    // 外部链接，直接用HTMLWebViewController加载
@@ -1329,13 +1317,10 @@ static inline BOOL isIPhoneXSeries() {
                    htmlWebVC.webViewDomain = Url;
                    htmlWebVC.hidesBottomBarWhenPushed = YES;
                    
-                   NSLog(@"在局🚀 [navigateTo] 准备push HTMLWebViewController");
                    [self.navigationController pushViewController:htmlWebVC animated:YES];
                    
                    // 监听push完成
                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                       NSLog(@"在局✅ [navigateTo] HTMLWebViewController push应该已完成");
-                       NSLog(@"在局📍 [navigateTo] push后viewControllers数量: %lu", (unsigned long)self.navigationController.viewControllers.count);
                    });
                    return;
                }
@@ -1347,16 +1332,11 @@ static inline BOOL isIPhoneXSeries() {
                                                    componentJsAndCs:self.ComponentJsAndCs
                                                        componentDic:self.ComponentDic
                                                             success:^(NSString * _Nonnull filePath, NSString * _Nonnull templateStr, NSString * _Nonnull title, BOOL isFileExsit) {
-                   NSLog(@"在局🔍 [navigateTo] 处理结果 - 文件路径: %@, 标题: %@, 是否存在: %d", filePath, title, isFileExsit);
                    if (isFileExsit) {
-                       NSLog(@"在局🚀 [navigateTo] 创建新的CFJClientH5Controller");
                        CFJClientH5Controller *appH5VC = [[CFJClientH5Controller alloc] initWithNibName:nil bundle:nil];
                        appH5VC.hidesBottomBarWhenPushed = YES;
                        
                        // 调试pinDataStr内容
-                       NSLog(@"在局📋 [navigateTo] templateStr长度: %lu", (unsigned long)templateStr.length);
-                       NSLog(@"在局📋 [navigateTo] templateStr前100字符: %@", templateStr.length > 100 ? [templateStr substringToIndex:100] : templateStr);
-                       NSLog(@"在局📋 [navigateTo] templateStr是否为空: %@", templateStr.length == 0 ? @"YES" : @"NO");
                        
                        // 设置内页属性
                        appH5VC.pinUrl = Url; // 使用完整URL
@@ -1364,10 +1344,8 @@ static inline BOOL isIPhoneXSeries() {
                        
                        // 检查templateStr是否有效
                        if (templateStr && templateStr.length > 0) {
-                           NSLog(@"在局✅ [navigateTo] templateStr有效，设置pinDataStr");
                            appH5VC.pinDataStr = templateStr; // 设置HTML内容
                        } else {
-                           NSLog(@"在局⚠️ [navigateTo] templateStr为空，内页将走CustomHybridProcessor重新加载");
                        }
                        
                        appH5VC.pagetitle = title;
@@ -1375,11 +1353,7 @@ static inline BOOL isIPhoneXSeries() {
                        // 设置templateStr属性，供内页使用
                        appH5VC.templateStr = templateStr;
                        
-                       NSLog(@"在局📋 [navigateTo] 设置内页属性完成");
                        
-                       NSLog(@"在局📋 [navigateTo] 设置属性完成，准备push");
-                       NSLog(@"在局📋 [navigateTo] pinUrl: %@", appH5VC.pinUrl);
-                       NSLog(@"在局📋 [navigateTo] pagetitle: %@", appH5VC.pagetitle);
                        
                        // 检查navigationController是否正常
                        if (!self.navigationController) {
@@ -1388,11 +1362,9 @@ static inline BOOL isIPhoneXSeries() {
                        }
                        
                        // 执行push
-                       NSLog(@"在局🚀 [navigateTo] 开始push动画");
                        
                        // 检查当前是否在执行动画
                        if (self.navigationController.view.layer.animationKeys.count > 0) {
-                           NSLog(@"在局⚠️ [navigateTo] 导航控制器正在执行动画，延迟push");
                            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                                [self.navigationController pushViewController:appH5VC animated:YES];
                            });
@@ -1412,10 +1384,7 @@ static inline BOOL isIPhoneXSeries() {
                        
                        // 监听push完成
                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                           NSLog(@"在局✅ [navigateTo] CFJClientH5Controller push应该已完成");
-                           NSLog(@"在局📍 [navigateTo] push后viewControllers数量: %lu", (unsigned long)self.navigationController.viewControllers.count);
-                           NSLog(@"在局📍 [navigateTo] 最新的viewController: %@", self.navigationController.viewControllers.lastObject);
-                       });
+                           });
                    } else {
                        if ([filePath containsString:@"http"]) {
                            HTMLWebViewController *htmlWebVC = [[HTMLWebViewController alloc] init];
@@ -1461,14 +1430,11 @@ static inline BOOL isIPhoneXSeries() {
     }
     //返回首页(目前处理返回顶层控制器)
     if ([function isEqualToString:@"reLaunch"]) {
-        NSLog(@"在局🎯 [reLaunch] 被调用，数据: %@", dataDic);
         dispatch_async(dispatch_get_main_queue(), ^{
             // 在TabBar应用中，应该切换到第一个Tab（首页）
             if (self.tabBarController) {
-                NSLog(@"在局🎯 [reLaunch] 切换到TabBar第0个Tab（首页）");
                 self.tabBarController.selectedIndex = 0; // 切换到首页
             } else {
-                NSLog(@"在局🎯 [reLaunch] 使用popToRootViewController");
                 // 如果不是TabBar应用，则使用原来的逻辑
                 [self.navigationController popToRootViewControllerAnimated:YES];
             }
@@ -1761,7 +1727,6 @@ static inline BOOL isIPhoneXSeries() {
         return;
     }
     if ([function isEqualToString:@"weixinLogin"]) {
-        NSLog(@"在局🔑 [微信登录] 开始微信登录流程");
         self.webviewBackCallBack = completion;
         
         // 不要立即返回成功，而是等待微信授权完成
@@ -1980,18 +1945,15 @@ static inline BOOL isIPhoneXSeries() {
                                addressName = regeocode.formattedAddress.length > 0 ? regeocode.formattedAddress : cityName;
                            } else {
                                // 逆地理编码失败，可能在海外或模拟器
-                               NSLog(@"在局⚠️ 逆地理编码失败，可能在海外或模拟器环境");
                                // 检查是否是模拟器的默认坐标（旧金山）
                                if (fabs(coordinate.latitude - 37.7858) < 0.01 && fabs(coordinate.longitude - (-122.4064)) < 0.01) {
                                    // 模拟器环境，提供测试数据
                                    cityName = @"北京市";
                                    addressName = @"北京市朝阳区";
-                                   NSLog(@"在局🧪 检测到模拟器环境，使用测试城市: %@", cityName);
                                } else if (fabs(coordinate.latitude - 24.612013) < 0.01 && fabs(coordinate.longitude - 118.048764) < 0.01) {
                                    // 检测到厦门坐标，直接使用
                                    cityName = @"厦门市";
                                    addressName = @"福建省厦门市";
-                                   NSLog(@"在局📍 使用默认城市: 厦门市");
                                } else {
                                    // 真实设备在海外，提示用户手动选择
                                    cityName = @"位置服务不可用";
@@ -2413,10 +2375,8 @@ static inline BOOL isIPhoneXSeries() {
 
 //第三方登录授权
 - (void)thirdLogin:(NSDictionary *)dic {
-    NSLog(@"在局🔑 [第三方登录] 开始第三方登录，类型: %@", dic);
     NSString *type = [dic objectForKey:@"type"];
     UMSocialPlatformType snsName = [self thirdPlatform:type];
-    NSLog(@"在局🔑 [第三方登录] 平台类型映射结果: %ld", (long)snsName);
     if(snsName == UMSocialPlatformType_UnKnown) {
         NSLog(@"在局❌ [第三方登录] 未知的平台类型，退出");
         return;
@@ -2424,7 +2384,6 @@ static inline BOOL isIPhoneXSeries() {
     NSString *dataType;
     if ([type isEqualToString:@"weixin"]) {
         dataType = @"1";
-        NSLog(@"在局🔑 [微信登录] 检查微信应用状态");
         
         // 检查微信是否安装
         if(![WXApi isWXAppInstalled]) {
@@ -2452,7 +2411,6 @@ static inline BOOL isIPhoneXSeries() {
             return;
         }
         
-        NSLog(@"在局✅ [微信登录] 微信应用检查通过");
     } else if ([type isEqualToString:@"qq"]) {
         dataType = @"2";
     } else if ([type isEqualToString:@"weibo"]) {
@@ -2461,8 +2419,6 @@ static inline BOOL isIPhoneXSeries() {
     NSString *deviceTokenStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"User_ChannelId"];
     deviceTokenStr = deviceTokenStr ? deviceTokenStr : @"";
     
-    NSLog(@"在局🔑 [微信登录] 准备调用UMSocialManager，平台: %ld, deviceToken: %@", (long)snsName, deviceTokenStr);
-    NSLog(@"在局🔑 [微信登录] 当前ViewController: %@", self);
     
     // 添加超时保护机制
     __block BOOL callbackExecuted = NO;
@@ -2484,11 +2440,9 @@ static inline BOOL isIPhoneXSeries() {
     
     [[UMSocialManager defaultManager] getUserInfoWithPlatform:snsName currentViewController:self completion:^(id result, NSError *error) {
         if (callbackExecuted) {
-            NSLog(@"在局⚠️ [微信登录] UMSocialManager回调已超时，忽略延迟回调");
             return;
         }
         callbackExecuted = YES;
-        NSLog(@"在局🔑 [微信登录] UMSocialManager回调 - error: %@, result: %@", error, result);
         
         NSString *message = nil;
         
@@ -2509,8 +2463,6 @@ static inline BOOL isIPhoneXSeries() {
         else{
             if ([result isKindOfClass:[UMSocialUserInfoResponse class]]) {
                 UMSocialUserInfoResponse *resp = result;
-                NSLog(@"在局✅ [微信登录] 成功获取微信用户信息 - openId: %@, unionId: %@, 昵称: %@", 
-                      resp.usid, resp.unionId, resp.name);
                 
                 NSDictionary *daraDic = @{
                     @"avatarUrl": resp.iconurl ?: @"",
@@ -2552,7 +2504,6 @@ static inline BOOL isIPhoneXSeries() {
 
 // 微信直接登录方法
 - (void)performWechatDirectLogin {
-    NSLog(@"在局🔑 [微信直接登录] 开始微信SDK直接授权");
     
     // 检查微信是否安装
     if(![WXApi isWXAppInstalled]) {
@@ -2591,11 +2542,9 @@ static inline BOOL isIPhoneXSeries() {
     req.scope = @"snsapi_userinfo";  // 获取用户信息权限
     req.state = [NSString stringWithFormat:@"wechat_login_%ld", (long)[[NSDate date] timeIntervalSince1970]];
     
-    NSLog(@"在局🔑 [微信直接登录] 发送授权请求，scope: %@, state: %@", req.scope, req.state);
     
     // 发送授权请求
     [WXApi sendReq:req completion:^(BOOL success) {
-        NSLog(@"在局🔑 [微信直接登录] 授权请求发送结果: %@", success ? @"成功" : @"失败");
         if (!success) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (self.webviewBackCallBack) {
@@ -2614,7 +2563,6 @@ static inline BOOL isIPhoneXSeries() {
 
 // 处理微信授权结果
 - (void)handleWechatAuthResult:(NSNotification *)notification {
-    NSLog(@"在局🔑 [微信授权结果] 收到微信授权结果通知: %@", notification.object);
     
     // 移除监听器
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"wechatAuthResult" object:nil];
@@ -2626,7 +2574,6 @@ static inline BOOL isIPhoneXSeries() {
         NSString *code = authResult[@"code"];
         NSString *state = authResult[@"state"];
         
-        NSLog(@"在局✅ [微信授权结果] 授权成功，准备获取用户信息，code: %@", code);
         
         // 使用code获取用户信息
         [self fetchWechatUserInfoWithCode:code state:state];
@@ -2642,7 +2589,6 @@ static inline BOOL isIPhoneXSeries() {
 
 // 使用code获取微信用户信息
 - (void)fetchWechatUserInfoWithCode:(NSString *)code state:(NSString *)state {
-    NSLog(@"在局🔑 [微信用户信息] 开始获取用户信息，code: %@", code);
     
     // 获取deviceToken
     NSString *deviceTokenStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"User_ChannelId"];
@@ -2654,7 +2600,6 @@ static inline BOOL isIPhoneXSeries() {
 
 // 获取微信access_token
 - (void)fetchWechatAccessTokenWithCode:(NSString *)code state:(NSString *)state deviceToken:(NSString *)deviceToken {
-    NSLog(@"在局🔑 [微信Access Token] 开始获取access_token，code: %@", code);
     
     // 从配置文件动态获取微信开放平台应用信息
     NSDictionary *shareConfig = [self getShareConfig];
@@ -2670,7 +2615,6 @@ static inline BOOL isIPhoneXSeries() {
     // 构造获取access_token的URL
     NSString *tokenURL = [NSString stringWithFormat:@"https://api.weixin.qq.com/sns/oauth2/access_token?appid=%@&secret=%@&code=%@&grant_type=authorization_code", appId, appSecret, code];
     
-    NSLog(@"在局🔗 [微信Access Token] 请求URL: %@", [tokenURL stringByReplacingOccurrencesOfString:appSecret withString:@"***"]);
     
     // 创建网络请求
     AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
@@ -2680,7 +2624,6 @@ static inline BOOL isIPhoneXSeries() {
     manager.requestSerializer.timeoutInterval = 30;
     
     [manager GET:tokenURL parameters:nil headers:nil progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
-        NSLog(@"在局✅ [微信Access Token] 获取access_token成功: %@", responseObject);
         
         NSString *accessToken = responseObject[@"access_token"];
         NSString *openId = responseObject[@"openid"];
@@ -2702,7 +2645,6 @@ static inline BOOL isIPhoneXSeries() {
 
 // 获取微信用户详细信息
 - (void)fetchWechatUserInfoWithAccessToken:(NSString *)accessToken openId:(NSString *)openId code:(NSString *)code state:(NSString *)state deviceToken:(NSString *)deviceToken {
-    NSLog(@"在局🔑 [微信用户详情] 开始获取用户详细信息，openId: %@", openId);
     
     // 构造获取用户信息的URL
     NSString *userInfoURL = [NSString stringWithFormat:@"https://api.weixin.qq.com/sns/userinfo?access_token=%@&openid=%@&lang=zh_CN", accessToken, openId];
@@ -2715,7 +2657,6 @@ static inline BOOL isIPhoneXSeries() {
     manager.requestSerializer.timeoutInterval = 30;
     
     [manager GET:userInfoURL parameters:nil headers:nil progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
-        NSLog(@"在局✅ [微信用户详情] 获取用户信息成功: %@", responseObject);
         
         // 解析用户信息
         NSString *nickname = responseObject[@"nickname"] ?: @"";
@@ -2775,7 +2716,6 @@ static inline BOOL isIPhoneXSeries() {
                 NSDictionary *jsonDict = [NSJSONSerialization JSONObjectWithData:JSONData options:NSJSONReadingAllowFragments error:&error];
                 if (!error && jsonDict[@"data"]) {
                     shareConfig = jsonDict[@"data"];
-                    NSLog(@"在局✅ [配置加载] 成功加载shareInfo.json配置");
                 } else {
                     NSLog(@"在局❌ [配置加载] 解析shareInfo.json失败: %@", error.localizedDescription);
                 }
@@ -2797,7 +2737,6 @@ static inline BOOL isIPhoneXSeries() {
     
     if (currentState == UIApplicationStateActive) {
         // App已经在前台，直接执行回调
-        NSLog(@"在局✅ [微信登录调试] App已在前台，直接执行回调");
         [self executeWechatLoginCallback:responseData];
     } else {
         NSLog(@"在局⏳ [微信登录调试] App不在前台(状态:%ld)，等待进入前台后执行回调", (long)currentState);
@@ -2816,11 +2755,9 @@ static inline BOOL isIPhoneXSeries() {
             // 检查是否还有保存的数据（如果已经执行过回调，数据会被清除）
             NSDictionary *savedData = objc_getAssociatedObject(self, @"WechatCallbackData");
             if (savedData && self.webviewBackCallBack) {
-                NSLog(@"在局⚠️ [微信登录调试] 等待前台超时，强制执行回调");
                 [[NSNotificationCenter defaultCenter] removeObserver:self name:UIApplicationDidBecomeActiveNotification object:nil];
                 [self executeWechatLoginCallback:responseData];
             } else {
-                NSLog(@"在局✅ [微信登录调试] 回调已执行或数据已清理，取消超时回调");
             }
         });
     }
@@ -2828,7 +2765,6 @@ static inline BOOL isIPhoneXSeries() {
 
 // App进入前台时的回调处理
 - (void)appDidBecomeActiveForWechatCallback:(NSNotification *)notification {
-    NSLog(@"在局🔥 [微信登录调试] App进入前台，执行微信登录回调");
     
     // 移除监听器
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UIApplicationDidBecomeActiveNotification object:nil];
@@ -2846,10 +2782,8 @@ static inline BOOL isIPhoneXSeries() {
 
 // 执行微信登录回调
 - (void)executeWechatLoginCallback:(NSDictionary *)responseData {
-    NSLog(@"在局🚀 [微信登录调试] 执行微信登录回调，数据: %@", responseData);
     
     if (self.webviewBackCallBack) {
-        NSLog(@"在局✅ [微信登录调试] 调用JavaScript回调成功");
         self.webviewBackCallBack(responseData);
         
         // 清空回调，防止重复调用
@@ -2968,7 +2902,6 @@ static inline BOOL isIPhoneXSeries() {
             }
         }
         
-        NSLog(@"在局✅ [分享准备] 平台检查通过，开始分享到: %@", type);
         
         // 对于微信分享，使用直接的WXApi方法避免UMSocialManager的openURL问题
         if (snsName == UMSocialPlatformType_WechatSession || snsName == UMSocialPlatformType_WechatTimeLine) {
@@ -2999,7 +2932,6 @@ static inline BOOL isIPhoneXSeries() {
     NSString *userName = [dataDic objectForKey:@"wxid"];;
     NSString *pagePath = [dataDic objectForKey:@"pagePath"];
     
-    NSLog(@"在局📱 [小程序分享] 开始，标题: %@, 用户名: %@, 路径: %@", titleStr, userName, pagePath);
     
     //创建分享消息对象
     UMSocialMessageObject *messageObject = [UMSocialMessageObject messageObject];
@@ -3030,7 +2962,6 @@ static inline BOOL isIPhoneXSeries() {
             }
         }
         else{
-            NSLog(@"在局✅ [小程序分享成功] 响应数据: %@", data);
             if ([data isKindOfClass:[UMSocialShareResponse class]]) {
                 UMSocialShareResponse *resp = data;
                 //分享结果消息
@@ -3105,7 +3036,6 @@ static inline BOOL isIPhoneXSeries() {
                 });
             }
         }else{
-            NSLog(@"在局✅ [网页分享成功] 平台: %@, 响应数据: %@", platformName, data);
             if ([data isKindOfClass:[UMSocialShareResponse class]]) {
                 UMSocialShareResponse *resp = data;
                 //分享结果消息
@@ -3139,7 +3069,6 @@ static inline BOOL isIPhoneXSeries() {
     NSString *url = [dic objectForKey:@"url"];
     
     NSString *targetName = toTimeline ? @"朋友圈" : @"好友";
-    NSLog(@"在局🔗 [直接微信分享] 开始分享网页到%@，标题: %@", targetName, titleStr);
     
     // 创建多媒体消息结构体
     WXMediaMessage *message = [WXMediaMessage message];
@@ -3174,7 +3103,6 @@ static inline BOOL isIPhoneXSeries() {
             
             // 发送到微信
             [WXApi sendReq:req completion:^(BOOL success) {
-                NSLog(@"在局🚀 [直接微信分享] WXApi发送%@: %@", targetName, success ? @"成功" : @"失败");
                 
                 // 注意：这里的success只表示调用成功，真正的分享结果会在WXApiDelegate回调中处理
                 if (!success) {
@@ -3202,7 +3130,6 @@ static inline BOOL isIPhoneXSeries() {
     NSString *pagePath = [dic objectForKey:@"pagePath"];
     
     NSString *targetName = toTimeline ? @"朋友圈" : @"好友";
-    NSLog(@"在局📱 [直接微信分享] 开始分享小程序到%@，用户名: %@", targetName, userName);
     
     // 创建多媒体消息结构体
     WXMediaMessage *message = [WXMediaMessage message];
@@ -3240,7 +3167,6 @@ static inline BOOL isIPhoneXSeries() {
             
             // 发送到微信
             [WXApi sendReq:req completion:^(BOOL success) {
-                NSLog(@"在局🚀 [直接微信分享] WXApi小程序发送%@: %@", targetName, success ? @"成功" : @"失败");
                 
                 if (!success) {
                     if (self.webviewBackCallBack) {
@@ -3787,6 +3713,12 @@ static inline BOOL isIPhoneXSeries() {
 - (UIStatusBarStyle)preferredStatusBarStyle {
     NSString *statusBarTextColor = [[NSUserDefaults standardUserDefaults] objectForKey:@"StatusBarTextColor"];
     NSString *bgcolor = [self.navDic objectForKey:@"navBgcolor"];
+    
+    // 如果导航栏被隐藏（如首页），默认使用黑色状态栏文字
+    if ([self isHaveNativeHeader:self.pinUrl]) {
+        return UIStatusBarStyleDefault;  // 黑色文字
+    }
+    
     if ([bgcolor isEqualToString:@"#FFFFFF"] || [bgcolor isEqualToString:@"white"]) {
         return UIStatusBarStyleDefault;
     }
@@ -3999,7 +3931,6 @@ static inline BOOL isIPhoneXSeries() {
 }
 
 - (void)QiNiuUploadData:(NSData *)imgData andAsset:(PHAsset *)asset qiniuToken:(NSString *)qiniuToken option:(QNUploadOption *)opt isVideo:(BOOL)isVideo{
-    NSLog(@"在局🔧 [CFJClientH5Controller] 获取PHAsset文件名");
     
     // 使用PHAssetResource获取文件名，这是公开API
     NSString *extensions = @"jpg"; // 默认扩展名
@@ -4008,9 +3939,7 @@ static inline BOOL isIPhoneXSeries() {
         PHAssetResource *resource = resources.firstObject;
         NSString *originalFilename = resource.originalFilename;
         extensions = [[originalFilename pathExtension] lowercaseString];
-        NSLog(@"在局✅ [CFJClientH5Controller] 使用PHAssetResource获取文件名: %@", originalFilename);
     } else {
-        NSLog(@"在局⚠️ [CFJClientH5Controller] 无法获取PHAssetResource，使用默认扩展名");
     }
     
     // 如果是视频且无法获取扩展名，使用mp4
@@ -4272,7 +4201,6 @@ static inline BOOL isIPhoneXSeries() {
 - (void)jsCallObjc:(NSDictionary *)jsData jsCallBack:(WVJBResponseCallback)jsCallBack {
     NSString *action = jsData[@"action"];
     
-    NSLog(@"在局🎯 [CFJClientH5Controller] jsCallObjc被调用，action: %@", action);
     
     // 定义子类特有的action列表 (注意：不包括pageReady，它由父类处理)
     NSSet *childActions = [NSSet setWithArray:@[
@@ -4290,7 +4218,6 @@ static inline BOOL isIPhoneXSeries() {
     
     // 如果是子类特有的action，直接调用子类处理
     if ([childActions containsObject:action]) {
-        NSLog(@"在局🎯 [CFJClientH5Controller] 调用子类处理: %@", action);
         [self handleJavaScriptCall:jsData completion:^(id result) {
             if (jsCallBack) {
                 jsCallBack(result);
@@ -4299,7 +4226,6 @@ static inline BOOL isIPhoneXSeries() {
         return;
     }
     
-    NSLog(@"在局🎯 [CFJClientH5Controller] 调用父类处理: %@", action);
     // 否则调用父类处理
     [super jsCallObjc:jsData jsCallBack:jsCallBack];
 }

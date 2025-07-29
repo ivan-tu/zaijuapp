@@ -116,7 +116,9 @@
             [toVC.view removeFromSuperview];
         }
         
-        [transitionContext completeTransition:finished && ![transitionContext transitionWasCancelled]];
+        // 对于交互式转场，即使finished为NO，如果没有被取消，仍然应该成功完成
+        BOOL success = ![transitionContext transitionWasCancelled];
+        [transitionContext completeTransition:success];
     }];
 }
 
@@ -210,15 +212,20 @@
             }
         }
         
-        BOOL success = finished && ![transitionContext transitionWasCancelled];
+        // 对于交互式转场，即使finished为NO，如果没有被取消，仍然应该成功完成
+        BOOL success = ![transitionContext transitionWasCancelled];
         NSLog(@"在局🎬 [转场动画] 调用completeTransition: %@", success ? @"YES" : @"NO");
         [transitionContext completeTransition:success];
         
         // 额外的清理工作：确保视图层级正确
         if (success) {
+            // 对于交互式转场，需要确保导航控制器的状态正确更新
+            NSLog(@"在局🎬 [转场动画] 转场成功完成，当前导航栈数量: %ld", (long)toVC.navigationController.viewControllers.count);
+            
             // 延迟执行额外的清理，确保转场完全结束
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 NSLog(@"在局🎬 [转场动画] 延迟清理检查");
+                NSLog(@"在局🎬 [转场动画] 延迟检查时导航栈数量: %ld", (long)toVC.navigationController.viewControllers.count);
                 
                 // 再次确保fromVC的视图已被移除
                 if (fromVC.view.superview) {
@@ -348,16 +355,28 @@
           NSStringFromClass([viewController class]), animated ? @"YES" : @"NO");
     NSLog(@"在局🚀 [XZNavigationController] 当前视图控制器栈数量: %ld", (long)self.viewControllers.count);
     NSLog(@"在局🚀 [XZNavigationController] 代理设置状态: %@", self.delegate == self ? @"已设置" : @"未设置");
+    NSLog(@"在局🚀 [XZNavigationController] viewController.hidesBottomBarWhenPushed: %@", viewController.hidesBottomBarWhenPushed ? @"YES" : @"NO");
     
     // 在push前禁用交互式手势，防止冲突
     self.interactivePopGestureRecognizer.enabled = NO;
+    
+    // 如果新页面需要隐藏TabBar，在push前就设置
+    if (viewController.hidesBottomBarWhenPushed && self.tabBarController) {
+        NSLog(@"在局📱 [XZNavigationController] 准备隐藏TabBar");
+        // 注意：不要在这里直接设置hidden，让系统的hidesBottomBarWhenPushed机制处理
+        // 只是记录日志以便调试
+    }
     
     [super pushViewController:viewController animated:animated];
 }
 
 - (UIViewController *)popViewControllerAnimated:(BOOL)animated {
     NSLog(@"在局🔙 [XZNavigationController] popViewController animated: %@", animated ? @"YES" : @"NO");
-    return [super popViewControllerAnimated:animated];
+    NSLog(@"在局🔙 [XZNavigationController] 当前栈数量: %ld", (long)self.viewControllers.count);
+    UIViewController *poppedVC = [super popViewControllerAnimated:animated];
+    NSLog(@"在局🔙 [XZNavigationController] pop后栈数量: %ld", (long)self.viewControllers.count);
+    NSLog(@"在局🔙 [XZNavigationController] 被pop的控制器: %@", poppedVC ? NSStringFromClass([poppedVC class]) : @"nil");
+    return poppedVC;
 }
 
 #pragma mark - UINavigationControllerDelegate
@@ -426,6 +445,44 @@
     // 根据视图控制器数量决定是否启用返回手势
     // 注意：我们使用自定义手势，所以保持系统手势禁用
     self.interactivePopGestureRecognizer.enabled = NO;
+    
+    // 确保TabBar的显示状态正确
+    if (viewController.tabBarController) {
+        BOOL shouldHideTabBar = viewController.hidesBottomBarWhenPushed;
+        
+        // 如果是导航控制器的根视图控制器，应该显示TabBar
+        if (self.viewControllers.count == 1) {
+            shouldHideTabBar = NO;
+        }
+        
+        NSLog(@"在局📱 [XZNavigationController] TabBar应该隐藏: %@", shouldHideTabBar ? @"YES" : @"NO");
+        viewController.tabBarController.tabBar.hidden = shouldHideTabBar;
+        
+        // 如果显示TabBar，确保其frame正确
+        if (!shouldHideTabBar) {
+            CGRect tabBarFrame = viewController.tabBarController.tabBar.frame;
+            CGFloat tabBarHeight = CGRectGetHeight(tabBarFrame);
+            CGFloat screenHeight = CGRectGetHeight(viewController.tabBarController.view.bounds);
+            tabBarFrame.origin.y = screenHeight - tabBarHeight;
+            viewController.tabBarController.tabBar.frame = tabBarFrame;
+            
+            // 确保TabBar在视图层级的最前面
+            [viewController.tabBarController.view bringSubviewToFront:viewController.tabBarController.tabBar];
+        }
+    }
+    
+    // 清理可能残留的视图
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSLog(@"在局🧹 [XZNavigationController] 执行延迟清理检查");
+        
+        // 检查并移除不应该存在的视图
+        for (UIViewController *vc in self.viewControllers) {
+            if (vc != viewController && vc.view.superview && vc.view.superview != vc.navigationController.view) {
+                NSLog(@"在局⚠️ [XZNavigationController] 发现残留视图: %@", NSStringFromClass([vc class]));
+                [vc.view removeFromSuperview];
+            }
+        }
+    });
 }
 
 #pragma mark - Helper Methods
@@ -503,8 +560,22 @@
                   progress, velocity, shouldComplete ? @"YES" : @"NO");
             
             if (shouldComplete) {
+                NSLog(@"在局👆 [交互手势] 完成转场");
                 [self.interactiveTransition finishInteractiveTransition];
+                
+                // 手势完成，确保TabBar会在转场完成后正确显示
+                if (self.viewControllers.count >= 2) {
+                    UIViewController *toVC = [self.viewControllers objectAtIndex:self.viewControllers.count - 2];
+                    if (toVC.tabBarController && self.viewControllers.count == 2) {
+                        // 如果返回到根视图控制器，应该显示TabBar
+                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                            NSLog(@"在局👆 [交互手势] 延迟确保TabBar显示");
+                            toVC.tabBarController.tabBar.hidden = NO;
+                        });
+                    }
+                }
             } else {
+                NSLog(@"在局👆 [交互手势] 取消转场");
                 [self.interactiveTransition cancelInteractiveTransition];
             }
             break;

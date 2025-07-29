@@ -119,7 +119,8 @@
         }
         
         // 通知转场完成
-        [transitionContext completeTransition:finished && ![transitionContext transitionWasCancelled]];
+        BOOL success = ![transitionContext transitionWasCancelled];
+        [transitionContext completeTransition:success];
     }];
 }
 
@@ -177,7 +178,8 @@
         }
         
         // 通知转场完成
-        [transitionContext completeTransition:finished && ![transitionContext transitionWasCancelled]];
+        BOOL success = ![transitionContext transitionWasCancelled];
+        [transitionContext completeTransition:success];
     }];
 }
 
