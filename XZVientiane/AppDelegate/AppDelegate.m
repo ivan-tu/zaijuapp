@@ -34,7 +34,6 @@
 // #import "UMCommonLog/UMCommonLogMacros.h"  // 如果路径不对可以注释
 // #import "UMCommonLog/UMCommonLogManager.h" // 如果路径不对可以注释  
 // 使用CustomHybridProcessor替代HybridManager
-// #import <HybridSDK/HybridManager.h>  // 已废弃，使用CustomHybridProcessor替代
 // NSLog(@"在局 🔧 [AppDelegate] 优化权限使用说明文案完成");
 #import "Reachability.h"
 #import "JHSysAlertUtil.h"

@@ -151,7 +151,6 @@
 		A55B9C0B24869EEE00595FA6 /* libSocialSina.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A55B9C0024869EEE00595FA6 /* libSocialSina.a */; };
 		A55B9C0C24869EEE00595FA6 /* libSocialQQ.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A55B9C0424869EEE00595FA6 /* libSocialQQ.a */; };
 		A55B9C0D24869EEE00595FA6 /* UMShare.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A55B9C0524869EEE00595FA6 /* UMShare.framework */; };
-		A565BCE4249E1BCC00A2E8FB /* HybridSDK.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A565BCE3249E1BCC00A2E8FB /* HybridSDK.framework */; };
 		A579578B20F857B800B74363 /* TZImageCropManager.m in Sources */ = {isa = PBXBuildFile; fileRef = A579577020F857B800B74363 /* TZImageCropManager.m */; };
 		A579578C20F857B800B74363 /* TZAssetCell.m in Sources */ = {isa = PBXBuildFile; fileRef = A579577220F857B800B74363 /* TZAssetCell.m */; };
 		A579578D20F857B800B74363 /* TZVideoPlayerController.m in Sources */ = {isa = PBXBuildFile; fileRef = A579577320F857B800B74363 /* TZVideoPlayerController.m */; };
@@ -497,7 +496,6 @@
 		A55B9C0324869EEE00595FA6 /* UMSocialQQHandler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UMSocialQQHandler.h; sourceTree = "<group>"; };
 		A55B9C0424869EEE00595FA6 /* libSocialQQ.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libSocialQQ.a; sourceTree = "<group>"; };
 		A55B9C0524869EEE00595FA6 /* UMShare.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = UMShare.framework; sourceTree = "<group>"; };
-		A565BCE3249E1BCC00A2E8FB /* HybridSDK.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = HybridSDK.framework; sourceTree = "<group>"; };
 		A579576E20F857B800B74363 /* TZPhotoPreviewCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TZPhotoPreviewCell.h; sourceTree = "<group>"; };
 		A579576F20F857B800B74363 /* TZPhotoPickerController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TZPhotoPickerController.h; sourceTree = "<group>"; };
 		A579577020F857B800B74363 /* TZImageCropManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TZImageCropManager.m; sourceTree = "<group>"; };
@@ -590,7 +588,6 @@
 				A5881606212EDAD000A95D98 /* GLKit.framework in Frameworks */,
 				A55B9C0D24869EEE00595FA6 /* UMShare.framework in Frameworks */,
 				A529A20221140A860066EB3E /* CoreMotion.framework in Frameworks */,
-				A565BCE4249E1BCC00A2E8FB /* HybridSDK.framework in Frameworks */,
 				A55B9C0624869EEE00595FA6 /* DTShareKit.framework in Frameworks */,
 				A505CD6B1FDE4EA100FBD4A3 /* AssetsLibrary.framework in Frameworks */,
 				A55B9C0724869EEE00595FA6 /* libSocialDingDing.a in Frameworks */,
@@ -1443,7 +1440,6 @@
 		A6B108B8107613590EFDF36A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				A565BCE3249E1BCC00A2E8FB /* HybridSDK.framework */,
 				A5881605212EDAD000A95D98 /* GLKit.framework */,
 				A529A20121140A860066EB3E /* CoreMotion.framework */,
 				A505CD741FDE54B500FBD4A3 /* Accounts.framework */,
