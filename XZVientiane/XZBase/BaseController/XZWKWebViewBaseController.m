@@ -227,6 +227,15 @@ static inline BOOL isIPhoneXSeries() {
     }
 }
 
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    
+    // 在布局变化时重新调整进度条位置，确保始终贴紧标题栏底部
+    if (self.progressView) {
+        [self updateProgressViewPosition];
+    }
+}
+
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
     
@@ -775,17 +784,45 @@ static inline BOOL isIPhoneXSeries() {
     self.progressView.transform = CGAffineTransformMakeScale(1.0f, 2.0f); // 增加进度条厚度
     [self.view addSubview:self.progressView];
     
-    // 调整进度条位置到导航栏下方
+    // 设置进度条初始位置
+    [self updateProgressViewPosition];
+    
+    NSLog(@"在局 ✅ [XZWKWebViewBaseController] 加载指示器和进度条设置完成");
+}
+
+// 更新进度条位置的专用方法
+- (void)updateProgressViewPosition {
+    if (!self.progressView) {
+        return;
+    }
+    
+    // 调整进度条位置到导航栏下方，确保贴紧标题栏底部
     if (self.navigationController && !self.navigationController.navigationBar.hidden) {
-        CGFloat navBarMaxY = CGRectGetMaxY(self.navigationController.navigationBar.frame);
-        self.progressView.frame = CGRectMake(0, navBarMaxY, self.view.bounds.size.width, 3);
+        // 使用Safe Area或传统方式计算导航栏底部位置
+        CGFloat navBarBottom;
+        if (@available(iOS 11.0, *)) {
+            // iOS 11+ 使用Safe Area计算更准确的位置
+            navBarBottom = self.view.safeAreaInsets.top;
+        } else {
+            // iOS 11以下使用传统计算方式
+            CGFloat statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
+            CGFloat navBarHeight = self.navigationController.navigationBar.frame.size.height;
+            navBarBottom = statusBarHeight + navBarHeight;
+        }
+        self.progressView.frame = CGRectMake(0, navBarBottom, self.view.bounds.size.width, 3);
     } else {
         // 如果没有导航栏，放在状态栏下方
-        CGFloat statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
+        CGFloat statusBarHeight;
+        if (@available(iOS 11.0, *)) {
+            statusBarHeight = self.view.safeAreaInsets.top;
+        } else {
+            statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
+        }
         self.progressView.frame = CGRectMake(0, statusBarHeight, self.view.bounds.size.width, 3);
     }
     
-    NSLog(@"在局 ✅ [XZWKWebViewBaseController] 加载指示器和进度条设置完成");
+    // 确保进度条始终在最上层
+    [self.view bringSubviewToFront:self.progressView];
 }
 
 - (void)loadNewData {
@@ -1077,10 +1114,10 @@ static inline BOOL isIPhoneXSeries() {
     // 检查约束是否生效
     NSLog(@"在局🔧 [addWebView] 布局完成后WebView.frame: %@", NSStringFromCGRect(self.webView.frame));
     
-    // 确保进度条始终在最上层
+    // 确保进度条位置正确且始终在最上层
     if (self.progressView) {
-        [self.view bringSubviewToFront:self.progressView];
-        NSLog(@"在局🔧 [addWebView] 将进度条移到最上层");
+        [self updateProgressViewPosition];
+        NSLog(@"在局🔧 [addWebView] 更新进度条位置并移到最上层");
     }
     
     // 确保活动指示器也在最上层
@@ -2671,8 +2708,8 @@ static inline BOOL isIPhoneXSeries() {
         self.progressView.hidden = NO;
         self.progressView.progress = 0.1; // 设置初始进度，让用户知道开始加载
         
-        // 确保进度条在最上层
-        [self.view bringSubviewToFront:self.progressView];
+        // 确保进度条位置正确且在最上层
+        [self updateProgressViewPosition];
         [self.view bringSubviewToFront:self.activityIndicatorView];
         
         NSLog(@"在局📊 [didStartProvisionalNavigation] 显示进度条");
