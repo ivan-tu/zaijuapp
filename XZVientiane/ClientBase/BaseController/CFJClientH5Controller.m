@@ -1279,8 +1279,8 @@ static inline BOOL isIPhoneXSeries() {
                if (configuredDomain && configuredDomain.length > 0) {
                    isInternalLink = [Url containsString:configuredDomain];
                } else {
-                   // 如果没有配置域名，默认使用hi3.tuiya.cc作为内部域名
-                   configuredDomain = @"hi3.tuiya.cc";
+                   // 如果没有配置域名，默认使用zaiju.com作为内部域名
+                   configuredDomain = @"zaiju.com";
                    isInternalLink = [Url containsString:configuredDomain];
                }
                NSLog(@"在局📍 [navigateTo] 配置域名: %@, 是否内部链接: %d", configuredDomain, isInternalLink);

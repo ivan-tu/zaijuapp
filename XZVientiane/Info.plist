@@ -125,7 +125,7 @@
 		<false/>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>hi3.tuiya.cc</key>
+			<key>zaiju.com</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>

@@ -159,14 +159,14 @@
 #pragma mark - custom_getRequestLinkUrl
 
 + (NSString *)custom_getRequestLinkUrl:(NSString *)urlStr{
-//    return @"https://hi3.tuiya.cc"+urlStr;
-    return [NSString stringWithFormat:@"https://hi3.tuiya.cc%@", urlStr];
+//    return @"https://zaiju.com"+urlStr;
+    return [NSString stringWithFormat:@"https://zaiju.com%@", urlStr];
 }
 
 #pragma mark - custom_getloginLinkUrl
 
 + (NSString *)custom_getloginLinkUrl {
-    return @"https://hi3.tuiya.cc/api/operateChannel";
+    return @"https://zaiju.com/api/operateChannel";
 }
 
 #pragma mark - Component Processing (Recreation of recycleUsingComponents)

@@ -152,7 +152,7 @@ AppDelegate.m (Application Entry)
 ### Environment Configuration
 
 #### API Endpoints (XZBaseHead.h)
-- **Production Domain**: `https://hi3.tuiya.cc`
+- **Production Domain**: `https://zaiju.com`
 - **App ID**: `xiangzhan$ios$g8u9t60p`
 - **App Secret**: `$yas6WwyP7By9agE`
 - **Qiniu CDN**: `https://statics.tuiya.cc/`
@@ -163,7 +163,7 @@ var xzSystemConfig = {
     xzAppId: 'hi3',
     clientMode: 'app',
     environment: 'production',
-    domain: 'hi3.tuiya.cc',
+    domain: 'zaiju.com',
     filePath: 'https://statics.tuiya.cc/'
 };
 ```

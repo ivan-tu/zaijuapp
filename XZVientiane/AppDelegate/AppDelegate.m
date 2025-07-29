@@ -769,12 +769,12 @@
     [UMConfigure setLogEnabled:YES];
 #endif
     //设置微信AppId，设置分享url，默认使用友盟的网址
-    [UMSocialGlobal shareInstance].universalLinkDic = @{@(UMSocialPlatformType_WechatSession):@"https://hi3.tuiya.cc/",
+    [UMSocialGlobal shareInstance].universalLinkDic = @{@(UMSocialPlatformType_WechatSession):@"https://zaiju.com/",
                                                         @(UMSocialPlatformType_QQ):@""
     };
     [[UMSocialManager defaultManager] setPlaform:UMSocialPlatformType_WechatSession appKey:[[PublicSettingModel sharedInstance] weiXin_AppID] appSecret:[[PublicSettingModel sharedInstance] weiXin_AppSecret] redirectURL:nil];
     
-    [WXApi registerApp:[[PublicSettingModel sharedInstance] weiXin_AppID] universalLink:@"https://hi3.tuiya.cc/"];
+    [WXApi registerApp:[[PublicSettingModel sharedInstance] weiXin_AppID] universalLink:@"https://zaiju.com/"];
     
     // 打开新浪微博的SSO开关
     [[UMSocialManager defaultManager] setPlaform:UMSocialPlatformType_Sina appKey:[[PublicSettingModel sharedInstance] weiBo_AppKey] appSecret:[[PublicSettingModel sharedInstance] weiBo_AppSecret] redirectURL:@"https://sns.whalecloud.com/sina2/callback"];

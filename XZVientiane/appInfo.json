@@ -11,7 +11,7 @@
             "icon" : "icon_home",
             "name" : "在局",
             "activeIcon" : "icon_homeSelect",
-            "url" : "https://hi3.tuiya.cc/p/home/index/index",
+            "url" : "https://zaiju.com/p/home/index/index",
             "isCheck":"1"
         },
         {
@@ -19,7 +19,7 @@
             "icon" : "icon_xiaoxi",
             "name" : "俱乐部",
             "activeIcon" : "icon_xiaoxiSelect",
-            "url" : "https://hi3.tuiya.cc/p/suboffice/index/index",
+            "url" : "https://zaiju.com/p/suboffice/index/index",
             "isCheck":"0"
         },
         {
@@ -27,7 +27,7 @@
             "icon" : "icon_userCenter",
             "name" : "我的",
             "activeIcon" : "icon_userCenterSelect",
-            "url" : "https://hi3.tuiya.cc/p/user/my/my",
+            "url" : "https://zaiju.com/p/user/my/my",
             "isCheck":"0"
         }
     ]
@@ -36,7 +36,7 @@
 "name" : "在局",
 "adLink" : "",
 "leftSideBarUrl" : "",
-"customDomain" : "hi3.tuiya.cc",
+"customDomain" : "zaiju.com",
 "statusBar" : {
     "status" : "1",
     "textColor" : "black",
