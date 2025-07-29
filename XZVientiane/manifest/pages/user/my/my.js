@@ -30,6 +30,11 @@
 			loadOk:false,
 			loadPic:'',
 			loadPicUrl:'',
+			serviceDialog:{
+				show:false,
+				customerWxPic:'',
+				height:430,
+			},
         },
         methods: {
             onLoad: function(options) {
@@ -76,7 +81,8 @@
 			},
             load: function() {
 				let _this = this,
-					options = this.getData().options;
+					options = this.getData().options,
+					alertArray = app.storage.get('alertArray')||{};
 				app.request('//homeapi/getMyInfo', {}, function(res){
 					if (res.headpic) {
 						res.headpicUrl = res.headpic;
@@ -108,6 +114,31 @@
 						setTimeout(function(){
 							app.navTo('../../user/bindAccount/bindAccount');
 						});
+					}else if(app.config.client!='app'&&res.isexpert==1&&(!res.invitetags||!res.invitetags.isfriend)){//不是app，没弹出过，是达人并且没加客服好友
+						let nowDate = new Date().getTime();
+						let weekTime = 7*24*60*60*1000;
+						if(alertArray.showService&&alertArray.serviceTimestap&&nowDate-alertArray.serviceTimestap<weekTime){
+							//不超过1周，不再弹出
+						}else{
+							let serviceDialog = _this.getData().serviceDialog;
+							if(serviceDialog.customerWxPic){
+								_this.setData({
+									'serviceDialog.show':true
+								});
+							}else{
+								app.request('//set/get', {type: 'homeSet'}, function (res) {
+									let backData = res.data||{};
+									if(backData){
+										if(backData.customerWxPic){
+											_this.setData({
+												'serviceDialog.customerWxPic':app.image.width(backData.customerWxPic,300),
+												'serviceDialog.show':true
+											});
+										};
+									};
+								},function(){});
+							};
+						};
 					};
 					//设置分享参数
 					let newData = app.extend({}, options);
@@ -292,6 +323,13 @@
 			},
 			toLevelList:function(){
 				app.navTo('../../user/userLevelList/userLevelList');
+			},
+			toHideServiceDialog:function(){
+				let alertArray = app.storage.get('alertArray')||{};
+				alertArray.showService = 1;
+				alertArray.serviceTimestap = new Date().getTime();
+				app.storage.set('alertArray',alertArray);
+				this.setData({'serviceDialog.show':false});
 			},
         }
     });

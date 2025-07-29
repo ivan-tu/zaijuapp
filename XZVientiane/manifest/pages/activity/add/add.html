@@ -315,6 +315,16 @@
                     <div class="form-list-item title short tar c999">张</div>
 				</div>
                 <div class="form-list">
+                    <div class="form-list-item title c333 p14">截止日期</div>
+                    <div class="form-list-item">
+                        <picker mode="date" class="picker-region" data-index="{{index}}" index="{{index}}" bindchange="changeTicketEndTime" value="{{item.webPickerDate}}"
+                            id="pickerTicketEndTime_{{index}}">
+                            <view class="picker c666" wx:if="{{item.enddate}}">{{item.enddate}}</view>
+                            <view class="picker c999" wx:else>选择日期</view>
+                        </picker>
+                    </div>
+                </div>
+                <div class="form-list">
 					<div class="form-list-item title c333 p14">升级会员</div>
 					<div class="form-list-item">
                     	<picker range="{{clubLevelList}}" class="picker-region" bindchange="bindLevelChange" range-key="name" id="pickerLevel_{{index}}" index="{{index}}" data-index="{{index}}">

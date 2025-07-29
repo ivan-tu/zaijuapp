@@ -149,3 +149,13 @@
 	margin-left:45px;
 	width:100px;
 }
+
+
+.myExpertInfo-ruleList{
+	box-shadow:0 0 7px 0px rgba(0,0,0,0.1);
+	padding:12px 10px;
+	border-radius:6px;
+}
+.myExpertInfo-ruleList +.myExpertInfo-ruleList{
+	margin-top:10px;
+}

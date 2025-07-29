@@ -35,4 +35,48 @@
 		</view>
 		<view class="noData mlr15" hidden="{{!showNoData}}">暂无数据</view>
     </div>
+    <!--转让弹框-->
+    <div class="publicScroll_dialog checkParentDialog {{(checkParentDialog.show?' show':'')}}">
+        <div class="publicScroll_body" style="height:{{checkParentDialog.height}}px;">
+            <div class="publicScroll_head clearfix tac bgfff">
+                <span class="p16">转让他人</span>
+                <span class="fr p16" bindtap="toHideCheckDialog"><i class="xzicon-close"></i></span>
+            </div>
+            <div class="publicScroll_main">
+                <view class="bgfff">
+                    <div class="form-list">
+                        <div class="form-list-item title">手机号码</div>
+                        <div class="form-list-item">
+                            <input placeholder="请输入账号" class="textInput" bindinput="model" value="{{checkParentDialog.account}}" data-model="checkParentDialog.account" type="tel" />
+                        </div>
+                        <div class="form-list-item title long tar">
+                            <span class="redBtn" bindtap="checkAccount">确认推荐人</span>
+                        </div>
+                    </div>
+                    <div class="form-list">
+                        <div class="form-list-item" wx:if="{{checkParentDialog.parentData&&checkParentDialog.parentData._id}}">
+                            <div class="userInfoBox clearfix">
+                                <div class="picBox"><image src="{{checkParentDialog.parentData.headpic}}" class="w100 h100" mode="widthFix" /></div>
+                                <div class="textBox">
+                                    <p>{{checkParentDialog.parentData.account}}</p>
+                                    <p class="p12 c666 textOver">{{checkParentDialog.parentData.username}}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-list-item c999 tac" wx:else>请先确认推荐人</div>
+                    </div>
+                </view>
+            </div>
+            <div class="publicScroll_footBtn">
+                <div class="displayFlex">
+                    <div class="list">
+                        <button class="cancelBtn" type="button" bindtap="toHideCheckDialog">取消转让</button>
+                    </div>
+                    <div class="list ml10">
+                        <button class="submitBtn" type="button" bindtap="toConfirmCheckDialog">确定转让</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>

@@ -35,7 +35,6 @@
                     <span class="fr searchBtn"><i class="xzicon-search1"></i> 搜索俱乐部/活动</span>
                 </div>
             </div>
-            <calendar wx:if="{{client=='wx'}}" calendar-style="calendarStyle" header-style="calendarHeader" board-style="calendarBoard" weeks-type="cn" binddayClick="dayClick" binddateChange="dateChange" show-more-days="{{true}}" days-color="{{daysColor}}"/>
         </div>
         <!--
         <div class="homeIndex-menu">
@@ -112,19 +111,70 @@
         </div>
         <view class="c999 tac ptb20" wx:else>暂无数据</view>-->
         <!--友局-->
-        <div class="searchCategory-box clearfix homeIndex-searchCategory">
-            <div class="searchCategory">
-                <div class="listBox">
-                	<div class="list">
-                    	<span class="spanList {{(activityForm.recommend=='1'?' active':'')}}" data-type="activityForm" data-key="recommend" data-value="1" bindtap="screenAll">热门</span>
-                    </div>
-                    <div class="list">
-                    	<span class="spanList {{(activityForm.gettype=='my'?' active':'')}}" data-type="activityForm" data-key="gettype" data-value="my" bindtap="screenAll">我的</span>
-                    </div>
-                    <div class="list" wx:for="{{activityCategory}}">
-                    	<span class="spanList {{(activityForm.recommend!='1'&&activityForm.hot!='1'&&activityForm.category==item.name?' active':'')}}" data-type="activityForm" data-key="category" data-value="{{item.name}}" bindtap="screenAll">{{item.name}}</span>
+        <div class="homeIndex-screenBox">
+            <div class="searchCategory-box clearfix homeIndex-searchCategory">
+                <div class="searchCategory">
+                    <div class="listBox">
+                        <div class="list">
+                            <span class="spanList {{(activityForm.recommend=='1'?' active':'')}}" data-type="activityForm" data-key="recommend" data-value="1" bindtap="screenAll">热门</span>
+                        </div>
+                        <div class="list">
+                            <span class="spanList {{(activityForm.gettype=='my'?' active':'')}}" data-type="activityForm" data-key="gettype" data-value="my" bindtap="screenAll">我的</span>
+                        </div>
+                        <div class="list">
+                            <span class="spanList {{(activityForm.category?' active':'')}}" bindtap="categoryDialog_changeShow">{{activityForm.category||'类型'}}<i class="xzicon-down"></i></span>
+                        </div>
+                        <div class="list">
+                            <span class="spanList {{(activityForm.begindate?' active':'')}}" wx:if="{{dateDialog.beiginText}}" bindtap="dateDialog_changeShow">{{dateDialog.beiginText}}{{dateDialog.endText?'-'+dateDialog.endText:''}}<i class="xzicon-down"></i></span>
+                            <span class="spanList" wx:else bindtap="dateDialog_changeShow">时间<i class="xzicon-down"></i></span>
+                        </div>
+                        <!--
+                        <div class="list" wx:for="{{activityCategory}}">
+                            <span class="spanList {{(activityForm.recommend!='1'&&activityForm.hot!='1'&&activityForm.category==item.name?' active':'')}}" data-type="activityForm" data-key="category" data-value="{{item.name}}" bindtap="screenAll">{{item.name}}</span>
+                        </div>-->
                     </div>
                 </div>
+            </div>
+            <!--类型弹框-->
+            <div class="homeIndex-screenDialog {{(categoryDialog.show?' show':'')}}">
+                <div class="dialog-main">
+                    <div class="categoryBox clearfix">
+                    	<div class="categoryList" wx:for="{{activityCategory}}">
+                        	<span class="list {{(categoryDialog.category==item.name?' active':'')}}" bindtap="categoryDialog_select" data-name="{{item.name}}">#{{item.name}}</span>
+        				</div>
+                    </div>
+                </div>
+                <div class="dialog-foot clearfix">
+                	<span class="cancelBtn" bindtap="categoryDialog_cancel">重置</span>
+                    <span class="submitBtn" bindtap="categoryDialog_submit">确定</span>
+                </div>
+			</div>
+            <!--日期弹框-->
+            <div class="homeIndex-screenDialog homeIndex-dateDialog {{(dateDialog.show?' show':'')}}">
+            	<div class="dialog-main">
+                    <div class="dateBox">
+                    	<div class="weekBox clearfix">
+                        	<span class="weekList">日</span>
+                            <span class="weekList">一</span>
+                            <span class="weekList">二</span>
+                            <span class="weekList">三</span>
+                            <span class="weekList">四</span>
+                            <span class="weekList">五</span>
+                            <span class="weekList">六</span>
+                        </div>
+                        <div class="dayBox clearfix mt10">
+                        	<div class="listBox" wx:for="{{dateDialog.list}}">
+                            	<span wx:if="{{item.status==0}}" class="dayList disable">{{item.day}}</span>
+                                <span wx:elif="{{item.status==1}}" data-index="{{index}}" data-timestap="{{item.timestap}}" bindtap="dateDialog_select" class="dayList {{(item.selected==1?' active':'')}}">今天</span>
+                                <span wx:elif="{{item.status==2}}" data-index="{{index}}" data-timestap="{{item.timestap}}" bindtap="dateDialog_select" class="dayList {{(item.selected==1?' active':'')}}">{{item.day}}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-foot clearfix">
+                	<span class="cancelBtn" bindtap="dateDialog_cancel">重置</span>
+                    <span class="submitBtn" bindtap="dateDialog_submit">确定</span>
+              	</div>
             </div>
         </div>
         <div class="pb10 plr15 mt10" wx:if="{{activityList&&activityList.length}}">
@@ -211,28 +261,6 @@
         </div>
         <view class="c999 tac ptb20" wx:else>暂无数据</view>-->
         <div class="ptb10 tac" wx:if="{{client=='web'}}"><navigator class="c999 p12" url="https://beian.miit.gov.cn/">沪ICP备2023015155号-1</navigator></div>
-        <!--挖币-->
-        <div class="publicScroll_dialog ingotDialog {{(ingotDialog.show?' show':'')}}">
-            <div class="publicScroll_body" style="height:{{ingotDialog.height}}px;">
-            	<span class="closeBtn" bindtap="toHideDialog"><i class="xzicon-closecircleo"></i></span>
-                <div class="publicScroll_main">
-                	<div wx:if="{{ingotDialog.status==1}}">
-                        <p class="contentTitle">恭喜您挖到了</p>
-                        <p class="contentPrice">{{ingotDialog.total}}友币</p>
-                    </div>
-                    <div wx:else>
-                        <p class="contentTitle">距离下次挖币还有</p>
-                        <p class="contentPrice">{{ingotDialog.counDownTime}}</p>
-                    </div>
-                    <div class="contentTips">
-                        <p>每间隔1小时挖1次，随机得1-5友币</p>
-                        <p>连续5天挖币奖励50友币</p>
-                        <p>连续15天挖币奖励200友币</p>
-                        <p>连续30天挖币奖励500友币</p>
-                    </div>
-                </div>
-            </div>
-        </div>
         <!--关注公众号-->
         <div class="showWxGZHDialog {{(showWxGZHDialog.show?' show':'')}} {{(client)}}">
             <div class="textBox">关注“在局”公众号接收通知</div>

@@ -963,6 +963,28 @@ static inline BOOL isIPhoneXSeries() {
             }
         }
     }];
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
+                                                      object:nil
+                                                       queue:[NSOperationQueue mainQueue]
+                                                  usingBlock:^(NSNotification * _Nonnull note) {
+        STRONG_SELF;
+        if (!self) return;
+
+        NSLog(@"在局🔔 [XZWKWebView] 应用进入活跃状态");
+
+        // 检查：
+        // 1. 视图控制器当前是否显示在屏幕上
+        // 2. WebView是否尚未成功加载内容 (isWebViewLoading == NO)
+        if (self.isViewLoaded && self.view.window && !self.isWebViewLoading) {
+            NSLog(@"在局🔄 [XZWKWebView] 检测到页面未加载，可能是在授权后返回，强制刷新！");
+
+            // 重置节流阀，确保刷新可以执行
+            lastLoadTime = nil;
+
+            // 调用核心加载逻辑
+            [self domainOperate];
+        }
+    }];
 }
 
 //- (void)setCustomUserAgent {

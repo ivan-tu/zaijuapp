@@ -10,9 +10,9 @@
 			isUserLogin: app.checkUser(),
             data:{
 				teamCount:0,
-				teamMonthCount:0,
 				servers:0,
 				commion:0,
+				teamMonthCount:0,
 			},
             options: {},
             settings: {},

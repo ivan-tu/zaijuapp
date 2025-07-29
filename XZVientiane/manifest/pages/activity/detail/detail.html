@@ -97,7 +97,8 @@
 					class="form-list activityDetail_joinUser activityDetail_border" style="padding:7px 15px;"
 					wx:if="{{data.ismy==1||data.showusernum==1}}">
 					<div class="form-list-item {{(data.joinnum>0?' rightIcon':'')}}">
-						<p class="title">限{{data.limitnum}}人报名<span wx:if="{{data.joinnum>0}}">，已报名{{data.joinnum}}人</span><span wx:if="{{data.saleticket}}">，已售{{data.saleticket}}张票</span></p>
+						<p class="title">限{{data.limitnum}}人报名<span wx:if="{{data.joinnum>0}}">，已报名{{data.joinnum}}人</span></p>
+                        <p class="title" wx:if="{{data.saleticket}}">已售：<span class="displayIB mr5" wx:for="{{data.saleticketList}}">{{index}}{{item}}张</span></p>
 						<div class="mt10" wx:if="{{userList&&userList.length}}">
 							<div class="userBox">
 								<div class="userList clearfix">

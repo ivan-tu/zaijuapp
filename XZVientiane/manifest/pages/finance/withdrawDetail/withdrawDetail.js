@@ -24,25 +24,15 @@
 				_this.setData({
 					options: options
 				});
+			},
+			onShow: function() {
+				let _this = this;
 				app.checkUser(function() {
 					_this.setData({
 						isUserLogin: true
 					});
 					_this.load();
 				});
-
-			},
-			onShow: function() {
-				//检查用户登录状态
-				let isUserLogin = app.checkUser();
-				if (isUserLogin != this.getData().isUserLogin) {
-					this.setData({
-						isUserLogin: isUserLogin
-					});
-					if (isUserLogin) {
-						this.load();
-					};
-				};
 			},
 			onPullDownRefresh: function() {
 				if (this.getData().isUserLogin) {
@@ -56,7 +46,16 @@
 					options = this.getData().options;
 				app.request('//financeapi/getApplyInfo', options, function(res) {
 					if(res){
-						checkTimeText = '预计审核时间：'+_this.getCheckDate(res.addtime);
+						res.checkTimeText = '预计审核时间：'+_this.getCheckDate(res.addtime);
+						//是钻石提现，是企业，并且没提交过
+						if(res.type=='8'&&res.banktype=='company'&&!res.invoice){
+							res.needInvoice = 1;
+						}else{
+							res.needInvoice = 0;
+						};
+						if(res.invoice){
+							res.invoice = app.image.width(res.invoice,200);
+						};
 						_this.setData({
 							data: res
 						});
@@ -107,6 +106,10 @@
 						_this.load();
 					});
 				});
+			},
+			toInvoice:function(){
+				let options = this.getData().options;
+				app.navTo('../../finance/withdrawInvoice/withdrawInvoice?id='+options.id);
 			},
 		}
 	});

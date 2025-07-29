@@ -183,6 +183,29 @@
                 </div>
             </div>
         </div>
+        <!--客服好友弹框-->
+        <div class="publicScroll_dialog serviceDialog {{(serviceDialog.show?' show':'')}}">
+        	<view class="publicScroll_body" style="height:{{serviceDialog.height}}px;">
+                <div class="publicScroll_head clearfix tac bgfff">
+                    <span class="p16">长按二维码添加客服好友</span>
+                    <span class="fr p16" bindtap="toHideServiceDialog"><i class="xzicon-close"></i></span>
+                </div>
+                <div class="publicScroll_main bgfff">
+                    <view class="pd15">
+                    	<div style="width:300px;margin:auto;">
+                    		<image show-menu-by-longpress="true" class="w100" src="{{serviceDialog.customerWxPic}}" mode="widthFix" />
+                        </div>
+                    </view>
+                </div>
+                <div class="publicScroll_footBtn">
+                	<div class="displayFlex">
+                        <div class="list">
+                        	<button class="submitBtn" type="button" bindtap="toHideServiceDialog">我知道了</button>
+                        </div>
+                    </div>
+                </div>
+            </view>
+        </div>
     </div>
     <nologin bindloginsuccess="onShow" wx:else></nologin>
     <newShare id="newShareCon"></newShare>

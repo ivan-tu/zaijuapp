@@ -35,3 +35,10 @@
 .user-withdrawDetail-info .link{
 	color: #F84438;
 }
+
+.withdrawDetail-footList +.withdrawDetail-footList{
+	margin-left:10px;
+}
+.invoiceImage{
+	width:200px;
+}

@@ -52,7 +52,9 @@
         <div class="form-title clearfix">
         	<p class="fl" wx:if="{{getType=='user'}}">共 {{count}} 人报名</p>
             <p class="fl" wx:else>共 {{count}} 张票</p>
-            <span class="fr redBtn" bindtap="exploreThis" wx:if="{{ismaster==1&&client=='web'&&getType=='user'}}">导出</span>
+            <span class="fr redBtn" bindtap="refundAll" data-status="1" wx:if="{{ismaster==1&&getType=='order1'&&form.status==='1'}}">批量退已报名票</span>
+            <span class="fr redBtn" bindtap="refundAll" data-status="0" wx:if="{{ismaster==1&&getType=='order1'&&form.status==='0'}}">批量退未报名票</span>
+            <span class="fr redBtn" bindtap="exploreThis" wx:if="{{ismaster==1&&getType=='user'}}">导出</span>
             <div class="fr mr10" bindtap="changeShowInfo" wx:if="{{ismaster==1&&getType=='user'}}">
                 <span class="xzui-switch-new small {{(showInfo?' active':'')}}"></span>
                 <span class="displayIB ml5 c333 p12 vMid">显示隐私</span>

@@ -32,7 +32,7 @@
 				showusernum: 1, //是否显示报名人数
 				selfcancel:0,//是否可以取消活动
 				paytype:'cash',//diamond/cash/wallte钻石，现金，友币
-				diamondpay:0,//是否允许钻石支付
+				diamondpay:1,//是否允许钻石支付
 				publicity:1,//报名范围1-所有2-俱乐部
 				levelset:0,//所有人，所有会员0-5
 				joinclubids:'',//俱乐部id
@@ -410,6 +410,18 @@
 								files2: files2
 							});
 						};
+						if(res.tickets && res.tickets.length){
+							app.each(res.tickets,function(i,item){
+								item.enddate = item.enddate||'';
+								item.webPickerDate = item.enddate?item.enddate:'';
+								if(app.config.client!='wx'){
+									setTimeout(function(){
+										_this.selectComponent('#pickerTicketEndTime_'+i).reset();
+									},300);
+								};
+							});
+							_this.setData({'form.tickets':res.tickets});
+						};
 						//获取本俱乐部所有会员等级，专门用于编辑状态
 						if(res.clubid){
 							app.request('//clubapi/getClubsLevel',{clubid:res.clubid,sort:'taix'},function(req){
@@ -721,7 +733,7 @@
 						};
 						app.each(item.priceList, function (l, g) {
 							if (!isPrice.test(g)) {
-								msg = '请输入正确的' +l;
+								msg = '请输入正确的' +l+'价';
 							};
 						});
 						if (msg) {
@@ -1004,6 +1016,8 @@
 						upgradeToLevelid:'',
 						upgradeToLevelname:'',
 						upgradeToLevelday:'',
+						enddate:'',
+						webPickerDate:app.getNowDate(1),//web picker用的
 					};
 				if(formData.tickets.length==0){
 					itemData.name = '通用票';
@@ -1028,6 +1042,17 @@
 				formData.tickets[index][type] = app.eValue(e);
 				this.setData({
 					form: formData
+				});
+			},
+			changeTicketEndTime:function(e){
+				let index = Number(e.detail.index),
+					formData = this.getData().form;
+				if(app.config.client=='wx'){
+					index = Number(e.currentTarget.dataset.index);
+				};
+				formData.tickets[index]['enddate'] = e.detail.value;
+				this.setData({
+					form:formData
 				});
 			},
 			changeTicketPrice: function (e) {

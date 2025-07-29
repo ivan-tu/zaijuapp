@@ -882,7 +882,6 @@ let xzApp;
          */
 
         userLogin(obj) {
-
           let _this = this;
           if (isWX) {
             if (!_this.userLoginCallback) {
@@ -912,6 +911,9 @@ let xzApp;
             let backUrl = pageURL;
             app.userLoginSuccess = function() {
               app.userLogining = false;
+			  if(backUrl.indexOf('/user/login/login')>=0){
+				  backUrl = '../../user/my/my';
+			  };
               app.redirectTo(backUrl);
               app.userLoginSuccess = null;
 			  //APP管理端登录就获取店铺

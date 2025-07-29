@@ -359,6 +359,18 @@
 									newValue.push({'name':itemName,'codeId':i.toString(),'selected':(i==0?'true':'')});
 								};
 							});
+							/*
+							app.each(range,function(i,item){
+								if(!item.name){
+									hasValue = false;
+									return false;
+								};
+								if(value){
+									newValue.push({'name':item.name,'codeId':i.toString(),'selected':(i==value?'true':'')});
+								}else{
+									newValue.push({'name':item.name,'codeId':i.toString(),'selected':(i==0?'true':'')});
+								};
+							});*/
 							if(hasValue){
 								wx.app.call('fancySelect', {
 									success: function(data) {

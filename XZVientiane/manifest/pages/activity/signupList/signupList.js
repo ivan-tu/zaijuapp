@@ -117,13 +117,11 @@
 					type = app.eData(e).type,
 					value = app.eData(e).value,
 					formData = this.getData().form;
-				formData[type] = value;
-				if(type!='signstatus'){
+				if(type!='signstatus'&&type!='status'){
 					formData['signstatus'] = '';
-				};
-				if(type!='status'){
 					formData['status'] = '';
 				};
+				formData[type] = value;
 				formData.page = 1;
 				this.setData({form:formData});
 				this.getList();
@@ -391,29 +389,44 @@
 				let _this = this,
 					options = this.getData().options,
 					url = 'https://'+app.config.domain+'/export/exportActivityUser?id='+options.id;
-				if(app.config.client=='wx'){
-				}else{
-					app.confirm({
-						title:'下载地址',
-						content:url,
-						confirmText:'复制',
-						cancelText:'关闭',
-						success:function(req){
-							if(req.confirm){
-								  $('body').append('<input class="readonlyInput" value="'+url+'" id="readonlyInput" readonly />');
-								  var originInput = document.querySelector('#readonlyInput');
-								  originInput.select();
-								  if(document.execCommand('copy')) {
-									  document.execCommand('copy');
-									  app.tips('复制成功','error');
-								  }else{
-									  app.tips('浏览器不支持，请手动复制','error');
-								  };
-								  originInput.remove();
+				app.confirm({
+					title:'导出地址',
+					content:url,
+					confirmText:'复制',
+					cancelText:'关闭',
+					success:function(req){
+						if(req.confirm){
+							if(app.config.client=='wx'){
+								wx.setClipboardData({
+									data: url,
+									success: function () {
+										app.tips('复制成功', 'success');
+									},
+								});
+							}else if(app.config.client=='app'){
+								wx.app.call('copyLink', {
+									data: {
+										url: url
+									},
+									success: function (res) {
+										app.tips('复制成功', 'success');
+									}
+								});
+							}else{
+								$('body').append('<input class="readonlyInput" value="'+url+'" id="readonlyInput" readonly />');
+								var originInput = document.querySelector('#readonlyInput');
+								originInput.select();
+								if(document.execCommand('copy')) {
+									document.execCommand('copy');
+									app.tips('复制成功','error');
+								}else{
+									app.tips('浏览器不支持，请手动复制','error');
+								};
+								originInput.remove();
 							};
-						},
-					});
-				};
+						};
+					},
+				});
 			},
 			changeShowInfo:function(){
 				this.setData({showInfo:!this.getData().showInfo});
@@ -495,6 +508,18 @@
 						app.tips('退票成功','success');
 						data[index].status = 2;
 						_this.setData({data:data});
+					});
+				});
+			},
+			refundAll:function(e){
+				let _this = this,
+					formData = this.getData().form,
+					status = app.eData(e).status;
+				app.confirm(status==1?'确定给所有已经报名的退票吗?':'确定给所有未报名的退票吗?',function(){
+					app.request('//activityapi/batchCancelTicket',{id:formData.activityid,status:status},function(){
+						app.tips('退票成功','success');
+						_this.setData({'form.page':1});
+						_this.getList();
 					});
 				});
 			},

@@ -30,6 +30,14 @@
 			pageCount:0,
 			picWidth:((app.system.windowWidth>480?480:app.system.windowWidth)-40)*0.5,
 			picHeight:((app.system.windowWidth>480?480:app.system.windowWidth)-40)*0.5/0.875,
+			checkParentDialog:{
+				show:false,
+				height:260,
+				parentData:{},
+				account:'',
+				id:'',
+				index:'',
+			},
         },
         methods: {
             onLoad: function(options) {
@@ -114,11 +122,6 @@
 				this.setData({form:formData});
 				this.getList();
 			},
-			toDetail:function(e){
-				if(app.eData(e).id){
-					app.navTo('../../user/businessCard/businessCard?id='+app.eData(e).id);
-				};
-			},
 			getList:function(loadMore){
 				let _this = this,
 					formData = _this.getData().form,
@@ -178,6 +181,74 @@
 					formData.page++;
 					this.setData({form:formData});
 					this.getList(true);
+				};
+			},
+			toDetail:function(e){
+				let _this = this,
+					id = app.eData(e).id;
+				app.actionSheet(['查看名片','转让他人'],function(res){
+					switch(res){
+						case 0:
+						app.navTo('../../user/businessCard/businessCard?id='+id);
+						break;
+						case 1:
+						_this.setData({
+							'checkParentDialog.id':id,
+							'checkParentDialog.show':true,
+							'checkParentDialog.account':'',
+							'checkParentDialog.parentData':{},
+						});
+						break;
+					};
+				});
+			},
+			toHideCheckDialog:function(){
+				this.setData({
+					'checkParentDialog.show':false,
+				});
+			},
+			toEditParent:function(){
+				this.setData({
+					'checkParentDialog.parentData':'',
+					'checkParentDialog.account':'',
+				});
+			},
+			checkAccount:function(){//检测账号
+				let _this = this,
+					checkParentDialog = this.getData().checkParentDialog;
+				if(!checkParentDialog.account){
+					app.tips('请输入手机号码','error');
+				}else{
+					app.request('//userapi/getInfoByAccount',{account:checkParentDialog.account},function(res){
+						if(res&&res.invitationNum){
+							res.headpic = app.image.crop(res.headpic,60,60);
+							res.account = checkParentDialog.account;
+							_this.setData({
+								'checkParentDialog.parentData':res,
+								'checkParentDialog.edit':1
+							});
+						}else{
+							app.tips('用户不存在','error');
+						};
+					});
+				};
+			},
+			toConfirmCheckDialog:function(){
+				let _this = this,
+					checkParentDialog = this.getData().checkParentDialog,
+					msg = '';
+				if(!checkParentDialog.parentData||!checkParentDialog.parentData.invitationNum){
+					msg = '请确认推荐人';
+				};
+				if(msg){
+					app.tips(msg,'error');
+				}else{
+					_this.toHideCheckDialog();
+					app.request('//userapi/trunUserParent',{userid:checkParentDialog.id,touserid:checkParentDialog.parentData._id},function(){
+						_this.toHideCheckDialog();
+						app.tips('转让成功','success');
+						_this.load();
+					});
 				};
 			},
         }

@@ -32,6 +32,10 @@
                 <div class="xzui-cell__ft xzui-cell__ft_in-access"><i class="xzicon-right xzui-cell__ft_arrow"></i>
                 </div>
             </navigator>
+            <div class="xzui-cell xzui-cell_access" wx:if="{{client=='app'}}">
+                <div class="xzui-cell__bd">APP版本号</div>
+                <div class="xzui-cell__ft xzui-cell__ft_in-access">{{versionCode}}</div>
+            </div>
         </div>
         <button class="user-set-out setBottomLine setTopLine bgColor" type="button" bindtap="signOut">退出登录</button>
     </div>

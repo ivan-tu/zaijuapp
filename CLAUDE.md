@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **App Name**: 在局 (XZVientiane)
 - **Platform**: iOS (Objective-C)
 - **Bundle ID**: cc.tuiya.hi3
-- **Current Version**: 1.0.6 (Build: 202507202119)
+- **Current Version**: 1.0.9 (Build: 202507290123)
 - **Team ID**: PCRMMV2NNZ
 - **Xcode Workspace**: XZVientiane.xcworkspace
 - **Minimum iOS Version**: 15.0
@@ -14,30 +14,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build Commands
 
-### Quick Build Scripts
+### Important: Working Directory
 ```bash
-# Make script executable
-chmod +x build.sh
+# ALWAYS navigate to the project directory first
+cd zaijuapp
+```
 
-# Build archive and open Xcode Organizer
-./build.sh
-
-# Build for Ad Hoc testing
-chmod +x build_adhoc.sh
-./build_adhoc.sh
-
-# Run on simulator
-chmod +x test_simulator.sh
-./test_simulator.sh
-
-# Debug TestFlight issues
-chmod +x debug_testflight.sh
-./debug_testflight.sh
+### Primary Build Script
+```bash
+# Build archive and open Xcode Organizer for manual distribution
+chmod +x build.sh && ./build.sh
 ```
 
 ### Manual Build Commands
 ```bash
-# Clean derived data (if build errors occur)
+# Clean DerivedData (recommended before building)
 rm -rf ~/Library/Developer/Xcode/DerivedData/XZVientiane-*
 
 # Clean project
@@ -59,205 +50,264 @@ xcodebuild -workspace XZVientiane.xcworkspace \
     -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-### Environment Setup
+### CocoaPods Setup
 ```bash
-# Install/Update CocoaPods dependencies
+# Install/Update dependencies (required after clone)
 pod install --repo-update
 
-# Check certificates and provisioning profiles
-security find-identity -v -p codesigning
-ls ~/Library/MobileDevice/Provisioning\ Profiles/
+# Note: Uses podfile (lowercase) - not standard Podfile naming
+# Contains Xcode 16 compatibility fixes for AMap SDK
 ```
+
+## Logging and Debugging
+
+### NSLog Debugging
+- **Debug builds**: Use `ZJLog(...)` macro for debug logging (automatically disabled in Release)
+- **Release builds**: Use `ZJLogAlways(...)` for critical logs that should appear in Release
+- **Macro definition**: Located in `XZVientiane/Define/XZBaseHead.h`
+
+### Debug vs Release Differences
+- **Optimization**: Release builds use -O2/-Os optimization, may change execution order
+- **JavaScript Bridge**: Release builds may have timing issues due to faster execution
+- **File Access**: Release builds have stricter sandbox restrictions
+- **Memory Management**: Release builds have more aggressive memory collection
 
 ## Project Architecture
 
 ### Hybrid Application Structure
-This is a **hybrid iOS application** that uses native iOS containers with web content loaded via WKWebView. The app follows a TabBar-based architecture where each tab loads a different web page.
+This is a **hybrid iOS application** that combines native iOS containers with web content loaded via WKWebView. The app follows a TabBar-based architecture where each tab loads different web content.
 
-### Key Architectural Components
-
-#### 1. Application Lifecycle Flow
+### Key Architectural Flow
 ```
-AppDelegate.m
-├── Network Permission Check (iOS 10+)
-├── Location Services Init (AMap)
-├── Third-party SDK Init (UMeng, WeChat)
-└── XZTabBarController Init
-    └── CFJClientH5Controller (per tab)
-        └── XZWKWebViewBaseController
-            ├── WKWebView Setup
-            ├── JavaScript Bridge (HybridSDK + WKWebViewJavascriptBridge)
-            └── HTML Content Loading
+AppDelegate.m (Application Entry)
+├── Network Permission Check (iOS 10+ CTCellularData)
+├── Location Services Init (AMapLocationManager)
+├── Third-party SDK Init (UMeng, WeChat, Alipay)
+└── XZTabBarController (Tab Management)
+    └── CFJClientH5Controller (Per Tab) 
+        └── XZWKWebViewBaseController (WebView Base)
+            ├── WKWebView Creation & Configuration
+            ├── JavaScript Bridge Setup (WKWebViewJavascriptBridge)
+            ├── HTML Loading from manifest/
+            └── JS-Native Communication Handler
 ```
 
-#### 2. WebView-Native Bridge Architecture
-- **HybridSDK.framework**: Custom framework for native-web communication
-- **WKWebViewJavascriptBridge**: Handles JavaScript-to-native calls via `xzBridge` handler
-- **JavaScript Functions**: `app.request()`, `app.tips()`, `pageReady()`, etc.
-- **Native Handlers**: Payment, location, navigation, social sharing
+### Critical Components
 
-#### 3. HTML Content Loading Strategy
-- **Local HTML Template**: `manifest/app.html` serves as the container
-- **Dynamic Content**: Loaded via `{{body}}` placeholder replacement
-- **Resource Path**: Local resources served from `manifest/static/`
-- **JavaScript Configuration**: `xzSystemConfig` in app.html defines environment settings
+#### 1. WebView Controllers Hierarchy
+- **XZWKWebViewBaseController**: Base WebView controller with bridge setup
+- **CFJWebViewBaseController**: Adds hybrid functionality
+- **CFJClientH5Controller**: Tab-specific implementation with business logic
+
+#### 2. JavaScript Bridge Architecture
+- **Bridge Library**: WKWebViewJavascriptBridge (Third-party)
+- **Handler Name**: `xzBridge` (unified message channel)
+- **JS Interface**: `webViewCall()` function in webviewbridge.js
+- **Async Communication**: All JS-Native calls are asynchronous with callbacks
+
+#### 3. HTML Resource Loading
+- **Template**: `manifest/app.html` with `{{body}}` placeholder
+- **Pages**: Located in `manifest/pages/[module]/[page]/`
+- **Resources**: Static files in `manifest/static/`
+- **BaseURL**: Set to manifest directory for relative resource loading
 
 ### Critical Initialization Sequence
-1. **AppDelegate** creates window and shows LoadingView
-2. **Network permissions** checked (iOS 10+)
-3. **XZTabBarController** created but initially hidden
-4. **HybridManager** loads tab configuration from `appInfo.json`
-5. **CFJClientH5Controller** instances created for each tab
-6. **First tab's WebView** loads content
-7. **pageReady** JavaScript callback removes LoadingView and shows TabBar
+1. AppDelegate creates window with LoadingView (tag: 2001)
+2. Network permissions checked (CTCellularData for iOS 10+)
+3. XZTabBarController created and set as root
+4. Tab configuration loaded from `appInfo.json`
+5. First tab (CFJClientH5Controller) created with lazy loading for others
+6. WebView created in viewDidAppear (not viewDidLoad) to avoid blocking
+7. HTML content loaded via `domainOperate` method
+8. JavaScript bridge established via `wx.app.connect()`
+9. `pageReady` callback removes LoadingView
 
 ### Key Files and Locations
-- **Tab Configuration**: `manifest/source/appInfo.json`
+- **App Configuration**: `appInfo.json` (TabBar config)
+- **Share Configuration**: `shareInfo.json` (Social SDK keys)
 - **HTML Template**: `manifest/app.html`
-- **JavaScript Bridge**: `manifest/static/app/webviewbridge.js`
-- **Custom Framework**: `HybridSDK.framework` (root directory)
+- **JS Bridge**: `manifest/static/app/webviewbridge.js`
 - **Environment Config**: `XZVientiane/Define/XZBaseHead.h`
+- **Client Config**: `ClientSetting.plist` (Domain settings)
 
-### Third-Party Dependencies (via CocoaPods)
-- **AFNetworking 4.0.1**: Network layer
-- **AMap SDK**: 高德地图 (AMapFoundation, AMapLocation, AMap3DMap, AMapSearch)
-- **UMeng SDKs**: 友盟统计/推送 (UMCommon, UMPush, UMShare, UMAPM)
-- **WeChat SDK**: 微信分享/支付 (via manual integration)
-- **Alipay SDK**: 支付宝支付
-- **SDWebImage 5.0.6**: Image loading and caching
-- **Masonry 1.1.0**: Auto Layout constraints
+### Third-Party Dependencies (CocoaPods)
+- **AFNetworking 4.0.1**: Network requests
+- **AMap SDK Suite**: Location services (Foundation, Location, 3DMap ~10.0.600, Search)
+  - **Note**: AMap3DMap pinned to ~10.0.600 for Xcode 16 compatibility
+- **UMeng SDK Suite**: Analytics & Push (UMCommon, UMPush, UMShare with reduced social SDKs)
+- **AlipaySDK-iOS 15.8.30**: Payment integration
+- **SDWebImage 5.0.6**: Image loading/caching
+- **Masonry 1.1.0**: Auto Layout
 - **MJRefresh 3.7.9**: Pull-to-refresh
-- **Qiniu SDK**: 七牛云存储
-- **HybridSDK**: Custom framework in project root
+- **Qiniu 8.9.0**: Cloud storage uploads
+- **JSONModel 1.8.0**: JSON parsing
+- **GTMBase64 1.0.1**: Base64 encoding
+- **SAMKeychain 1.5.3**: Keychain wrapper
 
-### Configuration Files
+### Special Notes on Dependencies
+- **WeChat SDK**: Manually integrated for payment/sharing (not via CocoaPods)
+- **UMShare**: Uses reduced social SDKs to avoid conflicts with manual WeChat integration
+- **Post-install script**: Sets minimum deployment target to iOS 14.0 for all pods
 
-#### Environment Configuration (XZBaseHead.h)
-- **Debug/Release**: Controlled by `kIsDebug` macro (0 = Release, 1 = Debug)
-- **API Domain**: `https://hi3.tuiya.cc`
+### Environment Configuration
+
+#### API Endpoints (XZBaseHead.h)
+- **Production Domain**: `https://hi3.tuiya.cc`
 - **App ID**: `xiangzhan$ios$g8u9t60p`
 - **App Secret**: `$yas6WwyP7By9agE`
-- **H5 Version**: `1.0.2` (Production)
 - **Qiniu CDN**: `https://statics.tuiya.cc/`
 
 #### JavaScript Environment (app.html)
 ```javascript
 var xzSystemConfig = {
-    xzAppId:'hi3',
+    xzAppId: 'hi3',
     clientMode: 'app',
     environment: 'production',
-    domain:'hi3.tuiya.cc',
-    filePath:'https://statics.tuiya.cc/'
+    domain: 'hi3.tuiya.cc',
+    filePath: 'https://statics.tuiya.cc/'
 };
 ```
 
-### Key Integration Points
+## JavaScript Bridge Communication
 
-#### WeChat Integration
-- **App ID**: Configured via shareInfo.json
-- **Universal Link**: `https://hi3.tuiya.cc/`
-- **URL Scheme**: `wx71ed098c91349cdc`
-- **Callbacks**: Handled in AppDelegate via `onResp:`
-
-#### Payment Integration
-- **WeChat Pay**: Via WXApi with proper callbacks
-- **Alipay**: Via AlipaySDK with URL scheme `cc.tuiya.hi3`
-- **Callback Notifications**: `weixinPay`, `payresultnotif`
-
-#### Location Services (AMap)
-- **API Key**: `071329e3bbb36c12947b544db8d20cfa`
-- **Privacy Setup**: Required before initialization
-- **Storage Keys**: `currentLat`, `currentLng`, `currentCity`, `currentAddress`
-
-## Common Development Tasks
-
-### Debugging WebView Issues
-1. Check JavaScript console via Safari Web Inspector
-2. Monitor native-JS bridge calls in Xcode console
-3. Verify `pageReady` callback is triggered
-4. Check network permissions and Reachability status
-
-### Handling JavaScript Bridge Calls
-```objc
-// Native to JavaScript
-NSDictionary *callJsDic = [[HybridManager shareInstance] objcCallJsWithFn:@"functionName" data:nil];
-[self objcCallJs:callJsDic];
-
-// JavaScript to Native (handled in jsCallObjc:)
-- request: Network requests
-- pageReady: Page initialization complete
-- navigateTo: Navigation between pages
-- getLocation: Get current location
-- showToast: Display native toast
-- payWeiXin: Initiate WeChat payment
-- payAlipay: Initiate Alipay payment
-- shareToWeiXin: Share to WeChat
-- selectImage: Open image picker
-- uploadImage: Upload images to Qiniu
-```
-
-### Testing JavaScript Bridge
+### JS to Native Calls
 ```javascript
-// Test bridge connection in Safari Web Inspector
-app.request({
-    url: '/api/test',
-    success: function(res) { console.log(res); }
+// webviewbridge.js pattern
+webViewCall('actionName', {
+    param1: 'value',
+    success: function(res) { },
+    fail: function(err) { }
 });
 ```
 
-### Common Patterns
-- **Weak/Strong self**: Use `WEAK_SELF`/`STRONG_SELF` macros in blocks
-- **Main Thread UI**: Always dispatch UI updates to main queue
-- **Timer Management**: Cancel timers in viewWillDisappear/dealloc
-- **JavaScript Execution**: Use `safelyEvaluateJavaScript:` for safe execution
+#### Available Actions
+- **pageReady**: Page loaded, ready for display
+- **request**: HTTP request via native
+- **navigateTo**: Navigate to new page
+- **navigateBack**: Go back
+- **redirectTo**: Replace current page
+- **getLocation**: Get GPS location
+- **showToast/hideToast**: Native toast messages
+- **showLoading/hideLoading**: Loading indicators
+- **payWeiXin**: WeChat payment
+- **payAlipay**: Alipay payment
+- **shareToWeiXin**: Share to WeChat
+- **selectImage**: Image picker
+- **uploadImage**: Upload to Qiniu
+- **setNavigationBarTitle**: Update nav title
+- **saveImageToPhotosAlbum**: Save image
 
-## Troubleshooting
-
-### Xcode Build Errors
-```bash
-# Clean DerivedData if you see "unable to rename temporary" errors
-rm -rf ~/Library/Developer/Xcode/DerivedData/XZVientiane-*
-
-# Reset CocoaPods if dependency errors occur
-pod deintegrate
-pod install
+### Native to JS Calls
+```objc
+// Native pattern
+NSDictionary *callJsDic = [[HybridManager shareInstance] 
+    objcCallJsWithFn:@"functionName" data:@{@"key": @"value"}];
+[self objcCallJs:callJsDic];
 ```
 
-### App Launch Issues
-- **Blank Screen**: Check if `pageReady` is called, verify TabBarController initialization
-- **Scene Update Timeout**: Ensure TabBarController is not hidden during launch
-- **Network Permission Denied**: App requires network access, check CTCellularData state
+#### Common Functions
+- **pageShow**: Page visibility changed
+- **pagePullDownRefresh**: Pull refresh triggered
+- **setData**: Update page data
+- **keyboardShow/keyboardHide**: Keyboard events
+- **onNetworkAvailable**: Network restored
+
+## Common Issues and Solutions
+
+### Release Build Issues
+1. **Tab switching freezes**: Timing issues with JavaScript bridge
+   - Solution: Ensure `pageReady` is called after bridge setup
+   - Check async operations in `viewDidAppear`
+
+2. **First page blank**: Network permission or loading sequence
+   - Solution: Check CTCellularData state
+   - Verify `domainOperate` execution
+
+3. **JavaScript errors silent**: Release optimization removes logs
+   - Solution: Use Safari Web Inspector with device
+   - Add `ZJLogAlways` for critical points
 
 ### WebView Loading Issues
-- **10-second Timeout**: Check network status and HTML file existence
-- **JavaScript Bridge Not Working**: Verify WKWebViewJavascriptBridge initialization
-- **Resources Not Loading**: Check baseURL points to correct manifest directory
+1. **HTML not loading**: BaseURL or file path issues
+   - Check manifest directory exists: `[BaseFileManager appH5LocailManifesPath]`
+   - Verify app.html exists in manifest/
 
-## Important Notes
+2. **Resources 404**: Relative path problems
+   - Ensure baseURL set to manifest directory
+   - Check resource paths in HTML are relative
 
-### Certificate Management
-- Team ID: PCRMMV2NNZ
-- Use automatic signing for development builds
-- Manual signing required for distribution
+3. **Bridge not responding**: Initialization timing
+   - Verify `wx.app.connect()` called in JS
+   - Check `setupJavaScriptBridge` completed
 
-### Privacy Compliance
-- Location permission strings configured in Info.plist
-- AMap privacy agreement must be accepted before use
-- Network permission required for iOS 10+
+### App Store Submission Issues
+1. **UIWebView references**: Will be rejected
+   - Already migrated to WKWebView
+   - Check no UIWebView imports remain
 
-### Performance Considerations
-- WebView creation happens on main thread
-- JavaScript operations queued to prevent conflicts
-- Background tasks limited to 2 seconds to avoid termination
+2. **Privacy permissions**: Must have usage descriptions
+   - Location: NSLocationWhenInUseUsageDescription
+   - Camera: NSCameraUsageDescription
+   - Photo Library: NSPhotoLibraryUsageDescription
 
-### Running Tests
-```bash
-# No automated tests configured
-# Use manual testing via simulator or device
-```
+3. **ATS (App Transport Security)**: HTTPS required
+   - Current domains use HTTPS
+   - Check Info.plist for exceptions
 
-### Common Error Messages
-- **"Network permission denied"**: iOS 10+ requires network permission, check CTCellularData
-- **"Unable to rename temporary"**: Clear DerivedData folder
-- **"WebView load timeout"**: Check network status and verify manifest files exist
-- **"JavaScript bridge not responding"**: Ensure WKWebViewJavascriptBridge is initialized
+## Testing and Debugging
+
+### Safari Web Inspector
+1. Enable Web Inspector on device: Settings > Safari > Advanced
+2. Connect device to Mac
+3. Safari > Develop > [Device Name] > XZVientiane
+4. Debug JavaScript, inspect elements, monitor network
+
+### Common Debug Points
+- **AppDelegate.m**: Network permission flow
+- **XZTabBarController.m**: Tab loading and switching
+- **CFJClientH5Controller.m**: Page lifecycle
+- **XZWKWebViewBaseController.m**: WebView and bridge setup
+
+### Key Breakpoints for Debugging
+1. `viewDidAppear` in CFJClientH5Controller
+2. `domainOperate` in XZWKWebViewBaseController
+3. `jsCallObjc:jsCallBack:` for bridge calls
+4. `pageReady` handler in JavaScript bridge
+
+## Critical Timing and Lifecycle
+
+### Tab Loading Sequence
+1. First tab loads immediately in `reloadTabbarInterface`
+2. Other tabs use placeholder ViewControllers (lazy loading)
+3. Real controllers created on first selection in `shouldSelectViewController`
+4. WebView created in `viewDidAppear`, not `viewDidLoad`
+
+### JavaScript Bridge Timing
+1. WebView must be created and added to view hierarchy
+2. Bridge setup via `setupJavaScriptBridge`
+3. HTML loaded with `loadHTMLString:baseURL:`
+4. JS executes `wx.app.connect()` to establish connection
+5. Only then can `pageReady` be called successfully
+
+### Network Permission Flow (iOS 10+)
+1. CTCellularData checks network permission state
+2. If restricted, shows alert to user
+3. If allowed, proceeds with initialization
+4. LoadingView remains until network available
+
+## Performance Optimizations
+
+### Tab Lazy Loading
+- Only first tab created initially
+- Others use lightweight placeholders
+- Real controllers created on demand
+
+### WebView Creation
+- Delayed to `viewDidAppear` to avoid blocking
+- Created asynchronously on main queue
+- Reused when possible (not recreated)
+
+### Resource Loading
+- HTML read asynchronously in background
+- Static resources cached by WKWebView
+- Images lazy loaded via SDWebImage

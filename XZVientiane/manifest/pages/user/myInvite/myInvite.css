@@ -31,3 +31,14 @@
 	font-size:12px;
 	color:#888;
 }
+/*推荐人弹框*/
+.checkParentDialog .userInfoBox .picBox{
+	width:36px;
+	height:36px;
+	float:left;
+	border-radius:50%;
+	overflow:hidden;
+}
+.checkParentDialog .userInfoBox .textBox{
+	margin-left:42px;
+}

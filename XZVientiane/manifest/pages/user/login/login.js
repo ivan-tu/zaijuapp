@@ -27,13 +27,11 @@
         },
         methods: {
             onLoad: function(options) {
-                let _this = this,
-                    client = this.getData().client;
-                app.config.needBindAccount=true;
+                let _this = this;
 				if(options.type&&options.type=='phone'){
 					_this.setData({mobileLogin:true});
 				};
-                if (client == 'app') {
+                if (app.config.client == 'app') {
                     wx.app.call('hasWx', {
                         success: function(res) {
                             if (res.status != 1) {
@@ -41,6 +39,7 @@
                             };
                         }
                     });
+					_this.setData({mobileLogin:true});
                 };
             },
             onPullDownRefresh: function() {
@@ -67,7 +66,7 @@
                     countDownNum = _this.getData().countDownNum,
                     formData = _this.getData().form,
                     msg = '';
-
+				
                 if (!formData.mobile) {
                     msg = '请输入手机号码';
                 } else if (!_this.isPhones(formData.mobile)) {
@@ -182,7 +181,9 @@
 
                 if (!this.isPhones(mobile)) {
                     app.tips('请输入正确的手机号码');
-                } else {
+                }else if(!this.getData().agreeMement){
+					app.tips('请先同意用户协议','error');
+				} else {
                     this.setData({ isCode: true, focusInput: false });
                     this.getCode();
                 };
@@ -195,12 +196,15 @@
 				};
             },
             inputCode: function(e) {
-                let value = app.eValue(e);
-
+				let value = app.eValue(e);
+				if(value.length>4){
+					value = value.slice(0,4);
+				};
                 this.setData({ 'form.code': value });
                 if (value.length == 4) {
                     this.submit();
                 };
+				
             },
             sendVoice: function() {
                 let form = this.getData().form,

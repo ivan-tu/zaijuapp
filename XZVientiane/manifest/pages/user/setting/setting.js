@@ -7,13 +7,14 @@
         data: {
             systemId: 'user',
             moduleId: 'setting',
-						isUserLogin: app.checkUser(),
-            data: null,
+			isUserLogin: app.checkUser(),
+            data: {},
             options: {},
             settings: {},
             language: {},
             client: app.config.client,
-            form: {}
+            form: {},
+			versionCode:'',
         },
         methods: {
             onLoad:function(options){
@@ -22,7 +23,16 @@
 				app.checkUser(function(){
 					_this.setData({isUserLogin:true});
 				});
-				
+				if(app.config.client=='app'){
+					app.request('//set/get',{type:'appSet'},function(res){
+						let backData = res.data||{};
+						if(backData){
+							_this.setData({
+								versionCode:backData.versionCode
+							});
+						};
+					});
+				};
 			},
 			onShow: function(){
 				//检查用户登录状态
@@ -38,7 +48,7 @@
             signOut: function(e) {
                 let _this = this;
                 app.confirm('确定要退出登录吗?', function () {
-                    app.request('/user/userapi/logout', function () {
+                    app.request('//userapi/logout', function () {
                         app.removeUserSession();
 						app.tips('退出成功','success');
 						setTimeout(function(){

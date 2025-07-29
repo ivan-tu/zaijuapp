@@ -6,7 +6,7 @@
 (function(global, $) {
 
     let app = global.getApp(),
-        appActions = ['previewImage', 'upload', 'share', 'pay', 'showModal','showToast', 'showActionSheet', 'navigateBack', 'setNavigationBarTitle', 'setTabBarBadge', 'removeTabBarBadge', 'showTabBarRedDot', 'hideTabBarRedDot', 'setTabBarStyle', 'setTabBarItem', 'showTabBar', 'hideTabBar', 'switchTab', 'reLaunch'];
+        appActions = ['previewImage', 'upload', 'share', 'pay', 'showModal', 'showActionSheet', 'navigateBack', 'setNavigationBarTitle', 'setTabBarBadge', 'removeTabBarBadge', 'showTabBarRedDot', 'hideTabBarRedDot', 'setTabBarStyle', 'setTabBarItem', 'showTabBar', 'hideTabBar', 'switchTab', 'reLaunch'];
 
     xzApp.init(app);
 
@@ -186,7 +186,7 @@
                                     if (app.userLoginSuccess) {
                                         app.userLoginSuccess();
                                     } else {
-                                        xzSystem.loadPage('../../user/userCenter/userCenter');
+                                        xzSystem.loadPage('../../user/my/my');
                                     };
                                     break;
                                 case 'nickName':

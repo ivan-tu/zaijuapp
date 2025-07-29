@@ -1,0 +1,16 @@
+<div class="app-wrapper">
+    <div wx:if="{{isUserLogin}}" class="app-main">
+        <div class="bgfff pb20">
+            <div class="form-list">
+                <div class="form-list-item">
+                    <upload value="{{form.pic}}" class="user-upload" width="{{picWidth}}" height="{{picHeight}}" bindchange="uploadSuccess" id="uploadPic"></upload>
+                </div>
+            </div>
+            <p class="mt5 p12 tac mt10">请上传电子发票照片</p>
+        </div>
+        <div class="xzui-btn-app">
+            <button type="button" bindtap="submit" class="xzui-btn xzui-btn_b primary" size="large">提交</button>
+        </div>
+    </div>
+    <nologin bindloginsuccess="onShow" wx:else></nologin>
+</div>

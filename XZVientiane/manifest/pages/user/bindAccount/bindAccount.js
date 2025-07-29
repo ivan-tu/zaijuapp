@@ -146,15 +146,17 @@
                     };
                 } else {
                     app.setUserSession(data);
-
                     if (this.options.dialogPage == '1') {
                         app.dialogSuccess(data);
                     } else {
                         if (app.userLoginSuccess) {
-                            if (this.options.back == '1') {
+                            if(app.config.client=='app'){
+								xzSystem.loadPage('../../user/my/my');
+							}else if (this.options.back == '1') {
                                 app.navBack();
-                            };
-                            app.userLoginSuccess();
+                            }else{
+                            	app.userLoginSuccess();
+							};
                         } else if (this.options.redirect_uri) {
                             app.reLaunch(this.options.redirect_uri);
                         } else {

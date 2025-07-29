@@ -32,13 +32,6 @@
 			bannerWidth:(app.system.windowWidth>480?480:app.system.windowWidth)-15,
 			bannerHeight:Math.ceil(((app.system.windowWidth>480?480:app.system.windowWidth)-15)*0.33333),
 			bannerList:[],
-			ingotDialog:{
-				show:false,
-				height:300,
-				total:0,
-				status:1,//1-成功了2-倒计时
-				counDownTime:'00:00:00',
-			},
 			showCollect:false,
 			showWxDialog:{
 				show:false,
@@ -70,6 +63,8 @@
 				recommend:'1',
 				hot:'',
 				gettype:'',//my获取我的
+				begindate:'',
+				enddate:'',
 			},
 			activityPicWidth:Math.ceil((app.system.windowWidth>480?480:app.system.windowWidth)-30),
 			activityPicHeight:Math.ceil((app.system.windowWidth>480?480:app.system.windowWidth)-30),
@@ -92,13 +87,18 @@
 			activityCategory:[],
 			region:[],
 			areaname:app.storage.get('areaname')||'上海市',
-			showDate:false,
-			daysColor:[{
-				month:'current',
-				day:'10',
-				color:'#cc0000',
-				background:'',
-			}],
+			categoryDialog:{
+				show:false,
+				category:'',
+			},
+			dateDialog:{
+				show:false,
+				list:[],
+				firstTime:'',
+				lastTime:'',
+				beiginText:'',
+				endText:'',
+			},
         },
         methods: {
             onLoad: function(options) {
@@ -150,6 +150,8 @@
 						_this.setData({showCollect:true});
 					};
 				};
+				
+				this.getDateList();
             },
 			onShow:function(){
 				//检查用户登录状态
@@ -218,7 +220,7 @@
 					let alertArray = app.storage.get('alertArray')||{},
 						wxVersion = app.config.wxVersion;
 					backData.wxVersion = backData.wxVersion?Number(backData.wxVersion):1;
-					if(wxVersion>backData.wxVersion&&backData.showGZH==1&&alertArray.issubwx!=1){
+					if(app.config.client!='app'&&wxVersion>backData.wxVersion&&backData.showGZH==1&&alertArray.issubwx!=1){
 						_this.setData({
 							'showWxGZHDialog.show':true
 						});
@@ -493,66 +495,6 @@
 					});
 				});
 			},
-			addMineWallte:function(){
-				let _this = this,
-					userInfo = this.getData().userInfo;
-				app.request('//homeapi/getMyInfo',{},function(req){
-					_this.setData({
-						'userInfo.canMine':req.canMine,
-						'userInfo.wallte':req.wallte,
-					});
-					if(req.canMine==0){
-						app.request('//homeapi/addMineWallte',{},function(res){
-							_this.setData({
-								'ingotDialog.show':true,
-								'ingotDialog.status':1,
-								'ingotDialog.total':res.total,
-								'userInfo.wallte':Number(userInfo.wallte)+Number(res.total),
-							});
-						});
-					}else{
-						_this.setData({
-							'ingotDialog.show':true,
-							'ingotDialog.status':2,
-						});
-						_this.countDown();
-					};
-				});
-			},
-			toHideDialog:function(){
-				this.setData({'ingotDialog.show':false});
-				if(this.countDownFn){
-					clearInterval(this.countDownFn);
-				};
-			},
-			getDateTime:function(date){  
-				//var hours = parseInt((date % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-				var hours = parseInt((date / (1000 * 60 * 60 * 24)) * 24);
-				var minutes = parseInt((date % (1000 * 60 * 60)) / (1000 * 60));
-				var seconds = parseInt((date % (1000 * 60)) / 1000);
-				return (hours<10?'0':'')+hours+':'+(minutes<10?'0':'')+minutes+':'+(seconds<10?'0':'')+seconds;
-			},
-			countDown:function(){//倒计时
-				var _this = this,
-					nowTime = (new Date(app.getNowDate(0,true).replace(/-/g, '/'))).getTime(),
-					userInfo = this.getData().userInfo;
-				if(this.countDownFn){
-					clearInterval(this.countDownFn);
-				};
-				this.countDownFn = setInterval(function(){
-					nowTime = nowTime + 1000;
-					if(userInfo.canMine*1000 - nowTime <= 0){
-						app.tips('您可以继续挖币','error');
-						_this.toHideDialog();
-						clearInterval(_this.countDownFn);
-					}else{
-						let counDownTime = _this.getDateTime(userInfo.canMine*1000 - nowTime);
-						_this.setData({
-							'ingotDialog.counDownTime':counDownTime
-						});
-					};
-				},1000);
-			},
 			toMyDetail:function(){
 				let _this = this,
 					userInfo = this.getData().userInfo;
@@ -665,14 +607,20 @@
 					value = app.eData(e).value;
 				if(type=='activityForm'){
 					let activityForm = this.getData().activityForm;
-					activityForm.recommend = '';
-					activityForm.hot = '';
-					activityForm.category = '';
-					activityForm.gettype = '';
+					//activityForm.recommend = '';
+					//activityForm.hot = '';
+					//activityForm.category = '';
+					//activityForm.gettype = '';
+					if(key=='recommend'){
+						activityForm.gettype = '';
+					}else if(key=='gettype'){
+						activityForm.recommend = '';
+					};
 					activityForm.page = 1;
 					if(key){
 						activityForm[key] = value;
 					};
+					this.categoryDialog_hide();
 					this.setData({activityForm:activityForm});
 					this.getList();
 				}else if(type=='storeForm'){
@@ -868,11 +816,200 @@
                     });
                 };
             },
-			dayClick:function(e){
-				console.log('dayClick:'+app.toJSON(e));
+			categoryDialog_changeShow:function(){
+				let _this = this,
+					categoryDialog = this.getData().categoryDialog,
+					dateDialog = this.getData().dateDialog;
+				if(dateDialog.show){
+					this.dateDialog_hide();//隐藏日期弹框
+					setTimeout(function(){
+						categoryDialog.show = categoryDialog.show?false:true;
+						_this.setData({categoryDialog:categoryDialog});
+					},220);
+				}else{
+					categoryDialog.show = categoryDialog.show?false:true;
+					_this.setData({categoryDialog:categoryDialog});
+				};
 			},
-			dateChange:function(e){
-				console.log('dateChange:'+app.toJSON(e));
+			categoryDialog_hide:function(callback){
+				this.setData({'categoryDialog.show':false});
+			},
+			categoryDialog_select:function(e){
+				let categoryDialog = this.getData().categoryDialog,
+					name = app.eData(e).name;
+				categoryDialog.category = categoryDialog.category==name?'':name;
+				this.setData({
+					categoryDialog:categoryDialog
+				});
+			},
+			categoryDialog_cancel:function(){
+				this.setData({
+					'categoryDialog.category':'',
+					'activityForm.category':'',
+					'activityForm.page':1,
+				});
+				this.categoryDialog_hide();
+				this.getList();
+			},
+			categoryDialog_submit:function(){
+				let categoryDialog = this.getData().categoryDialog;
+				this.setData({
+					'activityForm.category':categoryDialog.category,
+					'activityForm.page':1,
+				});
+				this.categoryDialog_hide();
+				this.getList();
+			},
+			dateDialog_changeShow:function(){//控制日历弹框显示隐藏
+				let _this = this,
+					dateDialog = this.getData().dateDialog,
+					categoryDialog = this.getData().categoryDialog;
+				if(categoryDialog.show){
+					_this.categoryDialog_hide();//隐藏分类弹框
+					setTimeout(function(){
+						if(dateDialog.list&&dateDialog.list.length){
+							_this.setData({
+								'dateDialog.show':true
+							});
+						}else{
+							_this.setData({
+								'dateDialog.list':_this.getDateList(),
+								'dateDialog.show':true
+							});
+						};
+					},220);
+				}else{
+					if(dateDialog.show){
+						_this.setData({'dateDialog.show':false});
+					}else{
+						if(dateDialog.list&&dateDialog.list.length){
+							_this.setData({
+								'dateDialog.show':true
+							});
+						}else{
+							_this.setData({
+								'dateDialog.list':_this.getDateList(),
+								'dateDialog.show':true
+							});
+						};
+					};
+				};
+			},
+			dateDialog_hide:function(){
+				this.setData({'dateDialog.show':false});
+			},
+			dateDialog_select:function(e){
+				let dateDialog = this.getData().dateDialog,
+					index = Number(app.eData(e).index);
+				if(dateDialog.firstTime){
+					if(dateDialog.list[index].timestap<=dateDialog.firstTime){
+						dateDialog.firstTime = dateDialog.list[index].timestap;
+						dateDialog.lastTime = '';
+					}else{
+						dateDialog.lastTime = dateDialog.list[index].timestap;
+					};
+				}else{
+					dateDialog.firstTime = dateDialog.list[index].timestap;
+				};
+				app.each(dateDialog.list,function(i,item){
+					if(dateDialog.firstTime&&dateDialog.lastTime&&item.timestap<=dateDialog.lastTime&&item.timestap>=dateDialog.firstTime){
+						item.selected = 1;
+					}else if(item.timestap==dateDialog.firstTime){
+						item.selected = 1;
+					}else{
+						item.selected = 0;
+					};
+				});
+				this.setData({dateDialog:dateDialog});
+			},
+			dateDialog_cancel:function(){
+				let dateDialog = this.getData().dateDialog;
+				app.each(dateDialog.list,function(i,item){
+					item.selected = 0;
+				});
+				dateDialog.firstTime = '';
+				dateDialog.lastTime = '';
+				this.setData({
+					dateDialog:dateDialog,
+					'activityForm.begindate':'',
+					'activityForm.enddate':'',
+					'activityForm.page':1,
+					'dateDialog.beiginText':'',
+					'dateDialog.endText':'',
+				});
+				this.dateDialog_hide();
+				this.getList();
+			},
+			dateDialog_submit:function(){
+				let _this = this,
+					dateDialog = this.getData().dateDialog,
+					begindate = '',
+					enddate = '';
+				if(dateDialog.firstTime){
+					begindate = app.getThatDate(dateDialog.firstTime);
+				};
+				if(dateDialog.lastTime){
+					enddate = app.getThatDate(dateDialog.lastTime);
+				}else if(dateDialog.firstTime){//假如只有一天，那么开始跟结束都是该天
+					enddate = begindate;
+				};
+				this.setData({
+					'activityForm.begindate':begindate,
+					'activityForm.enddate':enddate,
+					'activityForm.page':1,
+					'dateDialog.beiginText':_this.getNeedDay(begindate),
+					'dateDialog.endText':enddate==begindate?'':_this.getNeedDay(enddate),
+				});
+				this.dateDialog_hide();
+				this.getList();
+			},
+			getDateList:function(){
+				const today = new Date();
+				const currentDay = today.getDay(); // 0为周日，1-6为周一到周六
+				const daysToSubtract = currentDay; // 如果今天是周日，则向前0天，否则向前到最近的周日
+				const totalDays = 35;
+				const dateRange = [];
+				// 生成日期范围
+				for (let i = 0; i < totalDays; i++) {
+					const targetDate = new Date(today);
+					targetDate.setDate(today.getDate() - daysToSubtract + i);
+					const year = targetDate.getFullYear();
+					const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+					const day = String(targetDate.getDate()).padStart(2, '0');
+					const week = String(targetDate.getDay() || 7); // 周日为7，周一到周六为1-6
+					const timestap = targetDate.getTime(); // 获取时间戳
+					const selected = 0;
+					// 确定状态
+					let status;
+					if (targetDate.toDateString() === today.toDateString()) {
+						status = 1; // 今天
+					} else if (targetDate < today) {
+						status = 0; // 已过去
+					} else {
+						status = 2; // 未来
+					};
+					dateRange.push({
+						year,
+						month,
+						day,
+						week,
+						status,
+						timestap,
+						selected
+					});
+				};
+				return dateRange;
+			},
+			getNeedDay:function(dateStr){
+				const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+				const date = new Date(dateStr);
+				if (isNaN(date.getTime())) {
+					return '';
+				};
+				const month = date.getMonth() + 1;
+				const day = date.getDate();
+				const weekday = weekdays[date.getDay()];
+				return `${month}.${day} ${weekday}`;
 			},
         }
     });

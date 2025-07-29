@@ -44,6 +44,35 @@
                     </div>
                     <span class="rightNum">查看全部 <i class="xzicon-right"></i></span>
                 </div>
+                <p class="form-title">邀请奖励</p>
+                <div class="plr15 pb10">
+                    <div class="myExpertInfo-ruleList">
+                        <p>每成功邀请1位达人</p>
+                        <p>奖励400元+100股</p>
+                    </div>
+                    <div class="myExpertInfo-ruleList">
+                        <p>成功邀请5位达人</p>
+                        <p>升级成为代理参与每日分红</p>
+                        <p>申请服务商获得服务奖励</p>
+                    </div>
+                </div>
+                <div wx:if="{{!data.isserver&&!data.ispartner}}">
+                	<p class="form-title">新手奖励</p>
+                    <div class="plr15 pb10">
+                        <div class="myExpertInfo-ruleList" wx:if="{{data.c15days>0}}">
+                            <p>加入后15天内成功邀请3位达人</p>
+                            <p>额外奖励500股</p>
+                            <p wx:if="{{data.c3expert>0}}">差<span class="cRed bold">{{data.c3expert}}</span>位，还有<span class="cRed bold">{{data.c15days}}</span>天</p>
+                            <p wx:else class="cGreen">已完成</p>
+                        </div>
+                        <div class="myExpertInfo-ruleList" wx:if="{{data.c30days>0}}">
+                            <p>加入后30天内成功邀请5位达人</p>
+                            <p>额外奖励500股</p>
+                            <p wx:if="{{data.c5expert>0}}">差<span class="cRed bold">{{data.c5expert}}</span>位，还有<span class="cRed bold">{{data.c30days}}</span>天</p>
+                            <p wx:else class="cGreen">已完成</p>
+             			</div>
+                    </div>
+                </div>
                 <p class="form-title" wx:if="{{data.parentInfo&&data.parentInfo.username}}">我的邀请人</p>
                 <div class="myExpertInfo-infoItem clearfix" wx:if="{{data.parentInfo&&data.parentInfo.username}}">
                 	<div class="picBox hasLoading"><image src="{{data.parentInfo.headpic}}" mode="widthFix" class="round w100 h100" /></div>

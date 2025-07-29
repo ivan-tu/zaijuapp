@@ -383,7 +383,7 @@
 							img: res.pic || '',
 							imageUrl: res.pic || '',
 							weixinH5Image: res.pic,
-							wxid:'gh_4a817d503791',
+							wxid:'gh_601692a29862',
 							hideH5:true,
 							hideCopy:app.config.client=='web'?false:true,
 						},/*

@@ -42,20 +42,13 @@ function connectWebViewJavascriptBridge(callback) {
 	};	
 };
 wx.app.connect=function(callback){
-		console.log('[webviewbridge.js] wx.app.connect 被调用');
-		// 添加全局标记，表示connect已被调用
-		window._wxAppConnecting = true;
 		connectWebViewJavascriptBridge(function(bridge) {
 		
-		console.log('[webviewbridge.js] 桥接建立成功');
 		webViewBridge=bridge;
-		window._wxAppConnected = true;
 		
 		bridge.registerHandler('xzBridge', function(backData, responseCallback) {
-			 console.log('[webviewbridge.js] 收到原生调用:', backData.action, backData.data);
 			 
 			if(!backData.action||!wx.app.on[backData.action]){
-				console.error('[webviewbridge.js] action未定义:', backData.action);
 				app.trigger(responseCallback,{
 					success:false,
 					errorMessage:backData.action+' is undefined'
@@ -67,7 +60,6 @@ wx.app.connect=function(callback){
 		});
 			
 		webViewCall=function(action,obj){
-			 console.log('[webviewbridge.js] 调用原生方法:', action, obj);
 			 
 			 if(typeof obj=='function'){
 				 obj={
@@ -84,19 +76,17 @@ wx.app.connect=function(callback){
 			 
 			 
 			 bridge.callHandler('xzBridge',{action:action,data:obj.data},function(backData){
-				 console.log('[webviewbridge.js] 收到响应:', action, backData);
+				 
 				 if(backData.success&&backData.success!='false'){
 					
 					 app.trigger(obj.success,backData.data||{});
 				 }else{
-					 console.error('[webviewbridge.js] 调用失败:', action, backData.errorMessage);
 					 app.trigger(obj.fail,backData.errorMessage);
 				 };
 				  app.trigger(obj.complete,backData);
 			 });
 		};
 		wx.app.call=webViewCall;
-		console.log('[webviewbridge.js] 发送 pageReady');
 		webViewCall('pageReady');
 		app.trigger(callback);
 	});
