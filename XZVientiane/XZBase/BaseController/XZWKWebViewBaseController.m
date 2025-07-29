@@ -102,6 +102,9 @@ static inline BOOL isIPhoneXSeries() {
     _retryCount = 0;
     _lastFailedUrl = nil;
     
+    // 初始化lastSelectedIndex为-1，表示尚未选择过任何tab
+    self.lastSelectedIndex = -1;
+    
     // 创建JavaScript操作队列
     self.jsOperationQueue = [[NSOperationQueue alloc] init];
     self.jsOperationQueue.maxConcurrentOperationCount = 1;
@@ -146,7 +149,7 @@ static inline BOOL isIPhoneXSeries() {
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    self.lastSelectedIndex = self.tabBarController.selectedIndex;
+    // 注意：不在这里更新lastSelectedIndex，让通知处理逻辑来管理
     
     // 检查WebView状态，但不在viewWillAppear中创建，避免阻塞转场
     if (!self.webView) {
@@ -166,8 +169,9 @@ static inline BOOL isIPhoneXSeries() {
     // 清除消失标志
     _isDisappearing = NO;
     
-    // 记录这一次选中的索引
-    self.lastSelectedIndex = self.tabBarController.selectedIndex;
+    // 注意：不在这里更新lastSelectedIndex，让通知处理逻辑来管理
+    NSLog(@"在局📱 [viewDidAppear] 当前tab: %ld, 记录的上次tab: %d", 
+          (long)self.tabBarController.selectedIndex, self.lastSelectedIndex);
     
     // 在viewDidAppear中创建WebView，确保转场动画完成后再创建
     if (!self.webView) {
@@ -211,10 +215,8 @@ static inline BOOL isIPhoneXSeries() {
     // 启动网络监控
 //    [self listenToTimer];
     
-    // 处理重复点击tabbar刷新
-    if (self.lastSelectedIndex == self.tabBarController.selectedIndex && [self isShowingOnKeyWindow] && self.isWebViewLoading) {
-        [self.webView.scrollView scrollRectToVisible:CGRectMake(0, 0, self.view.bounds.size.width, self.view.bounds.size.height) animated:YES];
-    }
+    // 处理重复点击tabbar刷新 - 注意：这里不应该直接滚动到顶部
+    // 重复点击的处理应该通过 refreshCurrentViewController 通知来处理，这里只做必要的初始化
     
     // 故障保护：如果WebView没有加载内容，重新加载
     if (!self.isWebViewLoading && !self.isLoading && self.pinUrl) {
@@ -895,10 +897,23 @@ static inline BOOL isIPhoneXSeries() {
             return;
         }
         
-        if (self.lastSelectedIndex == self.tabBarController.selectedIndex && self.isWebViewLoading) {
+        // 先记录当前索引，用于判断是否为重复点击
+        NSInteger currentSelectedIndex = self.tabBarController.selectedIndex;
+        BOOL isRepeatClick = (self.lastSelectedIndex == currentSelectedIndex);
+        
+        NSLog(@"在局🔄 [Tab通知] 当前tab: %ld, 上次tab: %d, 是否重复: %@", 
+              (long)currentSelectedIndex, self.lastSelectedIndex, isRepeatClick ? @"是" : @"否");
+        
+        // 更新记录的索引
+        self.lastSelectedIndex = (int)currentSelectedIndex;
+        
+        // 只有在重复点击同一个tab且页面已加载完成时才触发刷新
+        if (isRepeatClick && self.isWebViewLoading) {
             if ([AFNetworkReachabilityManager manager].networkReachabilityStatus == AFNetworkReachabilityStatusNotReachable) {
                 return;
             }
+            
+            NSLog(@"在局🔄 [重复点击Tab] 检测到重复点击tab %ld，触发下拉刷新", (long)currentSelectedIndex);
             
             // 如果当前已经在刷新中，先停止
             if ([self.webView.scrollView.mj_header isRefreshing]) {
@@ -907,10 +922,11 @@ static inline BOOL isIPhoneXSeries() {
             
             // 开始刷新
             [self.webView.scrollView.mj_header beginRefreshing];
+        } else {
+            NSLog(@"在局ℹ️ [Tab切换] 切换到tab %ld，不触发刷新（上次: %d，重复: %@，页面加载: %@）", 
+                  (long)currentSelectedIndex, self.lastSelectedIndex, isRepeatClick ? @"是" : @"否", 
+                  self.isWebViewLoading ? @"是" : @"否");
         }
-        
-        // 记录这一次选中的索引
-        self.lastSelectedIndex = self.tabBarController.selectedIndex;
     }];
     
     // 监听其他页面登录/退出后的刷新
