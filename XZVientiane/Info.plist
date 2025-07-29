@@ -34,7 +34,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.7</string>
+	<string>1.0.9</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleSupportedPlatforms</key>
@@ -61,7 +61,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>202507202119</string>
+	<string>202507290123</string>
 	<key>DTCompiler</key>
 	<string>com.apple.compilers.llvm.clang.1_0</string>
 	<key>DTPlatformBuild</key>
@@ -119,7 +119,6 @@
 	<true/>
 	<key>MinimumOSVersion</key>
 	<string>15.0</string>
-	<!-- 移除NSAllowsArbitraryLoadsInWebContent，使用具体域名例外 -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -148,7 +147,7 @@
 		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>"在局"需要使用您的相机来：1.扫描二维码快速添加好友和进入圈子；2.拍摄照片和视频分享精彩瞬间到社区；3.进行视频直播与朋友互动。您可以在系统设置中随时关闭相机权限。</string>
+	<string>&quot;在局&quot;需要使用您的相机来：1.扫描二维码快速添加好友和进入圈子；2.拍摄照片和视频分享精彩瞬间到社区；3.进行视频直播与朋友互动。您可以在系统设置中随时关闭相机权限。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>需要获取您的位置信息来设置圈子所在位置、展示周围的圈子，并为您推荐附近的内容。如不允许，您将无法使用基于位置的功能。</string>
 	<key>NSLocationAlwaysUsageDescription</key>
@@ -156,13 +155,13 @@
 	<key>NSLocationUsageDescription</key>
 	<string>需要获取您的位置信息来设置圈子所在位置、展示周围的圈子，并为您推荐附近的内容。如不允许，您将无法使用基于位置的功能。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>"在局"需要使用您的位置信息来：1.帮助您设置和管理本地圈子；2.发现并加入附近的兴趣圈子；3.为您推荐周边的精彩内容和活动。我们仅在您使用App时获取位置，保护您的隐私。</string>
+	<string>&quot;在局&quot;需要使用您的位置信息来：1.帮助您设置和管理本地圈子；2.发现并加入附近的兴趣圈子；3.为您推荐周边的精彩内容和活动。我们仅在您使用App时获取位置，保护您的隐私。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>需要使用麦克风进行视频直播中的音频采集、语音聊天以及录制音视频消息。如不允许，您将无法使用语音相关功能。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>需要访问相册来保存您在聊天过程中拍摄的图片和视频，以便您查看和分享。如不允许，拍摄的内容将无法保存到相册。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>"在局"需要访问您的相册来：1.选择照片设置个人头像和圈子封面；2.分享生活照片到社区动态；3.发送图片给好友进行交流。我们仅访问您主动选择的照片，充分保护您的隐私。</string>
+	<string>&quot;在局&quot;需要访问您的相册来：1.选择照片设置个人头像和圈子封面；2.分享生活照片到社区动态；3.发送图片给好友进行交流。我们仅访问您主动选择的照片，充分保护您的隐私。</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>iconfont.ttf</string>

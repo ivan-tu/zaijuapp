@@ -165,33 +165,29 @@ static inline BOOL isIPhoneXSeries() {
 - (void)appDidEnterBackground:(NSNotification *)notification {
     NSLog(@"在局🔔 [CFJWebView] 应用进入后台，暂停JavaScript执行");
     
-    // 暂停所有正在进行的JavaScript执行
+    // 只停止加载，不要执行新的JS
     if (self.webView) {
-        // 停止任何正在进行的加载
         [self.webView stopLoading];
-        
-        // 执行一个空的JavaScript来中断当前执行
-        [self.webView evaluateJavaScript:@"" completionHandler:nil];
+    }
+    
+    if (self.timer) {
+        dispatch_source_cancel(self.timer);
+        self.timer = nil;
     }
 }
 
 - (void)appWillResignActive:(NSNotification *)notification {
     NSLog(@"在局🔔 [CFJWebView] 应用即将失去活跃状态，暂停所有JavaScript执行");
     
-    // 立即取消所有正在进行的JavaScript操作
+    // 只停止加载，不要执行新的JS
     if (self.webView) {
-        // 停止加载
         [self.webView stopLoading];
-        
-        // 取消所有JavaScript执行  
-        [self.webView evaluateJavaScript:@"if(window.stop){window.stop();}else if(document.execCommand){document.execCommand('Stop');}" completionHandler:nil];
-        
-        // 安全地取消timer，防止野指针
-        dispatch_source_t timerToCancel = self.timer;
-        if (timerToCancel) {
-            self.timer = nil; // 先置空
-            dispatch_source_cancel(timerToCancel); // 再取消
-        }
+    }
+    
+    // 如果定时器仍然存在，取消它
+    if (self.timer) {
+        dispatch_source_cancel(self.timer);
+        self.timer = nil;
     }
 }
 
@@ -316,7 +312,7 @@ static inline BOOL isIPhoneXSeries() {
 - (void)viewDidAppear:(BOOL)animated {
     // 记录这一次选中的索引
     self.lastSelectedIndex = self.tabBarController.selectedIndex;
-    [self listenToTimer];
+//    [self listenToTimer];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -502,7 +498,7 @@ static inline BOOL isIPhoneXSeries() {
 - (void)domainOperate {
     NSLog(@"在局 🔧 [CFJWebViewBaseController] 优化domainOperate - 使用异步文件I/O");
     self.isLoading = NO;
-    [self listenToTimer];
+//    [self listenToTimer];
     
     // 在后台队列异步读取HTML文件，避免阻塞主线程
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{

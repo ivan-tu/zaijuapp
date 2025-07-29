@@ -209,7 +209,7 @@ static inline BOOL isIPhoneXSeries() {
     }
     
     // 启动网络监控
-    [self listenToTimer];
+//    [self listenToTimer];
     
     // 处理重复点击tabbar刷新
     if (self.lastSelectedIndex == self.tabBarController.selectedIndex && [self isShowingOnKeyWindow] && self.isWebViewLoading) {
@@ -577,7 +577,7 @@ static inline BOOL isIPhoneXSeries() {
     
     // 检查是否需要重新启动定时器
     if (!self.timer && self.networkNoteView && self.networkNoteView.hidden) {
-        [self listenToTimer];
+//        [self listenToTimer];
     }
 }
 
@@ -900,24 +900,42 @@ static inline BOOL isIPhoneXSeries() {
     }];
     
     // 监听网络权限恢复通知 - 修复Release版本首页空白问题
+//    [[NSNotificationCenter defaultCenter] addObserverForName:@"NetworkPermissionRestored" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+//        STRONG_SELF;
+//        if (!self) return;
+//        
+//        NSLog(@"在局🔥 [XZWKWebViewBaseController] 收到网络权限恢复通知");
+//        
+//        // 如果是首页且WebView已经创建但可能未完成加载，重新触发JavaScript初始化
+//        if (self.tabBarController.selectedIndex == 0 && self.webView) {
+//            NSLog(@"在局🔄 [XZWKWebViewBaseController] 网络权限恢复，强制重新执行JavaScript初始化");
+//            
+//            // 重新触发JavaScript桥接初始化和pageReady
+//            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+//                // 直接触发JavaScript桥接初始化
+//                [self performJavaScriptBridgeInitialization];
+//            });
+//        }
+//    }];
+    // 监听网络权限恢复通知 - 修复Release版本首页空白问题
     [[NSNotificationCenter defaultCenter] addObserverForName:@"NetworkPermissionRestored" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         if (!self) return;
-        
+
         NSLog(@"在局🔥 [XZWKWebViewBaseController] 收到网络权限恢复通知");
-        
-        // 如果是首页且WebView已经创建但可能未完成加载，重新触发JavaScript初始化
-        if (self.tabBarController.selectedIndex == 0 && self.webView) {
-            NSLog(@"在局🔄 [XZWKWebViewBaseController] 网络权限恢复，强制重新执行JavaScript初始化");
+
+        // 只对当前显示在窗口中的视图控制器进行操作，且必须是首页
+        if (self.isViewLoaded && self.view.window && self.tabBarController.selectedIndex == 0) {
+            NSLog(@"在局🔄 [XZWKWebViewBaseController] 网络权限恢复，强制重新加载首页");
             
-            // 重新触发JavaScript桥接初始化和pageReady
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                // 直接触发JavaScript桥接初始化
-                [self performJavaScriptBridgeInitialization];
-            });
+            // 关键修复：通过将 lastLoadTime 设为 nil 来重置节流阀，
+            // 确保下一次 domainOperate 调用不会被跳过。
+            lastLoadTime = nil;
+            
+            // 执行加载操作
+            [self domainOperate];
         }
     }];
-    
     // 监听backToHome通知，用于tab切换
     [[NSNotificationCenter defaultCenter] addObserverForName:@"backToHome" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
@@ -947,28 +965,44 @@ static inline BOOL isIPhoneXSeries() {
     }];
 }
 
+//- (void)setCustomUserAgent {
+//    // 检查应用状态 - 确保在主线程访问UIApplication
+//    __block UIApplicationState state;
+//    if ([NSThread isMainThread]) {
+//        state = [[UIApplication sharedApplication] applicationState];
+//    } else {
+//        dispatch_sync(dispatch_get_main_queue(), ^{
+//            state = [[UIApplication sharedApplication] applicationState];
+//        });
+//    }
+//    if (state != UIApplicationStateActive) {
+//        NSLog(@"在局[XZWKWebView] 应用不在前台，跳过UserAgent设置");
+//        return;
+//    }
+//    
+//    // 直接设置UserAgent，避免执行JavaScript
+//    NSString *customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 13_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Mobile/15E148 Safari/604.1 XZApp/1.0";
+//    dispatch_async(dispatch_get_main_queue(), ^{
+//        self.webView.customUserAgent = customUserAgent;
+//    });
+//}
+// 在 XZWKWebViewBaseController.m 中
 - (void)setCustomUserAgent {
-    // 检查应用状态 - 确保在主线程访问UIApplication
-    __block UIApplicationState state;
+    // 直接定义一个完整的UserAgent字符串，防止异步等待和死锁的问题
+    NSString *customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 13_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Mobile/15E148 Safari/604.1 XZApp/1.0";
+    
+    // 直接在主线程上安全地设置它
+    // 确保在主线程执行
     if ([NSThread isMainThread]) {
-        state = [[UIApplication sharedApplication] applicationState];
+        self.webView.customUserAgent = customUserAgent;
+        NSLog(@"✅ Custom UserAgent 已被直接设置");
     } else {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            state = [[UIApplication sharedApplication] applicationState];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.webView.customUserAgent = customUserAgent;
+            NSLog(@"✅ Custom UserAgent 已被直接设置 (dispatched to main)");
         });
     }
-    if (state != UIApplicationStateActive) {
-        NSLog(@"在局[XZWKWebView] 应用不在前台，跳过UserAgent设置");
-        return;
-    }
-    
-    // 直接设置UserAgent，避免执行JavaScript
-    NSString *customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 13_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Mobile/15E148 Safari/604.1 XZApp/1.0";
-    dispatch_async(dispatch_get_main_queue(), ^{
-        self.webView.customUserAgent = customUserAgent;
-    });
 }
-
 #pragma mark - WebView Management
 
 - (void)addWebView {
@@ -1101,7 +1135,7 @@ static inline BOOL isIPhoneXSeries() {
     
     // 延迟启动计时器，避免立即执行
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self listenToTimer];
+//        [self listenToTimer];
     });
     
     // 在后台队列异步读取HTML文件，避免阻塞主线程

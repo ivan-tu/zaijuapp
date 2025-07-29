@@ -330,20 +330,20 @@ static inline BOOL isIPhoneXSeries() {
     }];
     
     // 监听网络权限恢复通知 - 修复Release版本首页空白问题
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"NetworkPermissionRestored" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
-        STRONG_SELF;
-        if (!self) return;
-        
-        NSLog(@"在局🔥 [CFJClientH5Controller] 收到网络权限恢复通知，强制重新加载页面");
-        
-        // 只处理首页（第一个Tab）
-        if (self.tabBarController.selectedIndex == 0) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                NSLog(@"在局🔄 [CFJClientH5Controller] 网络权限恢复，重新触发domainOperate");
-                [self domainOperate];
-            });
-        }
-    }];
+//    [[NSNotificationCenter defaultCenter] addObserverForName:@"NetworkPermissionRestored" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+//        STRONG_SELF;
+//        if (!self) return;
+//        
+//        NSLog(@"在局🔥 [CFJClientH5Controller] 收到网络权限恢复通知，强制重新加载页面");
+//        
+//        // 只处理首页（第一个Tab）
+//        if (self.tabBarController.selectedIndex == 0) {
+//            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+//                NSLog(@"在局🔄 [CFJClientH5Controller] 网络权限恢复，重新触发domainOperate");
+//                [self domainOperate];
+//            });
+//        }
+//    }];
     
     // 监听网络状态变化
     [[NSNotificationCenter defaultCenter] addObserverForName:AFNetworkingReachabilityDidChangeNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {

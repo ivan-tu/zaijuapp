@@ -88,7 +88,7 @@ NS_ASSUME_NONNULL_BEGIN
  * 设置User-Agent
  * @param userAgent 自定义User-Agent字符串
  */
-- (void)setCustomUserAgent:(NSString *)userAgent;
+//- (void)setCustomUserAgent:(NSString *)userAgent;
 
 #pragma mark - 异步Cookie处理（推荐使用）
 
