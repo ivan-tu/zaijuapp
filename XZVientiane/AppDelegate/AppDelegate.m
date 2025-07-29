@@ -820,9 +820,32 @@
 }
 
 -(BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray * _Nullable))restorationHandler{
-
-    NSLog(@"在局 userActivity : %@",userActivity.webpageURL.description);
-    return YES;
+    
+    NSLog(@"在局📱 [Universal Links] 收到用户活动: %@", userActivity.activityType);
+    
+    // 处理Universal Links
+    if ([userActivity.activityType isEqualToString:NSUserActivityTypeBrowsingWeb]) {
+        NSURL *url = userActivity.webpageURL;
+        if (url) {
+            NSLog(@"在局🔗 [Universal Links] 接收到URL: %@", url.absoluteString);
+            
+            // 处理Universal Link
+            BOOL handled = [self handleUniversalLink:url];
+            if (handled) {
+                NSLog(@"在局✅ [Universal Links] URL处理成功");
+                return YES;
+            } else {
+                NSLog(@"在局❌ [Universal Links] URL处理失败，将使用Safari打开");
+                return NO;
+            }
+        } else {
+            NSLog(@"在局⚠️ [Universal Links] URL为空");
+            return NO;
+        }
+    }
+    
+    NSLog(@"在局📝 [Universal Links] 非网页活动类型: %@", userActivity.activityType);
+    return NO;
 }
 
 /*
@@ -1232,6 +1255,138 @@
             self.lastNetworkAlertDate = [NSDate date];
         }
     });
+}
+
+#pragma mark - Universal Links处理
+
+/**
+ * 处理Universal Link URL
+ * @param url 接收到的URL
+ * @return 是否成功处理
+ */
+- (BOOL)handleUniversalLink:(NSURL *)url {
+    NSLog(@"在局🔄 [Universal Links] 开始解析URL: %@", url.absoluteString);
+    
+    // 验证域名
+    NSString *host = url.host;
+    if (![host isEqualToString:@"zaiju.com"] && ![host isEqualToString:@"hi3.tuiya.cc"]) {
+        NSLog(@"在局❌ [Universal Links] 不支持的域名: %@", host);
+        return NO;
+    }
+    
+    // 解析路径
+    NSString *path = url.path;
+    NSLog(@"在局📍 [Universal Links] 解析路径: %@", path);
+    
+    // 检查是否是app路径
+    if ([path hasPrefix:@"/app/"]) {
+        return [self handleAppPath:path withQuery:url.query];
+    }
+    
+    NSLog(@"在局⚠️ [Universal Links] 不支持的路径格式: %@", path);
+    return NO;
+}
+
+/**
+ * 处理app内路径
+ * @param path URL路径部分
+ * @param query URL查询参数
+ * @return 是否成功处理
+ */
+- (BOOL)handleAppPath:(NSString *)path withQuery:(NSString *)query {
+    NSLog(@"在局🎯 [Universal Links] 处理App路径: %@, 查询参数: %@", path, query);
+    
+    // 移除/app/前缀
+    NSString *appPath = [path substringFromIndex:5]; // 移除"/app/"
+    NSArray *pathComponents = [appPath componentsSeparatedByString:@"/"];
+    
+    // 解析查询参数
+    NSDictionary *queryParams = [self parseQueryString:query];
+    
+    // 等待app完全初始化
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self navigateToPath:pathComponents withParams:queryParams];
+    });
+    
+    return YES;
+}
+
+/**
+ * 解析查询字符串
+ * @param queryString 查询字符串
+ * @return 参数字典
+ */
+- (NSDictionary *)parseQueryString:(NSString *)queryString {
+    NSMutableDictionary *params = [NSMutableDictionary dictionary];
+    
+    if (queryString && queryString.length > 0) {
+        NSArray *pairs = [queryString componentsSeparatedByString:@"&"];
+        for (NSString *pair in pairs) {
+            NSArray *keyValue = [pair componentsSeparatedByString:@"="];
+            if (keyValue.count == 2) {
+                NSString *key = [keyValue[0] stringByRemovingPercentEncoding];
+                NSString *value = [keyValue[1] stringByRemovingPercentEncoding];
+                if (key && value) {
+                    params[key] = value;
+                }
+            }
+        }
+    }
+    
+    NSLog(@"在局📝 [Universal Links] 解析查询参数: %@", params);
+    return params;
+}
+
+/**
+ * 导航到指定路径
+ * @param pathComponents 路径组件数组
+ * @param params 参数字典
+ */
+- (void)navigateToPath:(NSArray *)pathComponents withParams:(NSDictionary *)params {
+    NSLog(@"在局🧭 [Universal Links] 开始导航 - 路径组件: %@, 参数: %@", pathComponents, params);
+    
+    // 确保TabBar控制器存在
+    if (!self.tabbarVC) {
+        NSLog(@"在局❌ [Universal Links] TabBar控制器不存在");
+        return;
+    }
+    
+    // 构建完整路径用于传递给WebView
+    NSString *fullPath = [@"/app/" stringByAppendingString:[pathComponents componentsJoinedByString:@"/"]];
+    
+    // 添加查询参数
+    if (params.count > 0) {
+        NSMutableArray *queryPairs = [NSMutableArray array];
+        for (NSString *key in params) {
+            [queryPairs addObject:[NSString stringWithFormat:@"%@=%@", key, params[key]]];
+        }
+        fullPath = [fullPath stringByAppendingFormat:@"?%@", [queryPairs componentsJoinedByString:@"&"]];
+    }
+    
+    NSLog(@"在局🎯 [Universal Links] 最终路径: %@", fullPath);
+    
+    // 通知WebView处理路由
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self notifyWebViewWithPath:fullPath];
+    });
+}
+
+/**
+ * 通知WebView处理路由
+ * @param path 完整路径
+ */
+- (void)notifyWebViewWithPath:(NSString *)path {
+    NSLog(@"在局📡 [Universal Links] 通知WebView处理路径: %@", path);
+    
+    // 发送通知给当前活跃的WebView控制器
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"UniversalLinkNavigation" 
+                                                        object:nil 
+                                                      userInfo:@{@"path": path}];
+    
+    // 如果app在后台，需要激活到前台
+    if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive) {
+        NSLog(@"在局🔄 [Universal Links] App不在前台，正在激活");
+    }
 }
 
 @end

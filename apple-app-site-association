@@ -1,0 +1,36 @@
+{
+    "applinks": {
+        "details": [
+            {
+                "appIDs": [
+                    "PCRMMV2NNZ.cc.tuiya.hi3",
+                    "PCRMMV2NNZ.com.zaiju"
+                ],
+                "components": [
+                    {
+                        "/": "/app/*",
+                        "comment": "在局App内页面链接 - 匹配所有/app/开头的路径"
+                    },
+                    {
+                        "/": "/share/*",
+                        "comment": "分享页面链接"
+                    },
+                    {
+                        "/": "/user/*",
+                        "comment": "用户相关页面"
+                    },
+                    {
+                        "/": "/circle/*",
+                        "comment": "圈子相关页面"
+                    }
+                ]
+            }
+        ]
+    },
+    "webcredentials": {
+        "apps": [
+            "PCRMMV2NNZ.cc.tuiya.hi3",
+            "PCRMMV2NNZ.com.zaiju"
+        ]
+    }
+}

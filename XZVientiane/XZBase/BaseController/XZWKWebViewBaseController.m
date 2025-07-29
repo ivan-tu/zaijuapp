@@ -131,6 +131,9 @@ static inline BOOL isIPhoneXSeries() {
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(appWillResignActive:) name:@"AppWillResignActiveNotification" object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(appDidBecomeActive:) name:@"AppDidBecomeActiveNotification" object:nil];
     
+    // 添加Universal Links通知监听
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleUniversalLinkNavigation:) name:@"UniversalLinkNavigation" object:nil];
+    
     // 添加场景更新通知监听，iOS 13+
     if (@available(iOS 13.0, *)) {
         [[NSNotificationCenter defaultCenter] addObserver:self 
@@ -2028,6 +2031,9 @@ static inline BOOL isIPhoneXSeries() {
                 @"code": @0
             });
         }
+        
+        // 检查并处理待处理的Universal Links
+        [self processPendingUniversalLinkIfNeeded];
     } else {
         // 其他所有action交给子类处理
         NSLog(@"在局🔄 [XZWKWebViewBaseController] 将action '%@' 传递给子类处理", function);
@@ -3414,6 +3420,85 @@ static inline BOOL isIPhoneXSeries() {
     
     // 重建WebView
     [self rebuildWebView];
+}
+
+#pragma mark - Universal Links处理
+
+/**
+ * 处理Universal Links导航通知
+ * @param notification 通知对象，包含路径信息
+ */
+- (void)handleUniversalLinkNavigation:(NSNotification *)notification {
+    NSString *path = notification.userInfo[@"path"];
+    if (!path) {
+        NSLog(@"在局❌ [Universal Links] 路径为空");
+        return;
+    }
+    
+    NSLog(@"在局📱 [Universal Links] WebView收到导航请求: %@", path);
+    
+    // 确保在主线程执行
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self navigateToUniversalLinkPath:path];
+    });
+}
+
+/**
+ * 导航到Universal Link路径
+ * @param path 目标路径
+ */
+- (void)navigateToUniversalLinkPath:(NSString *)path {
+    NSLog(@"在局🧭 [Universal Links] 开始导航到路径: %@", path);
+    
+    // 检查WebView是否已创建并加载完成
+    if (!self.webView) {
+        NSLog(@"在局⚠️ [Universal Links] WebView未创建，等待创建后再导航");
+        // 保存路径，等待WebView创建完成后处理
+        objc_setAssociatedObject(self, @"PendingUniversalLinkPath", path, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return;
+    }
+    
+    if (self.isWebViewLoading || !self.isCreat) {
+        NSLog(@"在局⏳ [Universal Links] WebView正在加载，延迟导航");
+        // 延迟处理
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self navigateToUniversalLinkPath:path];
+        });
+        return;
+    }
+    
+    // 通过JavaScript桥接通知H5页面进行路由跳转
+    NSString *jsFunction = @"handleUniversalLinkNavigation";
+    NSDictionary *params = @{
+        @"path": path,
+        @"timestamp": @([[NSDate date] timeIntervalSince1970])
+    };
+    
+    // 构造JavaScript调用
+    NSDictionary *callInfo = @{
+        @"fn": jsFunction,
+        @"data": params
+    };
+    
+    NSLog(@"在局📡 [Universal Links] 通知H5页面处理路由: %@", callInfo);
+    
+    // 执行JavaScript调用
+    [self objcCallJs:callInfo];
+    
+    // 清除待处理的路径
+    objc_setAssociatedObject(self, @"PendingUniversalLinkPath", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+/**
+ * 检查并处理待处理的Universal Link路径
+ * 在WebView创建完成后调用
+ */
+- (void)processPendingUniversalLinkIfNeeded {
+    NSString *pendingPath = objc_getAssociatedObject(self, @"PendingUniversalLinkPath");
+    if (pendingPath) {
+        NSLog(@"在局🔄 [Universal Links] 处理待处理的路径: %@", pendingPath);
+        [self navigateToUniversalLinkPath:pendingPath];
+    }
 }
 
 @end
