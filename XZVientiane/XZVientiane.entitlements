@@ -10,8 +10,6 @@
 		<string>applinks:zaiju.com</string>
 	</array>
 	<key>com.apple.security.application-groups</key>
-	<array>
-		<string>group.cc.tuiya.hi3</string>
-	</array>
+	<array/>
 </dict>
 </plist>
