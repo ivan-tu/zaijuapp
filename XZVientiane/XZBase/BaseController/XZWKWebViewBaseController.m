@@ -102,6 +102,9 @@ static inline BOOL isIPhoneXSeries() {
     _retryCount = 0;
     _lastFailedUrl = nil;
     
+    // 初始化lastSelectedIndex为-1，表示尚未选择过任何tab
+    self.lastSelectedIndex = -1;
+    
     // 创建JavaScript操作队列
     self.jsOperationQueue = [[NSOperationQueue alloc] init];
     self.jsOperationQueue.maxConcurrentOperationCount = 1;
@@ -146,7 +149,7 @@ static inline BOOL isIPhoneXSeries() {
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    self.lastSelectedIndex = self.tabBarController.selectedIndex;
+    // 注意：不在这里更新lastSelectedIndex，让通知处理逻辑来管理
     
     // 检查WebView状态，但不在viewWillAppear中创建，避免阻塞转场
     if (!self.webView) {
@@ -175,10 +178,18 @@ static inline BOOL isIPhoneXSeries() {
 //    [self listenToTimer];
     
     // 处理重复点击tabbar刷新
-    if (self.lastSelectedIndex == self.tabBarController.selectedIndex && [self isShowingOnKeyWindow] && self.isWebViewLoading) {
-        [self.webView.scrollView scrollRectToVisible:CGRectMake(0, 0, self.view.bounds.size.width, self.view.bounds.size.height) animated:YES];
-    }
+    // if (self.lastSelectedIndex == self.tabBarController.selectedIndex && [self isShowingOnKeyWindow] && self.isWebViewLoading) {
+    //     [self.webView.scrollView scrollRectToVisible:CGRectMake(0, 0, self.view.bounds.size.width, self.view.bounds.size.height) animated:YES];
+    // }
 
+}
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    
+    // 在布局变化时重新调整进度条位置，确保始终贴紧标题栏底部
+    if (self.progressView) {
+        [self updateProgressViewPosition];
+    }
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -764,17 +775,45 @@ static inline BOOL isIPhoneXSeries() {
     self.progressView.transform = CGAffineTransformMakeScale(1.0f, 2.0f); // 增加进度条厚度
     [self.view addSubview:self.progressView];
     
-    // 调整进度条位置到导航栏下方
+    // 设置进度条初始位置
+    [self updateProgressViewPosition];
+    
+    NSLog(@"在局 ✅ [XZWKWebViewBaseController] 加载指示器和进度条设置完成");
+}
+
+// 更新进度条位置的专用方法
+- (void)updateProgressViewPosition {
+    if (!self.progressView) {
+        return;
+    }
+    
+    // 调整进度条位置到导航栏下方，确保贴紧标题栏底部
     if (self.navigationController && !self.navigationController.navigationBar.hidden) {
-        CGFloat navBarMaxY = CGRectGetMaxY(self.navigationController.navigationBar.frame);
-        self.progressView.frame = CGRectMake(0, navBarMaxY, self.view.bounds.size.width, 3);
+        // 使用Safe Area或传统方式计算导航栏底部位置
+        CGFloat navBarBottom;
+        if (@available(iOS 11.0, *)) {
+            // iOS 11+ 使用Safe Area计算更准确的位置
+            navBarBottom = self.view.safeAreaInsets.top;
+        } else {
+            // iOS 11以下使用传统计算方式
+            CGFloat statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
+            CGFloat navBarHeight = self.navigationController.navigationBar.frame.size.height;
+            navBarBottom = statusBarHeight + navBarHeight;
+        }
+        self.progressView.frame = CGRectMake(0, navBarBottom, self.view.bounds.size.width, 3);
     } else {
         // 如果没有导航栏，放在状态栏下方
-        CGFloat statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
+        CGFloat statusBarHeight;
+        if (@available(iOS 11.0, *)) {
+            statusBarHeight = self.view.safeAreaInsets.top;
+        } else {
+            statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
+        }
         self.progressView.frame = CGRectMake(0, statusBarHeight, self.view.bounds.size.width, 3);
     }
     
-    NSLog(@"在局 ✅ [XZWKWebViewBaseController] 加载指示器和进度条设置完成");
+    // 确保进度条始终在最上层
+    [self.view bringSubviewToFront:self.progressView];
 }
 
 - (void)loadNewData {
@@ -846,11 +885,24 @@ static inline BOOL isIPhoneXSeries() {
         if (![self isShowingOnKeyWindow]) {
             return;
         }
+
+        // 先记录当前索引，用于判断是否为重复点击
+        NSInteger currentSelectedIndex = self.tabBarController.selectedIndex;
+        BOOL isRepeatClick = (self.lastSelectedIndex == currentSelectedIndex);
         
-        if (self.lastSelectedIndex == self.tabBarController.selectedIndex && self.isWebViewLoading) {
+        NSLog(@"在局🔄 [Tab通知] 当前tab: %ld, 上次tab: %d, 是否重复: %@", 
+              (long)currentSelectedIndex, self.lastSelectedIndex, isRepeatClick ? @"是" : @"否");
+        
+        // 更新记录的索引
+        self.lastSelectedIndex = (int)currentSelectedIndex;
+        
+        // 只有在重复点击同一个tab且页面已加载完成时才触发刷新
+        if (isRepeatClick && self.isWebViewLoading) {
             if ([AFNetworkReachabilityManager manager].networkReachabilityStatus == AFNetworkReachabilityStatusNotReachable) {
                 return;
             }
+            
+            NSLog(@"在局🔄 [重复点击Tab] 检测到重复点击tab %ld，触发下拉刷新", (long)currentSelectedIndex);
             
             // 如果当前已经在刷新中，先停止
             if ([self.webView.scrollView.mj_header isRefreshing]) {
@@ -859,10 +911,11 @@ static inline BOOL isIPhoneXSeries() {
             
             // 开始刷新
             [self.webView.scrollView.mj_header beginRefreshing];
+        } else {
+            NSLog(@"在局ℹ️ [Tab切换] 切换到tab %ld，不触发刷新（上次: %d，重复: %@，页面加载: %@）", 
+                  (long)currentSelectedIndex, self.lastSelectedIndex, isRepeatClick ? @"是" : @"否", 
+                  self.isWebViewLoading ? @"是" : @"否");
         }
-        
-        // 记录这一次选中的索引
-        self.lastSelectedIndex = self.tabBarController.selectedIndex;
     }];
     
     // 监听其他页面登录/退出后的刷新
@@ -1058,10 +1111,10 @@ static inline BOOL isIPhoneXSeries() {
     // 检查约束是否生效
     NSLog(@"在局🔧 [addWebView] 布局完成后WebView.frame: %@", NSStringFromCGRect(self.webView.frame));
     
-    // 确保进度条始终在最上层
+    // 确保进度条位置正确且始终在最上层
     if (self.progressView) {
-        [self.view bringSubviewToFront:self.progressView];
-        NSLog(@"在局🔧 [addWebView] 将进度条移到最上层");
+        [self updateProgressViewPosition];
+        NSLog(@"在局🔧 [addWebView] 更新进度条位置并移到最上层");
     }
     
     // 确保活动指示器也在最上层
