@@ -2,11 +2,11 @@
     "data": {
         "wxpayApp": {
             "KEY": "mbgyR2e825L2r4RDWHsXaoDnvTlNzPIg",
-            "APPSECRET": "119f7f0a816a29b812cd47b2d9d2281d",
-            "MCHID": "1502146081",
+            "APPSECRET": "abd190e197f45636b62fb9c43a602fce",
+            "MCHID": "1715150805",
             "APPID": "wx10a321f7fbdd6023"
         },
-        "wxAppScret": "119f7f0a816a29b812cd47b2d9d2281d",
+        "wxAppScret": "abd190e197f45636b62fb9c43a602fce",
         "wxAppId": "wx10a321f7fbdd6023",
         "isShare": 1,
         "isSocial": 1,
