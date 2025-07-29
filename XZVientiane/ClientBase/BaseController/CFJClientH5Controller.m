@@ -9,6 +9,7 @@
 #import "WKWebView+XZAddition.h"
 #import "HTMLWebViewController.h"
 #import "../../ThirdParty/WKWebViewJavascriptBridge/WKWebViewJavascriptBridge.h"
+#import <objc/runtime.h>
 //model
 #import "XZOrderModel.h"
 #import "ClientSettingModel.h"
@@ -122,6 +123,8 @@ static inline BOOL isIPhoneXSeries() {
 
 // iOS 18修复：跟踪viewDidAppear是否被调用
 @property (assign, nonatomic) BOOL viewDidAppearCalled;
+// iOS 16-18修复：跟踪UI操作是否已执行
+@property (assign, nonatomic) BOOL delayedUIOperationsExecuted;
 
 // 添加回调方法声明
 - (void)callBack:(NSString *)type params:(NSDictionary *)params;
@@ -462,38 +465,37 @@ static inline BOOL isIPhoneXSeries() {
 
 #pragma mark 调用js弹出属性窗口
 
-- (void)viewDidAppear:(BOOL)animated {
-    // iOS 18紧急修复：防止重复调用
-    if (self.viewDidAppearCalled) {
-        NSLog(@"在局⚠️ [viewDidAppear] 已经被调用过，跳过重复执行");
+// iOS 16-18修复：执行延迟的UI操作
+- (void)performDelayedUIOperations {
+    NSLog(@"在局 ✨ [CFJClientH5Controller] 执行延迟的UI操作");
+    
+    // 防止重复执行
+    if (self.delayedUIOperationsExecuted) {
+        NSLog(@"在局 ⚠️ [CFJClientH5Controller] UI操作已执行，跳过");
         return;
     }
-    self.viewDidAppearCalled = YES;
+    self.delayedUIOperationsExecuted = YES;
     
-    NSLog(@"在局 🎉🎉🎉 [CFJClientH5Controller] ===== viewDidAppear 终于被调用了！=====");
-    NSLog(@"在局 ✨ [CFJClientH5Controller] viewDidAppear开始 - animated: %d", animated);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 时间戳: %@", [NSDate date]);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 主线程检查: %@", [NSThread isMainThread] ? @"是主线程" : @"不是主线程");
-    NSLog(@"在局 ✨ [CFJClientH5Controller] self: %@", self);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] view.superview: %@", self.view.superview);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] view.window: %@", self.view.window);
+    // 确保在主线程执行
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self performDelayedUIOperations];
+        });
+        return;
+    }
     
-    // iOS 18修复：已在方法开头处理
-    
-    [super viewDidAppear:animated];
-    NSLog(@"在局 ✨ [CFJClientH5Controller] super viewDidAppear调用完成");
-    NSLog(@"在局 ✨ [CFJClientH5Controller] viewDidAppear - tabIndex: %ld, url: %@", 
-          (long)self.tabBarController.selectedIndex, self.pinUrl);
-    
-    // 在viewDidAppear中执行从viewWillAppear延迟的UI操作
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 开始执行延迟的UI操作");
+    // 创建WebView（如果需要）
+    if (!self.webView && self.pinUrl && ![self.pinUrl isEqualToString:@""]) {
+        NSLog(@"在局 ✨ [CFJClientH5Controller] 创建WebView");
+        [self domainOperate];
+    }
     
     // 设置WebView圆角（如果需要）
     if (!(self.pushType == isPushNormal) && self.webView && !CGRectIsEmpty(self.webView.bounds)) {
         NSLog(@"在局 ✨ [CFJClientH5Controller] 设置WebView圆角");
         UIBezierPath *maskPath = [UIBezierPath bezierPathWithRoundedRect:self.webView.bounds 
-                                                       byRoundingCorners:UIRectCornerTopLeft | UIRectCornerTopRight  
-                                                             cornerRadii:CGSizeMake(10, 10)];
+                                                     byRoundingCorners:UIRectCornerTopLeft | UIRectCornerTopRight  
+                                                           cornerRadii:CGSizeMake(10, 10)];
         CAShapeLayer *maskLayer = [[CAShapeLayer alloc] init];
         maskLayer.frame = self.webView.bounds;
         maskLayer.path = maskPath.CGPath;
@@ -563,10 +565,50 @@ static inline BOOL isIPhoneXSeries() {
     } else {
         if (VcCount < 2) {
             self.tabBarController.tabBar.hidden = NO;
+            if (self.isTabbarShow) {
+                NSLog(@"在局 ✨ [CFJClientH5Controller] 显示TabBar");
+                self.tabBarController.tabBar.hidden = NO;
+            } else {
+                NSLog(@"在局 ✨ [CFJClientH5Controller] 隐藏TabBar");
+                self.tabBarController.tabBar.hidden = YES;
+            }
+        } else {
+            self.tabBarController.tabBar.hidden = YES;
         }
     }
     
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 延迟UI操作完成");
+    NSLog(@"在局 ✨ [CFJClientH5Controller] 延迟的UI操作执行完成");
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    // iOS 18紧急修复：防止重复调用
+    if (self.viewDidAppearCalled) {
+        NSLog(@"在局⚠️ [viewDidAppear] 已经被调用过，跳过重复执行");
+        return;
+    }
+    self.viewDidAppearCalled = YES;
+    
+    // iOS 16-18修复：标记UI操作已执行
+    self.delayedUIOperationsExecuted = YES;
+    
+    NSLog(@"在局 🎉🎉🎉 [CFJClientH5Controller] ===== viewDidAppear 终于被调用了！=====");
+    NSLog(@"在局 ✨ [CFJClientH5Controller] viewDidAppear开始 - animated: %d", animated);
+    NSLog(@"在局 ✨ [CFJClientH5Controller] 时间戳: %@", [NSDate date]);
+    NSLog(@"在局 ✨ [CFJClientH5Controller] 主线程检查: %@", [NSThread isMainThread] ? @"是主线程" : @"不是主线程");
+    NSLog(@"在局 ✨ [CFJClientH5Controller] self: %@", self);
+    NSLog(@"在局 ✨ [CFJClientH5Controller] view.superview: %@", self.view.superview);
+    NSLog(@"在局 ✨ [CFJClientH5Controller] view.window: %@", self.view.window);
+    
+    // iOS 18修复：已在方法开头处理
+    
+    [super viewDidAppear:animated];
+    NSLog(@"在局 ✨ [CFJClientH5Controller] super viewDidAppear调用完成");
+    NSLog(@"在局 ✨ [CFJClientH5Controller] viewDidAppear - tabIndex: %ld, url: %@", 
+          (long)self.tabBarController.selectedIndex, self.pinUrl);
+    
+    // 在viewDidAppear中执行延迟的UI操作
+    NSLog(@"在局 ✨ [CFJClientH5Controller] 开始执行延迟的UI操作");
+    [self performDelayedUIOperations];
     
     // 确保WebView开始加载
     if (!self.isWebViewLoading && !self.isLoading && self.pinUrl) {
@@ -625,6 +667,9 @@ static inline BOOL isIPhoneXSeries() {
     
     // iOS 18紧急修复：重置标志
     self.viewDidAppearCalled = NO;
+    
+    // iOS 16-18修复：重置UI操作标志
+    self.delayedUIOperationsExecuted = NO;
     
     self.isCancel = YES;
     if (self.cancelSignal) {
@@ -1021,26 +1066,18 @@ static inline BOOL isIPhoneXSeries() {
     [super viewWillAppear:animated];
     NSLog(@"在局 🌟 [CFJClientH5Controller] super viewWillAppear调用完成");
     
-    // iOS 18修复：解决viewDidAppear不被调用的问题
-    // 问题：iOS 18中，TabBar切换和内页跳转时viewDidAppear可能有40秒延迟或不被调用
-    // 解决方案：在viewWillAppear中设置一个短暂延迟，如果viewDidAppear还未被调用，则手动触发
-    // 扩展修复：不仅适用于TabBar页面，也适用于内页
-    if (@available(iOS 18.0, *)) {
-        // iOS 18特殊处理：增加延迟时间到0.5秒，避免与转场动画冲突
-        dispatch_async(dispatch_get_main_queue(), ^{
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                if (!self.viewDidAppearCalled) {
-                    NSLog(@"在局🚨 [CFJClientH5Controller] iOS 18检测到viewDidAppear未被调用，手动触发");
-                    [self viewDidAppear:animated];
-                }
-            });
-        });
-    } else if (@available(iOS 16.0, *)) {
-        // iOS 16-17的处理：使用较长的延迟(0.5秒)以确保系统有足够时间
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (!self.viewDidAppearCalled) {
-                NSLog(@"在局🚨 [CFJClientH5Controller] iOS 16-17检测到viewDidAppear未被调用，手动触发");
-                [self viewDidAppear:animated];
+    // iOS 16-18修复：处理viewDidAppear延迟问题
+    // 问题：iOS 16-18中，TabBar切换和手势返回时viewDidAppear可能有延迟
+    // 解决方案：不再手动调用viewDidAppear，而是确保必要的UI操作被执行
+    if (@available(iOS 16.0, *)) {
+        // 重置UI操作标志
+        self.delayedUIOperationsExecuted = NO;
+        
+        // 使用延迟来确保UI操作被执行，即使viewDidAppear被延迟
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (!self.delayedUIOperationsExecuted) {
+                NSLog(@"在局🚨 [CFJClientH5Controller] 检测到UI操作未执行，执行延迟的UI操作");
+                [self performDelayedUIOperations];
             }
         });
     }
@@ -1360,21 +1397,8 @@ static inline BOOL isIPhoneXSeries() {
                                [self.navigationController pushViewController:appH5VC animated:YES];
                            });
                        } else {
-                           // iOS 13+ 可能需要特殊处理
-                           if (@available(iOS 13.0, *)) {
-                               // 先无动画push确保视图控制器加入栈
-                               [self.navigationController pushViewController:appH5VC animated:NO];
-                               
-                               // 手动触发viewDidAppear（如果需要）
-                               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                                   if (![appH5VC isViewLoaded] || !appH5VC.view.window) {
-                                       NSLog(@"在局⚠️ [navigateTo] 视图未正确显示，手动加载");
-                                       [appH5VC view]; // 触发viewDidLoad
-                                   }
-                               });
-                           } else {
-                               [self.navigationController pushViewController:appH5VC animated:YES];
-                           }
+                           // 统一使用动画push，让自定义转场动画正常工作
+                           [self.navigationController pushViewController:appH5VC animated:YES];
                        }
                        
                        WEAK_SELF;
@@ -1737,8 +1761,17 @@ static inline BOOL isIPhoneXSeries() {
         return;
     }
     if ([function isEqualToString:@"weixinLogin"]) {
+        NSLog(@"在局🔑 [微信登录] 开始微信登录流程");
         self.webviewBackCallBack = completion;
-        [self thirdLogin:@{@"type":@"weixin"}];
+        
+        // 不要立即返回成功，而是等待微信授权完成
+        // completion 回调将在 fetchWechatUserInfoWithCode 中调用
+        
+        // 使用微信SDK直接进行授权，而不是通过UMSocialManager
+        [self performWechatDirectLogin];
+        
+        // 不在这里调用completion，让微信授权完成后调用
+        return;
     }
     //微信支付
     if ([function isEqualToString:@"weixinPay"]) {
@@ -2380,23 +2413,46 @@ static inline BOOL isIPhoneXSeries() {
 
 //第三方登录授权
 - (void)thirdLogin:(NSDictionary *)dic {
+    NSLog(@"在局🔑 [第三方登录] 开始第三方登录，类型: %@", dic);
     NSString *type = [dic objectForKey:@"type"];
     UMSocialPlatformType snsName = [self thirdPlatform:type];
+    NSLog(@"在局🔑 [第三方登录] 平台类型映射结果: %ld", (long)snsName);
     if(snsName == UMSocialPlatformType_UnKnown) {
+        NSLog(@"在局❌ [第三方登录] 未知的平台类型，退出");
         return;
     }
     NSString *dataType;
     if ([type isEqualToString:@"weixin"]) {
         dataType = @"1";
-        //TODO 是否有微信验证
+        NSLog(@"在局🔑 [微信登录] 检查微信应用状态");
+        
+        // 检查微信是否安装
         if(![WXApi isWXAppInstalled]) {
-            //[SVStatusHUD showWithMessage:@"您没有安装微信"];
+            NSLog(@"在局❌ [微信登录] 微信应用未安装");
+            if (self.webviewBackCallBack) {
+                self.webviewBackCallBack(@{
+                    @"success": @"false",
+                    @"errorMessage": @"您没有安装微信",
+                    @"data": @{}
+                });
+            }
             return;
         }
+        
+        // 检查微信版本是否支持
         if (![WXApi isWXAppSupportApi]) {
-            //[SVStatusHUD showWithMessage:@"您的微信版本太低"];
+            NSLog(@"在局❌ [微信登录] 微信版本过低，不支持当前API");
+            if (self.webviewBackCallBack) {
+                self.webviewBackCallBack(@{
+                    @"success": @"false", 
+                    @"errorMessage": @"您的微信版本太低",
+                    @"data": @{}
+                });
+            }
             return;
         }
+        
+        NSLog(@"在局✅ [微信登录] 微信应用检查通过");
     } else if ([type isEqualToString:@"qq"]) {
         dataType = @"2";
     } else if ([type isEqualToString:@"weibo"]) {
@@ -2404,39 +2460,403 @@ static inline BOOL isIPhoneXSeries() {
     }
     NSString *deviceTokenStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"User_ChannelId"];
     deviceTokenStr = deviceTokenStr ? deviceTokenStr : @"";
+    
+    NSLog(@"在局🔑 [微信登录] 准备调用UMSocialManager，平台: %ld, deviceToken: %@", (long)snsName, deviceTokenStr);
+    NSLog(@"在局🔑 [微信登录] 当前ViewController: %@", self);
+    
+    // 添加超时保护机制
+    __block BOOL callbackExecuted = NO;
+    
+    // 设置15秒超时
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (!callbackExecuted) {
+            NSLog(@"在局❌ [微信登录] UMSocialManager超时未回调，强制返回错误");
+            callbackExecuted = YES;
+            if (self.webviewBackCallBack) {
+                self.webviewBackCallBack(@{
+                    @"success": @"false",
+                    @"errorMessage": @"微信登录超时，请重试",
+                    @"data": @{}
+                });
+            }
+        }
+    });
+    
     [[UMSocialManager defaultManager] getUserInfoWithPlatform:snsName currentViewController:self completion:^(id result, NSError *error) {
+        if (callbackExecuted) {
+            NSLog(@"在局⚠️ [微信登录] UMSocialManager回调已超时，忽略延迟回调");
+            return;
+        }
+        callbackExecuted = YES;
+        NSLog(@"在局🔑 [微信登录] UMSocialManager回调 - error: %@, result: %@", error, result);
         
         NSString *message = nil;
         
         if (error) {
+            NSLog(@"在局❌ [微信登录] UMSocialManager获取用户信息失败: %@", error);
             message = [NSString stringWithFormat:@"Get info fail:\n%@", error];
             UMSocialLogInfo(@"Get info fail with error %@",error);
+            
+            // 返回错误给JavaScript
+            if (self.webviewBackCallBack) {
+                self.webviewBackCallBack(@{
+                    @"success": @"false",
+                    @"errorMessage": error.localizedDescription ?: @"微信登录失败",
+                    @"data": @{}
+                });
+            }
         }
         else{
             if ([result isKindOfClass:[UMSocialUserInfoResponse class]]) {
                 UMSocialUserInfoResponse *resp = result;
-                NSDictionary *daraDic = @{
-                    @"avatarUrl": resp.iconurl,
-                    @"nickName": resp.name
-                };
-                if (self.webviewBackCallBack) {
-                    self.webviewBackCallBack(@{@"data":@{@"userInfo":daraDic,
-                                                         @"openId":resp.usid,
-                                                         //TODO 微信 app 和 pc 生成同一个账户
-                                                         @"unionid":resp.unionId.length ? resp.unionId : @"",
-                                                         @"channel":deviceTokenStr
-                    },
-                                               @"success":@"true",
-                                               @"errorMassage":@""
-                    });
-                }
+                NSLog(@"在局✅ [微信登录] 成功获取微信用户信息 - openId: %@, unionId: %@, 昵称: %@", 
+                      resp.usid, resp.unionId, resp.name);
                 
+                NSDictionary *daraDic = @{
+                    @"avatarUrl": resp.iconurl ?: @"",
+                    @"nickName": resp.name ?: @""
+                };
+                
+                NSDictionary *responseData = @{
+                    @"data": @{
+                        @"userInfo": daraDic,
+                        @"openId": resp.usid ?: @"",
+                        @"unionid": resp.unionId.length ? resp.unionId : @"",
+                        @"channel": deviceTokenStr
+                    },
+                    @"success": @"true",
+                    @"errorMessage": @""
+                };
+                
+                NSLog(@"在局📤 [微信登录] 向JavaScript返回数据: %@", responseData);
+                
+                if (self.webviewBackCallBack) {
+                    self.webviewBackCallBack(responseData);
+                }
             }
             else{
+                NSLog(@"在局❌ [微信登录] UMSocialManager返回了无效的结果类型: %@", [result class]);
                 message = @"Get info fail";
+                
+                if (self.webviewBackCallBack) {
+                    self.webviewBackCallBack(@{
+                        @"success": @"false",
+                        @"errorMessage": @"获取微信用户信息失败",
+                        @"data": @{}
+                    });
+                }
             }
         }
     }];
+}
+
+// 微信直接登录方法
+- (void)performWechatDirectLogin {
+    NSLog(@"在局🔑 [微信直接登录] 开始微信SDK直接授权");
+    
+    // 检查微信是否安装
+    if(![WXApi isWXAppInstalled]) {
+        NSLog(@"在局❌ [微信直接登录] 微信应用未安装");
+        if (self.webviewBackCallBack) {
+            self.webviewBackCallBack(@{
+                @"success": @"false",
+                @"errorMessage": @"您没有安装微信",
+                @"data": @{}
+            });
+        }
+        return;
+    }
+    
+    // 检查微信版本是否支持
+    if (![WXApi isWXAppSupportApi]) {
+        NSLog(@"在局❌ [微信直接登录] 微信版本过低，不支持当前API");
+        if (self.webviewBackCallBack) {
+            self.webviewBackCallBack(@{
+                @"success": @"false", 
+                @"errorMessage": @"您的微信版本太低",
+                @"data": @{}
+            });
+        }
+        return;
+    }
+    
+    // 添加微信授权结果监听
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleWechatAuthResult:)
+                                                 name:@"wechatAuthResult"
+                                               object:nil];
+    
+    // 创建微信授权请求
+    SendAuthReq *req = [[SendAuthReq alloc] init];
+    req.scope = @"snsapi_userinfo";  // 获取用户信息权限
+    req.state = [NSString stringWithFormat:@"wechat_login_%ld", (long)[[NSDate date] timeIntervalSince1970]];
+    
+    NSLog(@"在局🔑 [微信直接登录] 发送授权请求，scope: %@, state: %@", req.scope, req.state);
+    
+    // 发送授权请求
+    [WXApi sendReq:req completion:^(BOOL success) {
+        NSLog(@"在局🔑 [微信直接登录] 授权请求发送结果: %@", success ? @"成功" : @"失败");
+        if (!success) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (self.webviewBackCallBack) {
+                    self.webviewBackCallBack(@{
+                        @"success": @"false",
+                        @"errorMessage": @"微信授权请求发送失败",
+                        @"data": @{}
+                    });
+                    // 清空回调
+                    self.webviewBackCallBack = nil;
+                }
+            });
+        }
+    }];
+}
+
+// 处理微信授权结果
+- (void)handleWechatAuthResult:(NSNotification *)notification {
+    NSLog(@"在局🔑 [微信授权结果] 收到微信授权结果通知: %@", notification.object);
+    
+    // 移除监听器
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:@"wechatAuthResult" object:nil];
+    
+    NSDictionary *authResult = notification.object;
+    BOOL success = [authResult[@"success"] boolValue];
+    
+    if (success) {
+        NSString *code = authResult[@"code"];
+        NSString *state = authResult[@"state"];
+        
+        NSLog(@"在局✅ [微信授权结果] 授权成功，准备获取用户信息，code: %@", code);
+        
+        // 使用code获取用户信息
+        [self fetchWechatUserInfoWithCode:code state:state];
+    } else {
+        NSLog(@"在局❌ [微信授权结果] 授权失败: %@", authResult[@"errorMessage"]);
+        if (self.webviewBackCallBack) {
+            self.webviewBackCallBack(authResult);
+            // 清空回调
+            self.webviewBackCallBack = nil;
+        }
+    }
+}
+
+// 使用code获取微信用户信息
+- (void)fetchWechatUserInfoWithCode:(NSString *)code state:(NSString *)state {
+    NSLog(@"在局🔑 [微信用户信息] 开始获取用户信息，code: %@", code);
+    
+    // 获取deviceToken
+    NSString *deviceTokenStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"User_ChannelId"];
+    deviceTokenStr = deviceTokenStr ? deviceTokenStr : @"";
+    
+    // 使用code调用微信API获取access_token和用户信息
+    [self fetchWechatAccessTokenWithCode:code state:state deviceToken:deviceTokenStr];
+}
+
+// 获取微信access_token
+- (void)fetchWechatAccessTokenWithCode:(NSString *)code state:(NSString *)state deviceToken:(NSString *)deviceToken {
+    NSLog(@"在局🔑 [微信Access Token] 开始获取access_token，code: %@", code);
+    
+    // 从配置文件动态获取微信开放平台应用信息
+    NSDictionary *shareConfig = [self getShareConfig];
+    NSString *appId = shareConfig[@"wxAppId"];
+    NSString *appSecret = shareConfig[@"wxAppScret"]; // 注意：配置文件中是"wxAppScret"（拼写）
+    
+    if (!appId || !appSecret) {
+        NSLog(@"在局❌ [微信Access Token] 微信配置信息缺失 - AppID: %@, AppSecret: %@", appId ? @"存在" : @"缺失", appSecret ? @"存在" : @"缺失");
+        [self returnWechatLoginError:@"微信配置信息缺失"];
+        return;
+    }
+    
+    // 构造获取access_token的URL
+    NSString *tokenURL = [NSString stringWithFormat:@"https://api.weixin.qq.com/sns/oauth2/access_token?appid=%@&secret=%@&code=%@&grant_type=authorization_code", appId, appSecret, code];
+    
+    NSLog(@"在局🔗 [微信Access Token] 请求URL: %@", [tokenURL stringByReplacingOccurrencesOfString:appSecret withString:@"***"]);
+    
+    // 创建网络请求
+    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+    manager.responseSerializer = [AFJSONResponseSerializer serializer];
+    // 微信API可能返回text/plain类型，需要添加支持
+    manager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/plain", nil];
+    manager.requestSerializer.timeoutInterval = 30;
+    
+    [manager GET:tokenURL parameters:nil headers:nil progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+        NSLog(@"在局✅ [微信Access Token] 获取access_token成功: %@", responseObject);
+        
+        NSString *accessToken = responseObject[@"access_token"];
+        NSString *openId = responseObject[@"openid"];
+        NSString *refreshToken = responseObject[@"refresh_token"];
+        
+        if (accessToken && openId) {
+            // 使用access_token获取用户信息
+            [self fetchWechatUserInfoWithAccessToken:accessToken openId:openId code:code state:state deviceToken:deviceToken];
+        } else {
+            NSLog(@"在局❌ [微信Access Token] 响应中缺少access_token或openid");
+            [self returnWechatLoginError:@"获取微信授权信息失败"];
+        }
+        
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+        NSLog(@"在局❌ [微信Access Token] 获取access_token失败: %@", error.localizedDescription);
+        [self returnWechatLoginError:[NSString stringWithFormat:@"网络请求失败: %@", error.localizedDescription]];
+    }];
+}
+
+// 获取微信用户详细信息
+- (void)fetchWechatUserInfoWithAccessToken:(NSString *)accessToken openId:(NSString *)openId code:(NSString *)code state:(NSString *)state deviceToken:(NSString *)deviceToken {
+    NSLog(@"在局🔑 [微信用户详情] 开始获取用户详细信息，openId: %@", openId);
+    
+    // 构造获取用户信息的URL
+    NSString *userInfoURL = [NSString stringWithFormat:@"https://api.weixin.qq.com/sns/userinfo?access_token=%@&openid=%@&lang=zh_CN", accessToken, openId];
+    
+    // 创建网络请求
+    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+    manager.responseSerializer = [AFJSONResponseSerializer serializer];
+    // 微信API可能返回text/plain类型，需要添加支持
+    manager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"application/json", @"text/json", @"text/plain", nil];
+    manager.requestSerializer.timeoutInterval = 30;
+    
+    [manager GET:userInfoURL parameters:nil headers:nil progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+        NSLog(@"在局✅ [微信用户详情] 获取用户信息成功: %@", responseObject);
+        
+        // 解析用户信息
+        NSString *nickname = responseObject[@"nickname"] ?: @"";
+        NSString *headimgurl = responseObject[@"headimgurl"] ?: @"";
+        NSString *unionid = responseObject[@"unionid"] ?: @"";
+        
+        // 构造完整的返回数据
+        NSDictionary *responseData = @{
+            @"data": @{
+                @"userInfo": @{
+                    @"avatarUrl": headimgurl,
+                    @"nickName": nickname
+                },
+                @"openId": openId,
+                @"unionid": unionid,
+                @"channel": deviceToken,
+                @"code": code,
+                @"state": state
+            },
+            @"success": @"true",
+            @"errorMessage": @""
+        };
+        
+        NSLog(@"在局📤 [微信用户详情] 向JavaScript返回完整数据: %@", responseData);
+        
+        // 等待App进入前台后再执行回调
+        [self waitForAppActiveStateAndExecuteCallback:responseData];
+        
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+        NSLog(@"在局❌ [微信用户详情] 获取用户信息失败: %@", error.localizedDescription);
+        [self returnWechatLoginError:[NSString stringWithFormat:@"获取用户信息失败: %@", error.localizedDescription]];
+    }];
+}
+
+// 返回微信登录错误
+- (void)returnWechatLoginError:(NSString *)errorMessage {
+    NSDictionary *errorResponse = @{
+        @"success": @"false",
+        @"errorMessage": errorMessage,
+        @"data": @{}
+    };
+    
+    [self waitForAppActiveStateAndExecuteCallback:errorResponse];
+}
+
+// 获取分享配置信息
+- (NSDictionary *)getShareConfig {
+    static NSDictionary *shareConfig = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        // 从Bundle中读取shareInfo.json配置文件
+        NSString *shareInfoPath = [[NSBundle mainBundle] pathForResource:@"shareInfo" ofType:@"json"];
+        if (shareInfoPath) {
+            NSData *JSONData = [NSData dataWithContentsOfFile:shareInfoPath];
+            if (JSONData) {
+                NSError *error = nil;
+                NSDictionary *jsonDict = [NSJSONSerialization JSONObjectWithData:JSONData options:NSJSONReadingAllowFragments error:&error];
+                if (!error && jsonDict[@"data"]) {
+                    shareConfig = jsonDict[@"data"];
+                    NSLog(@"在局✅ [配置加载] 成功加载shareInfo.json配置");
+                } else {
+                    NSLog(@"在局❌ [配置加载] 解析shareInfo.json失败: %@", error.localizedDescription);
+                }
+            } else {
+                NSLog(@"在局❌ [配置加载] 无法读取shareInfo.json文件内容");
+            }
+        } else {
+            NSLog(@"在局❌ [配置加载] 找不到shareInfo.json文件");
+        }
+    });
+    
+    return shareConfig ?: @{};
+}
+
+// 等待App进入前台后执行回调
+- (void)waitForAppActiveStateAndExecuteCallback:(NSDictionary *)responseData {
+    // 检查App当前状态
+    UIApplicationState currentState = [[UIApplication sharedApplication] applicationState];
+    
+    if (currentState == UIApplicationStateActive) {
+        // App已经在前台，直接执行回调
+        NSLog(@"在局✅ [微信登录调试] App已在前台，直接执行回调");
+        [self executeWechatLoginCallback:responseData];
+    } else {
+        NSLog(@"在局⏳ [微信登录调试] App不在前台(状态:%ld)，等待进入前台后执行回调", (long)currentState);
+        
+        // 监听App进入前台的通知
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(appDidBecomeActiveForWechatCallback:)
+                                                     name:UIApplicationDidBecomeActiveNotification
+                                                   object:nil];
+        
+        // 保存响应数据以供后续使用
+        objc_setAssociatedObject(self, @"WechatCallbackData", responseData, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        
+        // 设置超时保护，10秒后强制执行
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            // 检查是否还有保存的数据（如果已经执行过回调，数据会被清除）
+            NSDictionary *savedData = objc_getAssociatedObject(self, @"WechatCallbackData");
+            if (savedData && self.webviewBackCallBack) {
+                NSLog(@"在局⚠️ [微信登录调试] 等待前台超时，强制执行回调");
+                [[NSNotificationCenter defaultCenter] removeObserver:self name:UIApplicationDidBecomeActiveNotification object:nil];
+                [self executeWechatLoginCallback:responseData];
+            } else {
+                NSLog(@"在局✅ [微信登录调试] 回调已执行或数据已清理，取消超时回调");
+            }
+        });
+    }
+}
+
+// App进入前台时的回调处理
+- (void)appDidBecomeActiveForWechatCallback:(NSNotification *)notification {
+    NSLog(@"在局🔥 [微信登录调试] App进入前台，执行微信登录回调");
+    
+    // 移除监听器
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:UIApplicationDidBecomeActiveNotification object:nil];
+    
+    // 获取保存的响应数据
+    NSDictionary *responseData = objc_getAssociatedObject(self, @"WechatCallbackData");
+    if (responseData) {
+        [self executeWechatLoginCallback:responseData];
+        // 清理保存的数据
+        objc_setAssociatedObject(self, @"WechatCallbackData", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else {
+        NSLog(@"在局❌ [微信登录调试] 没有找到保存的响应数据");
+    }
+}
+
+// 执行微信登录回调
+- (void)executeWechatLoginCallback:(NSDictionary *)responseData {
+    NSLog(@"在局🚀 [微信登录调试] 执行微信登录回调，数据: %@", responseData);
+    
+    if (self.webviewBackCallBack) {
+        NSLog(@"在局✅ [微信登录调试] 调用JavaScript回调成功");
+        self.webviewBackCallBack(responseData);
+        
+        // 清空回调，防止重复调用
+        self.webviewBackCallBack = nil;
+    } else {
+        NSLog(@"在局❌ [微信登录调试] webviewBackCallBack为空，无法返回数据！");
+    }
 }
 
 //清除授权

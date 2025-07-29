@@ -84,34 +84,10 @@
             return;
         }
         
-        // 先在keyWindow中查找，再在主窗口中查找
-        UIView *loadingView = [[UIApplication sharedApplication].keyWindow viewWithTag:2001];
-        if (!loadingView) {
-            // 在主窗口中查找
-            UIWindow *mainWindow = [UIApplication sharedApplication].delegate.window;
-            loadingView = [mainWindow viewWithTag:2001];
-        }
+        // 使用统一的LoadingView管理器移除
+        [appDelegate removeGlobalLoadingViewWithReason:@"首页pageReady完成"];
         
-        if (loadingView) {
-            NSLog(@"在局 🎯 [XZTabBarController] 找到LoadingView，开始移除");
-            //移除遮罩视图
-            dispatch_async(dispatch_get_main_queue(), ^(void) {
-                __block UIView *View = loadingView;
-                View.alpha = 1.0;
-                // TabBar已经显示，无需再设置hidden
-                // self.view.hidden = NO;
-                [UIView animateWithDuration:0.3 animations:^{
-                    View.alpha = 0.0;
-                } completion:^(BOOL finished) {
-                    [View removeFromSuperview];
-                    View.alpha = 1.0;
-                    NSLog(@"在局 🎯 [XZTabBarController] LoadingView移除完成");
-                }];
-            });
-        } else {
-            NSLog(@"在局 ⚠️ [XZTabBarController] 未找到LoadingView");
-            // TabBar已经显示，无需再设置hidden
-        }
+        // TabBar已经显示，无需再设置hidden
     }];
     
 }
@@ -152,18 +128,13 @@
 
 //更新Tabbar界面
 - (void)reloadTabbarInterface {
-    NSLog(@"在局 CFJClientH5Controller - reloadTabbarInterface 开始");
-    
     // 确保TabBar立即显示
     dispatch_async(dispatch_get_main_queue(), ^{
         self.view.hidden = NO;
-        NSLog(@"在局 🎯 [XZTabBarController] reloadTabbarInterface - 确保TabBar显示");
     });
     
     WEAK_SELF;
     [CustomHybridProcessor custom_reloadTabbarInterfaceSuccess:^(NSArray * _Nullable tabs, NSString * _Nullable tabItemTitleSelectColor, NSString * _Nullable tabbarBgColor) {
-        NSLog(@"在局 CFJClientH5Controller - reloadTabbarInterface 回调 - tabs: %@", tabs);
-        NSLog(@"在局 🔧 [XZTabBarController] 开始实现Tab懒加载机制");
         STRONG_SELF;
         NSMutableArray *tabbarItems = [NSMutableArray arrayWithCapacity:2];
         
@@ -177,7 +148,6 @@
             // 只为第一个tab创建ViewController，其他的延迟创建
             UIViewController *rootVC = nil;
             if (index == 0) {
-                NSLog(@"在局 ✅ [XZTabBarController] 创建第一个Tab的ViewController");
                 CFJClientH5Controller *homeVC = [[CFJClientH5Controller alloc] init];
                 if ([[dic objectForKey:@"isCheck"] isEqualToString:@"1"]) {
                     homeVC.isCheck = YES;
@@ -186,7 +156,6 @@
                 homeVC.pinUrl = [dic objectForKey:@"url"];
                 rootVC = homeVC;
             } else {
-                NSLog(@"在局 ⏳ [XZTabBarController] Tab %ld 使用占位ViewController，延迟加载", (long)index);
                 // 创建一个轻量级的占位ViewController
                 UIViewController *placeholderVC = [[UIViewController alloc] init];
                 placeholderVC.view.backgroundColor = [UIColor whiteColor];
@@ -196,7 +165,7 @@
                 rootVC = placeholderVC;
             }
             
-            UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:rootVC];
+            XZNavigationController *nav = [[XZNavigationController alloc] initWithRootViewController:rootVC];
             nav.navigationBar.translucent = NO;
             
             // 设置TabBarItem的图标和标题
@@ -223,7 +192,6 @@
         
         // 第一个tab会在viewDidLoad时自动加载，但需要确保触发
         if (tabbarItems.count > 0) {
-            NSLog(@"在局 🚀 [XZTabBarController] 第一个标签页将自动加载");
             // 确保第一个tab的视图控制器被创建
             dispatch_async(dispatch_get_main_queue(), ^{
                 UINavigationController *firstNav = tabbarItems[0];
@@ -231,13 +199,17 @@
                     CFJClientH5Controller *firstVC = (CFJClientH5Controller *)firstNav.viewControllers[0];
                     // 触发视图加载
                     [firstVC view];
-                    NSLog(@"在局 🚀 [XZTabBarController] 第一个标签页视图已加载");
                     
                     // 修复真机权限授予后首页空白问题 - 延迟检查并主动触发加载
                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                         if (!firstVC.isWebViewLoading && !firstVC.isLoading && firstVC.pinUrl) {
-                            NSLog(@"在局 🚨 [XZTabBarController] 检测到首页未加载，主动触发domainOperate");
-                            [firstVC domainOperate];
+                            // 添加节流机制，防止重复调用
+                            static NSDate *lastTabTriggerTime = nil;
+                            NSDate *now = [NSDate date];
+                            if (!lastTabTriggerTime || [now timeIntervalSinceDate:lastTabTriggerTime] > 3.0) {
+                                [firstVC domainOperate];
+                                lastTabTriggerTime = now;
+                            }
                         }
                     });
                 }
@@ -249,7 +221,6 @@
             // 检查网络权限状态
             AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
             if (appDelegate.networkRestricted) {
-                NSLog(@"在局 ⚠️ [XZTabBarController] 网络权限受限，不移除LoadingView");
                 return;
             }
             
@@ -266,15 +237,11 @@
             }
             
             if (loadingView) {
-                NSLog(@"在局 找到LoadingView，开始移除动画");
                 [UIView animateWithDuration:0.3 animations:^{
                     loadingView.alpha = 0.0;
                 } completion:^(BOOL finished) {
                     [loadingView removeFromSuperview];
-                    NSLog(@"在局 LoadingView移除完成");
                 }];
-            } else {
-                NSLog(@"在局 未找到LoadingView (tag=2001)");
             }
         });
     }];
@@ -283,15 +250,12 @@
 
 // iOS 18修复：实现shouldSelectViewController代理方法
 - (BOOL)tabBarController:(UITabBarController *)tabBarController shouldSelectViewController:(UIViewController *)viewController {
-    NSLog(@"在局🎯 [XZTabBarController] shouldSelectViewController");
-    
     // iOS 18修复：在切换前确保当前视图控制器的转场已完成
     if (@available(iOS 13.0, *)) {
         // 取消任何正在进行的转场
         if (self.transitionCoordinator && self.transitionCoordinator.isAnimated) {
-            NSLog(@"在局⚠️ [XZTabBarController] 检测到正在进行的转场，等待完成");
             [self.transitionCoordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> _Nonnull context) {
-                NSLog(@"在局✅ [XZTabBarController] 前一个转场已完成");
+                // 转场完成
             }];
         }
     }
@@ -304,15 +268,11 @@
             
             // 检查是否为占位ViewController
             if (![rootVC isKindOfClass:[CFJClientH5Controller class]]) {
-                NSLog(@"在局 🔧 [XZTabBarController] 检测到占位ViewController，开始懒加载");
-                
                 // 获取存储的配置信息
                 NSDictionary *tabConfig = objc_getAssociatedObject(rootVC, @"tabConfig");
                 NSNumber *tabIndex = objc_getAssociatedObject(rootVC, @"tabIndex");
                 
                 if (tabConfig) {
-                    NSLog(@"在局 ✅ [XZTabBarController] 为Tab %@ 创建真实的ViewController", tabIndex);
-                    
                     // 创建真实的CFJClientH5Controller
                     CFJClientH5Controller *homeVC = [[CFJClientH5Controller alloc] init];
                     if ([[tabConfig objectForKey:@"isCheck"] isEqualToString:@"1"]) {
@@ -323,8 +283,6 @@
                     
                     // 替换占位ViewController
                     [nav setViewControllers:@[homeVC] animated:NO];
-                    
-                    NSLog(@"在局 ✅ [XZTabBarController] Tab %@ 懒加载完成", tabIndex);
                 }
             }
         }
@@ -335,20 +293,16 @@
 
 //tabarController 代理
 - (void)tabBarController:(UITabBarController *)tabBarController didSelectViewController:(UIViewController *)viewController {
-    NSLog(@"在局🎯 [XZTabBarController] didSelectViewController - selectedIndex: %ld", (long)self.selectedIndex);
-    
     // iOS 18 修复：避免转场协调器导致的阻塞
     if ([viewController isKindOfClass:[UINavigationController class]]) {
         UINavigationController *nav = (UINavigationController *)viewController;
         if (nav.viewControllers.count > 0) {
             UIViewController *rootVC = nav.viewControllers[0];
-            NSLog(@"在局🎯 [XZTabBarController] 新选中的控制器: %@", NSStringFromClass([rootVC class]));
             
             // iOS 18修复：强制触发视图生命周期
             if (@available(iOS 16.0, *)) {
                 // iOS 16+需要特殊处理
                 if (![rootVC isViewLoaded] || !rootVC.view.window) {
-                    NSLog(@"在局🚨 [XZTabBarController] iOS 16+ 检测到视图未加载，强制加载");
                     // 触发viewDidLoad
                     [rootVC view];
                     // 强制布局
@@ -488,6 +442,71 @@
 - (void)appDidEnterBackground:(NSNotification *)notification {
     // 取消所有延迟执行的方法
     [NSObject cancelPreviousPerformRequestsWithTarget:self];
+}
+
+- (UIView *)findLoadingViewInAllWindows {
+    NSLog(@"在局 🔍 [XZTabBarController] 开始在所有窗口中查找LoadingView");
+    
+    // 1. 首先在keyWindow中查找
+    UIView *loadingView = [[UIApplication sharedApplication].keyWindow viewWithTag:2001];
+    if (loadingView) {
+        NSLog(@"在局 ✅ [XZTabBarController] 在keyWindow中找到LoadingView");
+        return loadingView;
+    }
+    
+    // 2. 在delegate的window中查找
+    UIWindow *mainWindow = [UIApplication sharedApplication].delegate.window;
+    loadingView = [mainWindow viewWithTag:2001];
+    if (loadingView) {
+        NSLog(@"在局 ✅ [XZTabBarController] 在delegate.window中找到LoadingView");
+        return loadingView;
+    }
+    
+    // 3. 在所有window中查找
+    NSArray *windows = [UIApplication sharedApplication].windows;
+    for (UIWindow *window in windows) {
+        loadingView = [window viewWithTag:2001];
+        if (loadingView) {
+            NSLog(@"在局 ✅ [XZTabBarController] 在window %@ 中找到LoadingView", window);
+            return loadingView;
+        }
+    }
+    
+    // 4. 在当前TabBarController的视图层级中查找
+    loadingView = [self.view viewWithTag:2001];
+    if (loadingView) {
+        NSLog(@"在局 ✅ [XZTabBarController] 在TabBarController.view中找到LoadingView");
+        return loadingView;
+    }
+    
+    // 5. 递归查找所有子视图
+    loadingView = [self recursiveFindViewWithTag:2001 inView:[UIApplication sharedApplication].keyWindow];
+    if (loadingView) {
+        NSLog(@"在局 ✅ [XZTabBarController] 通过递归查找找到LoadingView");
+        return loadingView;
+    }
+    
+    NSLog(@"在局 ❌ [XZTabBarController] 在所有位置都未找到LoadingView");
+    return nil;
+}
+
+- (UIView *)recursiveFindViewWithTag:(NSInteger)tag inView:(UIView *)parentView {
+    if (!parentView) return nil;
+    
+    // 检查当前视图
+    if (parentView.tag == tag) {
+        return parentView;
+    }
+    
+    // 递归检查所有子视图
+    for (UIView *subview in parentView.subviews) {
+        UIView *found = [self recursiveFindViewWithTag:tag inView:subview];
+        if (found) {
+            return found;
+        }
+    }
+    
+    return nil;
 }
 
 - (void)dealloc {

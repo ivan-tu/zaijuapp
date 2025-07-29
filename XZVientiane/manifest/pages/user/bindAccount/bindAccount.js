@@ -96,11 +96,12 @@
                     msg = '',
                     isApp = app.config.client == 'app',
                     api = _this.getData().isWeixinMini ? 'bindAccountWxapp' : isApp ? 'bindAccountApp' : 'bindAccount',
-                    formData = _this.getData().form;
+                    formData = _this.getData().form,
+					code=formData.code;
 
                 if (!formData.mobile) {
                     msg = '请输入手机号码';
-                } else if (!formData.mobile) {
+                } else if (!formData.code) {
                     msg = '请输入验证码';
                 } else if (!_this.isPhones(formData.mobile)) {
                     msg = '请输入正确的手机号码';
@@ -120,6 +121,7 @@
                     } else if (isApp) {
                         app.extend(formData, app.gData.weixinLoginData);
                     };
+					formData.code=code;
                     app.request('/user/userapi/' + api, formData, function(backData) {
                         // app.tips(app.toJSON(backData));
                         _this.successLogin(backData);

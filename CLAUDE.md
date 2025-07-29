@@ -311,3 +311,26 @@ NSDictionary *callJsDic = [[HybridManager shareInstance]
 - HTML read asynchronously in background
 - Static resources cached by WKWebView
 - Images lazy loaded via SDWebImage
+
+## Development Guidelines for Claude Code
+
+### Code Modification Workflow
+- **DO NOT** automatically run build/compile commands after making code changes
+- After completing code modifications, notify the user to test compilation themselves
+- Users prefer to control when and how they build/test their code
+- Only suggest build commands if explicitly asked by the user
+
+### Build Commands Reference
+When users need to build, they can use:
+```bash
+# Quick simulator build for testing
+xcodebuild -workspace XZVientiane.xcworkspace -scheme XZVientiane -configuration Debug -sdk iphonesimulator
+
+# Production archive build  
+chmod +x build.sh && ./build.sh
+```
+
+### Configuration Management
+- Use project configuration classes (like `PublicSettingModel`) instead of hardcoding values
+- Avoid hardcoding AppIDs, URLs, or other configurable parameters
+- Maintain consistency with existing configuration patterns

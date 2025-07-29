@@ -139,44 +139,28 @@
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    NSLog(@"在局🚀🚀🚀 [AppDelegate] ========== 应用启动开始 ==========");
-    NSLog(@"在局🚀 [AppDelegate] Bundle ID: %@", [[NSBundle mainBundle] bundleIdentifier]);
-    NSLog(@"在局🚀 [AppDelegate] 应用版本: %@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"]);
-    NSLog(@"在局🚀 [AppDelegate] Build版本: %@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleVersion"]);
-    NSLog(@"在局🚀 [AppDelegate] iOS版本: %@", [[UIDevice currentDevice] systemVersion]);
-    NSLog(@"在局🚀 [AppDelegate] 设备型号: %@", [[UIDevice currentDevice] model]);
-    NSLog(@"在局🚀 [AppDelegate] didFinishLaunchingWithOptions 参数: %@", launchOptions);
+    // 应用启动开始
     
     // 启动网络监听
-    NSLog(@"在局📡 [AppDelegate] 开始启动网络监听器...");
     [self.reachability startNotifier];
     
     // 立即创建窗口并设置根视图控制器，避免场景更新超时
-    NSLog(@"在局🪟 [AppDelegate] 创建主窗口...");
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     self.window.backgroundColor = [UIColor whiteColor];
     
     // 创建一个临时的根视图控制器来满足iOS要求
-    NSLog(@"在局🎯 [AppDelegate] 创建临时根视图控制器...");
     UIViewController *tempRootViewController = [[UIViewController alloc] init];
     tempRootViewController.view.backgroundColor = [UIColor whiteColor];
     self.window.rootViewController = tempRootViewController;
     [self.window makeKeyAndVisible];
-    NSLog(@"在局✅ [AppDelegate] 窗口已显示");
     
-    // 显示加载界面
-    NSLog(@"在局⏳ [AppDelegate] 创建LoadingView...");
-    LoadingView *loadingView = [[LoadingView alloc] initWithFrame:self.window.bounds];
-    loadingView.tag = 2001;
-    [self.window addSubview:loadingView];
-    NSLog(@"在局✅ [AppDelegate] LoadingView已添加到窗口");
+    // 显示加载界面（使用统一管理）
+    [self showGlobalLoadingView];
     
     // 初始化配置数据
-    NSLog(@"在局🔧 [AppDelegate] 初始化配置数据...");
     [self locAppInfoData];
     
     // 立即初始化TabBar，不等待网络权限检查
-    NSLog(@"在局🚀 [AppDelegate] 立即初始化TabBar...");
     // 直接创建TabBar控制器，避免延迟
     self.tabbarVC = [[XZTabBarController alloc] init];
     self.window.rootViewController = self.tabbarVC;
@@ -184,7 +168,6 @@
     self.hasInitialized = YES;
     
     // 并行检查网络权限，不阻塞初始化
-    NSLog(@"在局📡 [AppDelegate] 并行检查网络权限...");
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         //1.获取网络权限 根据权限进行人机交互
         if (__IPHONE_10_0 && !TARGET_IPHONE_SIMULATOR) {
@@ -205,10 +188,7 @@
             // 只有在网络正常的情况下才移除LoadingView
             if (!self.networkRestricted) {
                 NSLog(@"在局 ⚠️ [AppDelegate] 网络正常，强制移除LoadingView");
-                UIView *loadingView = [self.window viewWithTag:2001];
-                if (loadingView) {
-                    [loadingView removeFromSuperview];
-                }
+                [self removeGlobalLoadingViewWithReason:@"初始化超时，网络正常"];
             } else {
                 NSLog(@"在局 ⚠️ [AppDelegate] 网络受限，保持LoadingView显示");
                 // 显示网络提示
@@ -261,16 +241,16 @@
     self.locationManager.reGeocodeTimeout = 2;
     [self.locationManager requestLocationWithReGeocode:YES completionBlock:^(CLLocation *location, AMapLocationReGeocode *regeocode, NSError *error) {
         if (error) {
-            NSLog(@"在局 locError:{%ld - %@};", (long)error.code, error.localizedDescription);
+            // 定位服务出错
             
             if (error.code == AMapLocationErrorLocateFailed) {
                 return;
             }
         }
-        NSLog(@"在局 location:%@", location);
+        // 定位获取成功
         
         if (regeocode) {
-            NSLog(@"在局 reGeocode:%@", regeocode);
+            // 逆地理编码成功
         }
         CLLocationCoordinate2D coordinate = location.coordinate;
         NSUserDefaults *Defaults = [NSUserDefaults standardUserDefaults];
@@ -294,13 +274,10 @@
 }
 
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
-    NSLog(@"在局 %s", __func__);
+    // 处理远程通知
 }
 
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo {
-    NSLog(@"在局 %s", __func__);
-    
-    // 友盟推送 - 处理远程通知
     [UMessage didReceiveRemoteNotification:userInfo];
     
     //    if(![[userInfo class] isSubclassOfClass:[NSDictionary class]] || ![userInfo objectForKey:@"extra"]) {
@@ -355,7 +332,7 @@
     [[NSNotificationCenter defaultCenter] postNotificationName:@"AppDidEnterBackgroundNotification" object:nil];
     
     self.backgroundTaskIdentifier = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"deleyTimeTask" expirationHandler:^{
-        NSLog(@"在局⚠️ 后台任务即将超时，立即结束");
+        // 后台任务超时
         if (self.backgroundTaskIdentifier != UIBackgroundTaskInvalid) {
             [[UIApplication sharedApplication] endBackgroundTask:self.backgroundTaskIdentifier];
             self.backgroundTaskIdentifier = UIBackgroundTaskInvalid;
@@ -365,7 +342,7 @@
     // 严格遵守2秒后台执行时间限制，提前100ms结束以确保安全
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.9 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (self.backgroundTaskIdentifier != UIBackgroundTaskInvalid) {
-            NSLog(@"在局✅ 后台任务正常结束");
+            // 后台任务结束
             [[UIApplication sharedApplication] endBackgroundTask:self.backgroundTaskIdentifier];
             self.backgroundTaskIdentifier = UIBackgroundTaskInvalid;
         }
@@ -424,7 +401,7 @@
                               ntohl(tokenBytes[0]), ntohl(tokenBytes[1]), ntohl(tokenBytes[2]),
                               ntohl(tokenBytes[3]), ntohl(tokenBytes[4]), ntohl(tokenBytes[5]),
                               ntohl(tokenBytes[6]), ntohl(tokenBytes[7])];
-        NSLog(@"在局 deviceToken1:%@", strToken);
+        // Device token获取成功
         [[NSUserDefaults standardUserDefaults] setObject:strToken forKey:User_ChannelId];
         [[NSUserDefaults standardUserDefaults] synchronize];
     } else {
@@ -433,7 +410,7 @@
         token = [token stringByReplacingOccurrencesOfString:@"<" withString:@""];
         token = [token stringByReplacingOccurrencesOfString:@">" withString:@""];
         token = [token stringByReplacingOccurrencesOfString:@" " withString:@""];
-        NSLog(@"在局 deviceToken2 is: %@", token);
+        // Device token获取成功
         [[NSUserDefaults standardUserDefaults] setObject:token forKey:User_ChannelId];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
@@ -445,13 +422,13 @@
 }
 
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
-    NSLog(@"在局 RegisterForRemoteNotificationsError:%@",error);
+    // 推送注册失败
 }
 
 #pragma mark - 微信QQ授权回调方法 -
 
 -(void) onReq:(BaseReq*)request {
-    NSLog(@"在局 微信支付");
+    // 微信请求回调
 }
 
 -(void) onResp:(BaseResp*)response {
@@ -474,6 +451,53 @@
             }
                 break;
         }
+        return;
+    }
+    
+    // 处理微信登录授权回调
+    if([response isKindOfClass:[SendAuthResp class]]) {
+        SendAuthResp *authResp = (SendAuthResp *)response;
+        NSLog(@"在局 🔑 [微信登录回调] 错误码: %d", authResp.errCode);
+        
+        NSDictionary *authResult = nil;
+        switch (authResp.errCode) {
+            case WXSuccess:
+                NSLog(@"在局 ✅ [微信登录] 授权成功，code: %@, state: %@", authResp.code, authResp.state);
+                authResult = @{
+                    @"success": @"true",
+                    @"code": authResp.code ?: @"",
+                    @"state": authResp.state ?: @"",
+                    @"errorMessage": @""
+                };
+                break;
+            case WXErrCodeUserCancel:
+                NSLog(@"在局 ⚠️ [微信登录] 用户取消授权");
+                authResult = @{
+                    @"success": @"false", 
+                    @"errorMessage": @"用户取消授权",
+                    @"data": @{}
+                };
+                break;
+            case WXErrCodeAuthDeny:
+                NSLog(@"在局 ❌ [微信登录] 授权被拒绝");
+                authResult = @{
+                    @"success": @"false", 
+                    @"errorMessage": @"微信授权被拒绝", 
+                    @"data": @{}
+                };
+                break;
+            default:
+                NSLog(@"在局 ❌ [微信登录] 授权失败，错误码: %d", authResp.errCode);
+                authResult = @{
+                    @"success": @"false", 
+                    @"errorMessage": [NSString stringWithFormat:@"微信登录失败(%d)", authResp.errCode],
+                    @"data": @{}
+                };
+                break;
+        }
+        
+        // 发送登录授权结果通知
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"wechatAuthResult" object:authResult];
         return;
     }
     
@@ -538,17 +562,17 @@
     //6.3的新的API调用，是为了兼容国外平台(例如:新版facebookSDK,VK等)的调用[如果用6.2的api调用会没有回调],对国内平台没有影响。
     BOOL result = [[UMSocialManager defaultManager]  handleOpenURL:url options:options];
     
-    NSLog(@"在局 📤 [UMSocialManager] 处理结果: %@", result ? @"成功" : @"失败");
+    // UMSocialManager处理URL回调
     
     if (!result) {
         //银联和支付宝支付返回结果
         if ([url.host isEqualToString:@"safepay"] || [url.host isEqualToString:@"platformapi"] || [url.host isEqualToString:@"uppayresult"]) {
-            NSLog(@"在局 💳 [支付回调] 检测到支付相关URL");
+            // 支付回调处理
             [[NSNotificationCenter defaultCenter] postNotificationName:@"payresultnotif" object:url];
             return YES;
         }
         else if ( [url.host isEqualToString:@"pay"]) {
-            NSLog(@"在局 💰 [微信支付] 检测到微信支付回调");
+            // 微信支付回调处理
             return [WXApi handleOpenURL:url delegate:self];
         }
         
@@ -557,7 +581,7 @@
         @"result" : @(result),
         @"urlhost" : url.host ? url.host : @"",
     };
-    NSLog(@"在局 📢 [通知发送] 发送分享结果通知: %@", dic);
+    // 发送分享结果通知
     [[NSNotificationCenter defaultCenter] postNotificationName:@"shareresultnotif" object:dic];
     return result;
 }
@@ -769,12 +793,12 @@
     [UMConfigure setLogEnabled:YES];
 #endif
     //设置微信AppId，设置分享url，默认使用友盟的网址
-    [UMSocialGlobal shareInstance].universalLinkDic = @{@(UMSocialPlatformType_WechatSession):@"https://zaiju.com/",
+    [UMSocialGlobal shareInstance].universalLinkDic = @{@(UMSocialPlatformType_WechatSession):@"https://zaiju.com/app/",
                                                         @(UMSocialPlatformType_QQ):@""
     };
     [[UMSocialManager defaultManager] setPlaform:UMSocialPlatformType_WechatSession appKey:[[PublicSettingModel sharedInstance] weiXin_AppID] appSecret:[[PublicSettingModel sharedInstance] weiXin_AppSecret] redirectURL:nil];
     
-    [WXApi registerApp:[[PublicSettingModel sharedInstance] weiXin_AppID] universalLink:@"https://zaiju.com/"];
+    [WXApi registerApp:[[PublicSettingModel sharedInstance] weiXin_AppID] universalLink:@"https://zaiju.com/app/"];
     
     // 打开新浪微博的SSO开关
     [[UMSocialManager defaultManager] setPlaform:UMSocialPlatformType_Sina appKey:[[PublicSettingModel sharedInstance] weiBo_AppKey] appSecret:[[PublicSettingModel sharedInstance] weiBo_AppSecret] redirectURL:@"https://sns.whalecloud.com/sina2/callback"];
@@ -953,17 +977,8 @@
                             //2.2已经开启网络权限 监听网络状态
                             [strongSelf addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
                             
-                            // 网络权限恢复后，移除LoadingView
-                            UIView *loadingView = [strongSelf.window viewWithTag:2001];
-                            if (loadingView) {
-                                NSLog(@"在局🎯 [AppDelegate] 网络权限恢复，移除LoadingView");
-                                [UIView animateWithDuration:0.3 animations:^{
-                                    loadingView.alpha = 0.0;
-                                } completion:^(BOOL finished) {
-                                    [loadingView removeFromSuperview];
-                                    NSLog(@"在局✅ [AppDelegate] LoadingView移除完成");
-                                }];
-                            }
+                            // 网络权限恢复后，使用统一管理移除LoadingView
+                            [strongSelf removeGlobalLoadingViewWithReason:@"网络权限恢复"];
                             
                             // 修复权限授予后首页空白问题 - 主动触发首页加载
                             [strongSelf triggerFirstTabLoadIfNeeded];
@@ -1202,8 +1217,16 @@
                     NSString *pinUrl = [rootVC valueForKey:@"pinUrl"];
                     
                     if (!isWebViewLoading && !isLoading && pinUrl) {
-                        NSLog(@"在局 🚨 [AppDelegate] 检测到首页未加载，主动触发加载");
-                        [rootVC performSelector:@selector(domainOperate)];
+                        // 添加节流机制，防止重复调用
+                        static NSDate *lastTriggerTime = nil;
+                        NSDate *now = [NSDate date];
+                        if (!lastTriggerTime || [now timeIntervalSinceDate:lastTriggerTime] > 3.0) {
+                            NSLog(@"在局 🚨 [AppDelegate] 检测到首页未加载，主动触发加载");
+                            [rootVC performSelector:@selector(domainOperate)];
+                            lastTriggerTime = now;
+                        } else {
+                            NSLog(@"在局 ⏳ [AppDelegate] 触发过于频繁，跳过此次调用");
+                        }
                     } else {
                         NSLog(@"在局 ✅ [AppDelegate] 首页已加载或正在加载中");
                     }
@@ -1277,6 +1300,38 @@
     // 解析路径
     NSString *path = url.path;
     NSLog(@"在局📍 [Universal Links] 解析路径: %@", path);
+    
+    // 检查是否是微信回调，如果是则转换为URL Scheme调用
+    // 匹配所有微信回调：/app/wx开头且包含微信AppID的路径都是微信回调
+    NSString *wxAppID = [[PublicSettingModel sharedInstance] weiXin_AppID];
+    if ([path hasPrefix:@"/app/wx"] && wxAppID && [path containsString:wxAppID]) {
+        NSLog(@"在局🔄 [Universal Links] 检测到微信回调URL，转换为URL Scheme处理: %@", path);
+        
+        // 直接使用原始URL调用微信SDK，因为微信SDK内部会处理Universal Link
+        NSLog(@"在局🔄 [Universal Links] 直接使用原始URL调用微信SDK: %@", url.absoluteString);
+        
+        // 手动调用微信SDK处理Universal Link
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSUserActivity *userActivity = [[NSUserActivity alloc] initWithActivityType:NSUserActivityTypeBrowsingWeb];
+            userActivity.webpageURL = url;
+            
+            BOOL handled = [WXApi handleOpenUniversalLink:userActivity delegate:self];
+            NSLog(@"在局🔄 [Universal Links] 微信SDK处理结果: %@", handled ? @"成功" : @"失败");
+            
+            if (!handled) {
+                NSLog(@"在局🔄 [Universal Links] 微信SDK处理失败，尝试URL Scheme方式");
+                // 如果Universal Link处理失败，回退到URL Scheme
+                NSString *wxScheme = [NSString stringWithFormat:@"%@://platformapi/startapp", wxAppID];
+                if (url.query && url.query.length > 0) {
+                    wxScheme = [wxScheme stringByAppendingFormat:@"?%@", url.query];
+                }
+                NSURL *wxSchemeURL = [NSURL URLWithString:wxScheme];
+                [WXApi handleOpenURL:wxSchemeURL delegate:self];
+            }
+        });
+        
+        return YES; // 表示我们已经处理了这个URL
+    }
     
     // 检查是否是app路径
     if ([path hasPrefix:@"/app/"]) {
@@ -1387,6 +1442,88 @@
     if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive) {
         NSLog(@"在局🔄 [Universal Links] App不在前台，正在激活");
     }
+}
+
+#pragma mark - LoadingView统一管理
+
+- (void)showGlobalLoadingView {
+    if (self.globalLoadingView || self.isLoadingViewRemoved) {
+        NSLog(@"在局 ⚠️ [LoadingView管理] LoadingView已存在或已被移除，跳过创建");
+        return;
+    }
+    
+    NSLog(@"在局 🎯 [LoadingView管理] 创建全局LoadingView");
+    LoadingView *loadingView = [[LoadingView alloc] initWithFrame:self.window.bounds];
+    loadingView.tag = 2001;
+    [self.window addSubview:loadingView];
+    
+    // 保存引用
+    self.globalLoadingView = loadingView;
+    self.isLoadingViewRemoved = NO;
+    
+    NSLog(@"在局 ✅ [LoadingView管理] 全局LoadingView创建完成");
+}
+
+- (void)removeGlobalLoadingViewWithReason:(NSString *)reason {
+    NSLog(@"在局 🎯 [LoadingView管理] 请求移除LoadingView，原因: %@", reason);
+    
+    if (self.isLoadingViewRemoved) {
+        NSLog(@"在局 ⚠️ [LoadingView管理] LoadingView已被移除，跳过");
+        return;
+    }
+    
+    // 标记为已移除，防止重复移除
+    self.isLoadingViewRemoved = YES;
+    
+    UIView *loadingView = [self findGlobalLoadingView];
+    if (loadingView) {
+        NSLog(@"在局 🎯 [LoadingView管理] 找到LoadingView，开始移除动画");
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [UIView animateWithDuration:0.3 animations:^{
+                loadingView.alpha = 0.0;
+            } completion:^(BOOL finished) {
+                [loadingView removeFromSuperview];
+                self.globalLoadingView = nil;
+                NSLog(@"在局 ✅ [LoadingView管理] LoadingView移除完成，原因: %@", reason);
+            }];
+        });
+    } else {
+        NSLog(@"在局 ❌ [LoadingView管理] 未找到LoadingView，可能已被移除");
+        self.globalLoadingView = nil;
+    }
+}
+
+- (UIView *)findGlobalLoadingView {
+    // 优先返回缓存的引用
+    if (self.globalLoadingView && self.globalLoadingView.superview) {
+        return self.globalLoadingView;
+    }
+    
+    // 在所有窗口中查找
+    UIView *loadingView = [[UIApplication sharedApplication].keyWindow viewWithTag:2001];
+    if (loadingView) {
+        self.globalLoadingView = loadingView;
+        return loadingView;
+    }
+    
+    loadingView = [self.window viewWithTag:2001];
+    if (loadingView) {
+        self.globalLoadingView = loadingView;
+        return loadingView;
+    }
+    
+    // 在所有window中查找
+    NSArray *windows = [UIApplication sharedApplication].windows;
+    for (UIWindow *window in windows) {
+        loadingView = [window viewWithTag:2001];
+        if (loadingView) {
+            self.globalLoadingView = loadingView;
+            return loadingView;
+        }
+    }
+    
+    return nil;
 }
 
 @end

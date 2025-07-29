@@ -12,6 +12,15 @@
 @property (strong, nonatomic) UIWindow *window;
 @property (nonatomic, assign) BOOL networkRestricted; // 网络权限是否受限
 
+// LoadingView管理
+@property (nonatomic, assign) BOOL isLoadingViewRemoved; // LoadingView是否已被移除
+@property (nonatomic, strong) UIView *globalLoadingView; // 全局LoadingView引用
+
+// LoadingView管理方法
+- (void)showGlobalLoadingView;
+- (void)removeGlobalLoadingViewWithReason:(NSString *)reason;
+- (UIView *)findGlobalLoadingView;
+
 @end
 
 #define  HelpBtnUI(NAME) \
