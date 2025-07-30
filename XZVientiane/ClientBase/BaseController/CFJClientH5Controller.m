@@ -641,7 +641,7 @@ static inline BOOL isIPhoneXSeries() {
         // 使用淡灰色背景和蓝色按钮，确保标题栏可见
         UIColor *defaultBarColor = [UIColor colorWithRed:0.97 green:0.97 blue:0.97 alpha:1.0]; // 淡灰色
         self.navigationController.navigationBar.barTintColor = defaultBarColor;
-        self.navigationController.navigationBar.tintColor = [UIColor systemBlueColor]; // 蓝色按钮
+        self.navigationController.navigationBar.tintColor = [UIColor systemBlueColor]; // 修正：使用蓝色按钮
         self.navigationController.navigationBar.titleTextAttributes = @{
             NSForegroundColorAttributeName: [UIColor blackColor]
         };
@@ -724,6 +724,13 @@ static inline BOOL isIPhoneXSeries() {
 // 交互式转场后恢复WebView状态
 - (void)restoreWebViewStateAfterInteractiveTransition {
     NSLog(@"在局🔄 [CFJClientH5Controller] 恢复交互式转场后的WebView状态");
+    NSLog(@"在局🔧 [CFJClientH5Controller] 修复前 - 准备调用父类方法重置_isDisappearing");
+    
+    // 🔧 关键修复：重置_isDisappearing标志，允许JavaScript执行
+    // 通过父类的方法来重置这个私有变量
+    [super restoreWebViewStateAfterInteractiveTransition];
+    
+    NSLog(@"在局✅ [CFJClientH5Controller] 修复后 - 父类方法已调用，_isDisappearing应该已重置");
     
     if (!self.webView) {
         return;
@@ -799,6 +806,10 @@ static inline BOOL isIPhoneXSeries() {
     NSLog(@"在局 ✨ [CFJClientH5Controller] self: %@", self);
     NSLog(@"在局 ✨ [CFJClientH5Controller] view.superview: %@", self.view.superview);
     NSLog(@"在局 ✨ [CFJClientH5Controller] view.window: %@", self.view.window);
+    NSLog(@"在局 ✨ [CFJClientH5Controller] pinUrl: %@", self.pinUrl);
+    NSLog(@"在局 ✨ [CFJClientH5Controller] webView: %@", self.webView);
+    NSLog(@"在局 ✨ [CFJClientH5Controller] isWebViewLoading: %@", self.isWebViewLoading ? @"YES" : @"NO");
+    NSLog(@"在局 ✨ [CFJClientH5Controller] navigationController.viewControllers.count: %ld", (long)self.navigationController.viewControllers.count);
     
     // iOS 18修复：已在方法开头处理
     

@@ -61,6 +61,26 @@
         
         NSDictionary *localJsonData = [self getLocalJsonForPage:parsedUrl inManifestPath:h5ManifestPath];
         NSString *title = localJsonData[@"navigationBarTitleText"] ?: @"";
+        
+        // 🔧 修复内页标题不显示问题：如果JSON中没有标题，从URL生成默认标题
+        if (!title || title.length == 0) {
+            NSLog(@"在局🔍 [CustomHybridProcessor] JSON中没有标题，从URL生成默认标题: %@", parsedUrl);
+            if ([parsedUrl containsString:@"/activity/detail/"]) {
+                title = @"活动详情";
+            } else if ([parsedUrl containsString:@"/news/detail/"]) {
+                title = @"新闻详情"; 
+            } else if ([parsedUrl containsString:@"/user/"]) {
+                title = @"用户信息";
+            } else if ([parsedUrl containsString:@"/detail/"]) {
+                title = @"详情";
+            } else if ([parsedUrl containsString:@"/list/"]) {
+                title = @"列表";
+            } else {
+                title = @"详情页";
+            }
+            NSLog(@"在局✅ [CustomHybridProcessor] 生成的默认标题: %@", title);
+        }
+        
         NSDictionary *usingComponents = localJsonData[@"usingComponents"];
         
         NSString *finalHtml;

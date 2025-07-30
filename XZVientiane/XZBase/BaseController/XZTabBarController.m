@@ -77,14 +77,15 @@
         STRONG_SELF;
         NSLog(@"在局 🎯 [XZTabBarController] 收到showTabviewController通知");
         
-        // 检查网络权限状态
+        // 检查网络权限状态，但无论如何都要移除LoadingView
         AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
         if (appDelegate.networkRestricted) {
-            NSLog(@"在局 ⚠️ [XZTabBarController] 网络权限受限，不移除LoadingView");
-            return;
+            NSLog(@"在局 🎯 [XZTabBarController] 网络权限受限，但首页内容已准备好，移除LoadingView");
+        } else {
+            NSLog(@"在局 🎯 [XZTabBarController] 网络正常，发送showTabviewController通知");
         }
         
-        // 使用统一的LoadingView管理器移除
+        // 立即移除LoadingView，因为首页内容已经准备就绪
         [appDelegate removeGlobalLoadingViewWithReason:@"首页pageReady完成"];
         
         // TabBar已经显示，无需再设置hidden

@@ -83,12 +83,30 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 @property (strong, nonatomic) NSString *htmlStr;
 @property (strong, nonatomic) NSString *appsourceBasePath;
 
+// 性能优化相关属性
+@property (strong, nonatomic) NSOperationQueue *webViewLoadingQueue;  // WebView加载操作队列
+@property (strong, nonatomic) NSOperationQueue *htmlProcessingQueue;  // HTML处理队列
+@property (assign, nonatomic) BOOL isWebViewPreCreated;               // WebView是否已预创建
+@property (assign, nonatomic) BOOL isBridgeReady;                     // JavaScript桥接是否就绪
+@property (assign, nonatomic) BOOL isLoadingInProgress;               // 是否正在执行loadHTMLString操作（防重复）
+
 // 基础方法
 - (void)addWebView;
 - (void)loadWebBridge;
 - (void)domainOperate;
 - (void)loadHTMLContent;
 - (void)retryHTMLLoading;
+
+// 性能优化方法
++ (void)preloadHTMLTemplates;                           // 预加载HTML模板
+- (void)preCreateWebViewIfNeeded;                       // 预创建WebView
+- (void)optimizedLoadHTMLContent;                       // 优化的HTML加载方法
+- (void)setupOptimizedJavaScriptBridge;                 // 优化的JavaScript桥接设置
+- (BOOL)isReadyForJavaScriptExecution;                  // 简化的JavaScript执行状态检查
+- (void)fallbackToOriginalLoadMethod;                   // 回退到原有加载方法
+- (void)loadHTMLContentWithoutOptimization;             // 不使用优化的HTML加载方法
+- (BOOL)isNavigationReturnScenario;                     // 检测是否为返回导航场景
+- (BOOL)hasValidWebViewContent;                         // 检测WebView是否有有效内容
 
 // JavaScript交互方法
 - (void)jsCallObjc:(NSDictionary *)jsData completion:(void(^)(id result))completion;

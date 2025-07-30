@@ -95,9 +95,16 @@
 - (void)WKFlushMessageQueue {
     // 检查应用状态，如果不在前台则不执行JavaScript
     UIApplicationState state = [[UIApplication sharedApplication] applicationState];
-    if (state != UIApplicationStateActive) {
-        NSLog(@"WebViewJavascriptBridge: 应用不在前台，跳过JavaScript执行");
+    
+    // 🔧 修复手势返回空白页：检查WebView是否在显示中
+    BOOL isWebViewVisible = _webView && _webView.window && !_webView.window.hidden && _webView.superview;
+    
+    // 如果应用在后台且WebView不可见，则跳过执行
+    if (state == UIApplicationStateBackground || (state == UIApplicationStateInactive && !isWebViewVisible)) {
+        NSLog(@"WebViewJavascriptBridge: 应用不在前台且WebView不可见，跳过JavaScript执行");
         return;
+    } else if (state == UIApplicationStateInactive && isWebViewVisible) {
+        NSLog(@"WebViewJavascriptBridge: 应用非活跃但WebView可见（可能是手势返回），允许执行");
     }
     
     // 检查webView和base是否存在
@@ -114,8 +121,9 @@
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // 异步检查应用状态，避免dispatch_sync导致的潜在死锁
         UIApplicationState bgState = [[UIApplication sharedApplication] applicationState];
-        if (bgState != UIApplicationStateActive) {
-            NSLog(@"WebViewJavascriptBridge: 后台线程检查，应用不在前台");
+        // 🔧 修复：只在真正后台时才跳过，Inactive状态可能是手势返回
+        if (bgState == UIApplicationStateBackground) {
+            NSLog(@"WebViewJavascriptBridge: 后台线程检查，应用在后台");
             return;
         }
         
@@ -149,8 +157,13 @@
                 
                 // 回调已经在主线程，直接检查应用状态
                 UIApplicationState callbackState = [[UIApplication sharedApplication] applicationState];
-                if (callbackState != UIApplicationStateActive) {
-                    NSLog(@"WebViewJavascriptBridge: 回调时应用不在前台");
+                // 🔧 修复：检查WebView是否仍然可见
+                BOOL isStillVisible = strongSelf2->_webView && strongSelf2->_webView.window && 
+                                     !strongSelf2->_webView.window.hidden && strongSelf2->_webView.superview;
+                
+                if (callbackState == UIApplicationStateBackground || 
+                    (callbackState == UIApplicationStateInactive && !isStillVisible)) {
+                    NSLog(@"WebViewJavascriptBridge: 回调时应用在后台或WebView不可见");
                     return;
                 }
                 
@@ -205,10 +218,13 @@
         if ([_base isBridgeLoadedURL:url]) {
             // 检查应用状态，避免在后台注入JavaScript
             UIApplicationState state = [[UIApplication sharedApplication] applicationState];
-            if (state == UIApplicationStateActive) {
+            // 🔧 修复：检查WebView是否可见
+            BOOL isVisible = _webView && _webView.window && !_webView.window.hidden && _webView.superview;
+            
+            if (state == UIApplicationStateActive || (state == UIApplicationStateInactive && isVisible)) {
                 [_base injectJavascriptFile];
             } else {
-                NSLog(@"WebViewJavascriptBridge: 应用不在前台，跳过JavaScript注入");
+                NSLog(@"WebViewJavascriptBridge: 应用在后台或WebView不可见，跳过JavaScript注入");
             }
         } else if ([_base isQueueMessageURL:url]) {
             // 异步处理消息队列，避免阻塞导航决策
@@ -260,8 +276,12 @@
 - (NSString*) _evaluateJavascript:(NSString*)javascriptCommand {
     // 检查应用状态，如果不在前台则不执行JavaScript
     UIApplicationState state = [[UIApplication sharedApplication] applicationState];
-    if (state != UIApplicationStateActive) {
-        NSLog(@"WebViewJavascriptBridge: 应用不在前台，跳过JavaScript执行");
+    
+    // 🔧 修复手势返回空白页：检查WebView是否在显示中
+    BOOL isWebViewVisible = _webView && _webView.window && !_webView.window.hidden && _webView.superview;
+    
+    if (state == UIApplicationStateBackground || (state == UIApplicationStateInactive && !isWebViewVisible)) {
+        NSLog(@"WebViewJavascriptBridge: 应用在后台或WebView不可见，跳过JavaScript执行");
         return NULL;
     }
     

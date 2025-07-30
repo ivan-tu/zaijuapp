@@ -12,6 +12,7 @@
 #import "XZTabBarController.h"
 #import "PublicSettingModel.h"
 #import "ClientSettingModel.h"
+#import "XZWKWebViewBaseController.h" // 导入WebView基类以使用预加载方法
 // 友盟分享相关导入 - 使用正确路径
 #import <UMShare/UMShare.h>
 #import <UMShare/UMSociallogMacros.h>
@@ -158,6 +159,9 @@
     
     // 初始化配置数据
     [self locAppInfoData];
+    
+    // 启动HTML模板预加载优化（后台异步执行，不影响启动速度）
+    [XZWKWebViewBaseController preloadHTMLTemplates];
     
     // 立即初始化TabBar，不等待网络权限检查
     // 直接创建TabBar控制器，避免延迟
@@ -971,8 +975,10 @@
                             //2.2已经开启网络权限 监听网络状态
                             [strongSelf addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
                             
-                            // 网络权限恢复后，使用统一管理移除LoadingView
-                            [strongSelf removeGlobalLoadingViewWithReason:@"网络权限恢复"];
+                            // 网络权限恢复后，只有当LoadingView还存在时才移除（避免重复移除）
+                            if (!strongSelf.isLoadingViewRemoved) {
+                                [strongSelf removeGlobalLoadingViewWithReason:@"网络权限恢复"];
+                            }
                             
                             // 修复权限授予后首页空白问题 - 主动触发首页加载
                             [strongSelf triggerFirstTabLoadIfNeeded];
@@ -1460,6 +1466,8 @@
 
 - (void)removeGlobalLoadingViewWithReason:(NSString *)reason {
     NSLog(@"在局 🎯 [LoadingView管理] 请求移除LoadingView，原因: %@", reason);
+    NSLog(@"在局 🎯 [LoadingView管理] 当前时间: %@", [NSDate date]);
+    NSLog(@"在局 🎯 [LoadingView管理] 当前线程: %@", [NSThread isMainThread] ? @"主线程" : @"非主线程");
     
     if (self.isLoadingViewRemoved) {
         NSLog(@"在局 ⚠️ [LoadingView管理] LoadingView已被移除，跳过");

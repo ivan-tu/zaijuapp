@@ -134,6 +134,10 @@
                    finalFrameForToVC:(CGRect)finalFrame
                 initialFrameForFromVC:(CGRect)initialFrame {
     
+    NSLog(@"在局🚀 [退出动画] 开始 - fromVC:%@ toVC:%@", 
+          NSStringFromClass([fromVC class]), 
+          NSStringFromClass([toVC class]));
+    
     // 将背景页面插入到当前页面下方
     [containerView insertSubview:toVC.view belowSubview:fromVC.view];
     
@@ -146,12 +150,24 @@
     // 设置当前页面的阴影
     [self addShadowToView:fromVC.view];
     
+    // 获取动画时长
+    NSTimeInterval duration = [self transitionDuration:transitionContext];
+    
+    // 判断是否是交互式转场
+    BOOL isInteractive = transitionContext.isInteractive;
+    NSLog(@"在局🎯 [退出动画] 交互式转场: %@", isInteractive ? @"YES" : @"NO");
+    
     // 执行动画
-    [UIView animateWithDuration:[self transitionDuration:transitionContext]
+    // 对于交互式转场，使用不同的动画选项以避免完成回调延迟
+    UIViewAnimationOptions animationOptions = isInteractive ? 
+        UIViewAnimationOptionCurveLinear : 
+        (UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionAllowUserInteraction);
+    
+    [UIView animateWithDuration:duration
                           delay:0
          usingSpringWithDamping:self.springDamping
           initialSpringVelocity:self.springVelocity
-                        options:UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionAllowUserInteraction
+                        options:animationOptions
                      animations:^{
         // 当前页面向右滑出
         CGRect exitFrame = initialFrame;
@@ -166,20 +182,33 @@
         // 清理阴影
         [self removeShadowFromView:fromVC.view];
         
+        // 获取转场是否被取消
+        BOOL cancelled = [transitionContext transitionWasCancelled];
+        
         // 如果动画被取消，恢复原始状态
-        if ([transitionContext transitionWasCancelled]) {
+        if (cancelled) {
             fromVC.view.frame = initialFrame;
             toVC.view.frame = backgroundInitialFrame;
             toVC.view.alpha = 0.9;
         } else {
-            // 动画成功完成，确保背景页面状态正确
+            // 动画成功完成
+            // 确保背景页面状态正确
             toVC.view.frame = finalFrame;
             toVC.view.alpha = 1.0;
+            
+            // 重要：从容器视图中移除 fromVC.view
+            // 这是解决视图残留问题的关键
+            [fromVC.view removeFromSuperview];
         }
         
         // 通知转场完成
-        BOOL success = ![transitionContext transitionWasCancelled];
-        [transitionContext completeTransition:success];
+        // 必须在所有视图操作完成后调用
+        [transitionContext completeTransition:!cancelled];
+        
+        // 添加日志以调试完成回调延迟问题
+        NSLog(@"在局✅ [退出动画] 动画完成 - finished:%@, cancelled:%@", 
+              finished ? @"YES" : @"NO", 
+              cancelled ? @"YES" : @"NO");
     }];
 }
 
