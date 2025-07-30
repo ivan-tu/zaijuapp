@@ -3781,6 +3781,7 @@ static inline BOOL isIPhoneXSeries() {
     NSLog(@"在局🏠 [首页时序] 开始确保LoadingView移除完成后再允许数据请求");
     
     // 首先发送通知移除LoadingView
+    NSLog(@"在局🏠 [首页时序] 发送showTabviewController通知");
     [[NSNotificationCenter defaultCenter] postNotificationName:@"showTabviewController" object:self];
     
     // 使用定时器检查LoadingView是否真正移除

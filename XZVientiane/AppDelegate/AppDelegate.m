@@ -34,7 +34,6 @@
 // #import "UMCommonLog/UMCommonLogMacros.h"  // 如果路径不对可以注释
 // #import "UMCommonLog/UMCommonLogManager.h" // 如果路径不对可以注释  
 // 使用CustomHybridProcessor替代HybridManager
-// NSLog(@"在局 🔧 [AppDelegate] 优化权限使用说明文案完成");
 #import "Reachability.h"
 #import "JHSysAlertUtil.h"
 #import <UserNotifications/UserNotifications.h>
@@ -183,14 +182,11 @@
     // 添加超时保护：10秒后如果还没有初始化完成，强制显示界面
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (!self.hasInitialized) {
-            NSLog(@"在局 ⚠️ [AppDelegate] 初始化超时，检查网络状态");
             
             // 只有在网络正常的情况下才移除LoadingView
             if (!self.networkRestricted) {
-                NSLog(@"在局 ⚠️ [AppDelegate] 网络正常，强制移除LoadingView");
                 [self removeGlobalLoadingViewWithReason:@"初始化超时，网络正常"];
             } else {
-                NSLog(@"在局 ⚠️ [AppDelegate] 网络受限，保持LoadingView显示");
                 // 显示网络提示
                 [self showNetworkRestrictedAlert];
             }
@@ -216,11 +212,9 @@
 }
 
 - (void)downloadManifestAppsource {
-    NSLog(@"在局📦 [AppDelegate] downloadManifestAppsource 开始");
     
     // 如果已经初始化或正在初始化，跳过
     if (self.hasInitialized || self.isInitializing) {
-        NSLog(@"在局⚠️ [AppDelegate] downloadManifestAppsource - 已经初始化，跳过");
         return;
     }
     

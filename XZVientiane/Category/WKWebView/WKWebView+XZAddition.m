@@ -33,8 +33,6 @@
 }
 
 + (NSDictionary *)objcCallJsLoadPageParamWithHtml:(NSString *)html url:(NSString *)url requestData:(id)data {
-    NSLog(@"在局⚠️ [WKWebView+XZAddition] objcCallJsLoadPageParamWithHtml被调用 - 这是同步方法，可能阻塞主线程！");
-    NSLog(@"在局 🔧 [XZWKWebView+XZAddition] 统一iOS部署目标版本为15.0完成");
     
     // 确保URL不为nil
     if (!url) {
@@ -53,7 +51,6 @@
     // 🚨 紧急修复：避免主线程阻塞
     // 如果在主线程，跳过Cookie获取，避免阻塞
     if ([NSThread isMainThread]) {
-        NSLog(@"在局⚠️ [WKWebView+XZAddition] 在主线程调用，跳过同步Cookie获取以避免阻塞！");
         // 使用缓存的Cookie或空数组
         NSData *cachedCookieData = [[NSUserDefaults standardUserDefaults] objectForKey:@"CachedCookieArray"];
         if (cachedCookieData) {
@@ -369,7 +366,6 @@
 #pragma mark - 异步Cookie获取（推荐使用）
 
 + (void)getCookiesAsyncWithCompletion:(void(^)(NSArray *cookies))completion {
-    NSLog(@"在局✅ [WKWebView+XZAddition] 使用异步方式获取Cookie");
     
     if (@available(iOS 11.0, *)) {
         WKHTTPCookieStore *cookieStore = [[WKWebsiteDataStore defaultDataStore] httpCookieStore];
@@ -415,7 +411,6 @@
                                         url:(NSString *)url 
                                 requestData:(id)data
                                  completion:(void(^)(NSDictionary *params))completion {
-    NSLog(@"在局✅ [WKWebView+XZAddition] 使用异步方式准备加载参数");
     
     // 确保URL不为nil
     if (!url) {

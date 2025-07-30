@@ -357,9 +357,13 @@
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+    NSLog(@"在局🏠 [XZNavigationController] viewDidLoad - navigationBarHidden: %@", self.navigationBarHidden ? @"YES" : @"NO");
     self.navigationBar.backgroundColor = [UIColor whiteColor];
     self.navigationBar.barTintColor = [UIColor whiteColor];
     self.navigationBar.tintColor = [UIColor whiteColor];
+    // 确保导航栏默认是显示的
+    [self setNavigationBarHidden:NO animated:NO];
+    NSLog(@"在局🏠 [XZNavigationController] viewDidLoad后 - navigationBarHidden: %@", self.navigationBarHidden ? @"YES" : @"NO");
     
     // 设置默认值
     self.enableCustomTransition = YES;
@@ -420,12 +424,6 @@
     edgePanGesture.edges = UIRectEdgeLeft;
     edgePanGesture.delegate = self;
     [self.view addGestureRecognizer:edgePanGesture];
-    
-    // 验证手势设置
-    NSLog(@"在局👆 [XZNavigationController] 边缘手势创建: %@", edgePanGesture);
-    NSLog(@"在局👆 [XZNavigationController] 手势目标: %@", edgePanGesture.delegate);
-    NSLog(@"在局👆 [XZNavigationController] 手势边缘: %lu", (unsigned long)edgePanGesture.edges);
-    NSLog(@"在局👆 [XZNavigationController] 交互式返回手势设置完成，当前手势数量: %lu", (unsigned long)self.view.gestureRecognizers.count);
 }
 
 - (void)viewDidAppear:(BOOL)animated {

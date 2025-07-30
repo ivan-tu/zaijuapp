@@ -148,12 +148,14 @@
             // 只为第一个tab创建ViewController，其他的延迟创建
             UIViewController *rootVC = nil;
             if (index == 0) {
+                NSLog(@"在局🏠 [XZTabBarController] 创建首页控制器");
                 CFJClientH5Controller *homeVC = [[CFJClientH5Controller alloc] init];
                 if ([[dic objectForKey:@"isCheck"] isEqualToString:@"1"]) {
                     homeVC.isCheck = YES;
                 }
                 homeVC.isTabbarShow = YES;
                 homeVC.pinUrl = [dic objectForKey:@"url"];
+                NSLog(@"在局🏠 [XZTabBarController] 首页URL: %@", homeVC.pinUrl);
                 rootVC = homeVC;
             } else {
                 // 创建一个轻量级的占位ViewController
@@ -165,8 +167,10 @@
                 rootVC = placeholderVC;
             }
             
+            NSLog(@"在局🏠 [XZTabBarController] 创建XZNavigationController - index: %ld", (long)index);
             XZNavigationController *nav = [[XZNavigationController alloc] initWithRootViewController:rootVC];
             nav.navigationBar.translucent = NO;
+            NSLog(@"在局🏠 [XZTabBarController] navigationBar: %@, hidden: %@", nav.navigationBar, nav.navigationBarHidden ? @"YES" : @"NO");
             
             // 设置TabBarItem的图标和标题
             UIImage *image = [UIImage imageNamed:[dic objectForKey:@"icon"]];
