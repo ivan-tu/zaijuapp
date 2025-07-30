@@ -484,7 +484,7 @@ static inline BOOL isIPhoneXSeries() {
         self.navigationController.navigationBar.translucent = NO;
         // 修复：使用系统默认颜色或淡灰色作为默认背景
         self.navigationController.navigationBar.barTintColor = [UIColor colorWithRed:0.97 green:0.97 blue:0.97 alpha:1.0]; // 淡灰色背景
-        self.navigationController.navigationBar.tintColor = [UIColor systemBlueColor]; // 系统蓝色按钮
+        self.navigationController.navigationBar.tintColor = [UIColor blackColor]; // 黑色按钮
         
         // 设置标题文字颜色
         self.navigationController.navigationBar.titleTextAttributes = @{

@@ -31,7 +31,7 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _animationDuration = 0.8; // 进一步减慢动画速度，让用户有更好的控制感
+        _animationDuration = 0.3; // 进一步减慢动画速度，让用户有更好的控制感
         _backgroundOffsetRatio = 0.3;
         _springDamping = 1.0; // 使用1.0避免弹簧效果，让动画更平滑
         _springVelocity = 0.0; // 初始速度设为0
@@ -358,7 +358,28 @@
                 }
             });
         }
-    }];
+    };
+    
+    // 根据是否是交互式转场选择不同的动画方法
+    if (isInteractive) {
+        // 交互式转场使用标准动画，避免spring效果导致的完成回调延迟
+        NSLog(@"在局🎬 [转场动画] 使用标准动画（交互式转场）");
+        [UIView animateWithDuration:duration
+                              delay:0
+                            options:UIViewAnimationOptionCurveLinear
+                         animations:animationBlock
+                         completion:completionBlock];
+    } else {
+        // 非交互式转场可以使用spring动画
+        NSLog(@"在局🎬 [转场动画] 使用Spring动画（非交互式转场）");
+        [UIView animateWithDuration:duration
+                              delay:0
+             usingSpringWithDamping:self.springDamping
+              initialSpringVelocity:self.springVelocity
+                            options:UIViewAnimationOptionCurveEaseInOut
+                         animations:animationBlock
+                         completion:completionBlock];
+    }
 }
 
 - (void)addShadowToView:(UIView *)view {
@@ -424,7 +445,7 @@
     
     // 设置默认值
     self.enableCustomTransition = YES;
-    self.transitionDuration = 0.8; // 进一步调慢动画速度，让用户有更好的控制感
+    self.transitionDuration = 0.3; // 进一步调慢动画速度，让用户有更好的控制感
     
     // 创建自定义转场动画控制器
     self.slideAnimator = [[XZInlineSlideAnimator alloc] init];

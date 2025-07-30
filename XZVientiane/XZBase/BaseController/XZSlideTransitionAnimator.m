@@ -157,18 +157,8 @@
     BOOL isInteractive = transitionContext.isInteractive;
     NSLog(@"在局🎯 [退出动画] 交互式转场: %@", isInteractive ? @"YES" : @"NO");
     
-    // 执行动画
-    // 对于交互式转场，使用不同的动画选项以避免完成回调延迟
-    UIViewAnimationOptions animationOptions = isInteractive ? 
-        UIViewAnimationOptionCurveLinear : 
-        (UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionAllowUserInteraction);
-    
-    [UIView animateWithDuration:duration
-                          delay:0
-         usingSpringWithDamping:self.springDamping
-          initialSpringVelocity:self.springVelocity
-                        options:animationOptions
-                     animations:^{
+    // 定义动画块
+    void (^animationBlock)(void) = ^{
         // 当前页面向右滑出
         CGRect exitFrame = initialFrame;
         exitFrame.origin.x = CGRectGetMaxX(containerView.bounds);
@@ -177,8 +167,10 @@
         // 背景页面恢复到正常位置和透明度
         toVC.view.frame = finalFrame;
         toVC.view.alpha = 1.0;
-        
-    } completion:^(BOOL finished) {
+    };
+    
+    // 定义完成块
+    void (^completionBlock)(BOOL) = ^(BOOL finished) {
         // 清理阴影
         [self removeShadowFromView:fromVC.view];
         
@@ -209,7 +201,28 @@
         NSLog(@"在局✅ [退出动画] 动画完成 - finished:%@, cancelled:%@", 
               finished ? @"YES" : @"NO", 
               cancelled ? @"YES" : @"NO");
-    }];
+    };
+    
+    // 根据是否是交互式转场选择不同的动画方法
+    if (isInteractive) {
+        // 交互式转场使用标准动画，避免spring效果导致的完成回调延迟
+        NSLog(@"在局🎯 [退出动画] 使用标准动画（交互式转场）");
+        [UIView animateWithDuration:duration
+                              delay:0
+                            options:UIViewAnimationOptionCurveLinear
+                         animations:animationBlock
+                         completion:completionBlock];
+    } else {
+        // 非交互式转场可以使用spring动画
+        NSLog(@"在局🎯 [退出动画] 使用Spring动画（非交互式转场）");
+        [UIView animateWithDuration:duration
+                              delay:0
+             usingSpringWithDamping:self.springDamping
+              initialSpringVelocity:self.springVelocity
+                            options:UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionAllowUserInteraction
+                         animations:animationBlock
+                         completion:completionBlock];
+    }
 }
 
 #pragma mark - Shadow Effects
