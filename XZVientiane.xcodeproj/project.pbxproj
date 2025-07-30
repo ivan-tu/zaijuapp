@@ -21,7 +21,6 @@
 		A505CAC51FDE2A0C00FBD4A3 /* PublicSettingModel.m in Sources */ = {isa = PBXBuildFile; fileRef = A505CABC1FDE2A0C00FBD4A3 /* PublicSettingModel.m */; };
 		A505CAC91FDE2BCD00FBD4A3 /* HTMLCache.m in Sources */ = {isa = PBXBuildFile; fileRef = A505CAC71FDE2BCD00FBD4A3 /* HTMLCache.m */; };
 		A505CACD1FDE2C2700FBD4A3 /* XZOrderModel.m in Sources */ = {isa = PBXBuildFile; fileRef = A505CACC1FDE2C2700FBD4A3 /* XZOrderModel.m */; };
-		A505CCA81FDE2CBF00FBD4A3 /* UINavigationController+ZFFullscreenPopGesture.m in Sources */ = {isa = PBXBuildFile; fileRef = A505CB251FDE2CB700FBD4A3 /* UINavigationController+ZFFullscreenPopGesture.m */; };
 		A505CCAA1FDE2CBF00FBD4A3 /* SVStatusHUD.m in Sources */ = {isa = PBXBuildFile; fileRef = A505CB451FDE2CB800FBD4A3 /* SVStatusHUD.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 		A505CD1A1FDE2CE800FBD4A3 /* RNCachingURLProtocol.m in Sources */ = {isa = PBXBuildFile; fileRef = A505CD181FDE2CE800FBD4A3 /* RNCachingURLProtocol.m */; };
 		A505CD1D1FDE2D2A00FBD4A3 /* XZTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = A505CD1B1FDE2D2A00FBD4A3 /* XZTableViewCell.m */; };
@@ -266,8 +265,6 @@
 		A505CAC81FDE2BCD00FBD4A3 /* HTMLCache.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = HTMLCache.h; sourceTree = "<group>"; };
 		A505CACB1FDE2C2700FBD4A3 /* XZOrderModel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XZOrderModel.h; sourceTree = "<group>"; };
 		A505CACC1FDE2C2700FBD4A3 /* XZOrderModel.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = XZOrderModel.m; sourceTree = "<group>"; };
-		A505CB251FDE2CB700FBD4A3 /* UINavigationController+ZFFullscreenPopGesture.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "UINavigationController+ZFFullscreenPopGesture.m"; sourceTree = "<group>"; };
-		A505CB261FDE2CB700FBD4A3 /* UINavigationController+ZFFullscreenPopGesture.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "UINavigationController+ZFFullscreenPopGesture.h"; sourceTree = "<group>"; };
 		A505CB441FDE2CB800FBD4A3 /* SVStatusHUD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SVStatusHUD.h; sourceTree = "<group>"; };
 		A505CB451FDE2CB800FBD4A3 /* SVStatusHUD.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SVStatusHUD.m; sourceTree = "<group>"; };
 		A505CD181FDE2CE800FBD4A3 /* RNCachingURLProtocol.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = RNCachingURLProtocol.m; sourceTree = "<group>"; };
@@ -660,15 +657,6 @@
 				A505CACC1FDE2C2700FBD4A3 /* XZOrderModel.m */,
 			);
 			path = BaseModel;
-			sourceTree = "<group>";
-		};
-		A505CB241FDE2CB700FBD4A3 /* ZFNavigationController */ = {
-			isa = PBXGroup;
-			children = (
-				A505CB261FDE2CB700FBD4A3 /* UINavigationController+ZFFullscreenPopGesture.h */,
-				A505CB251FDE2CB700FBD4A3 /* UINavigationController+ZFFullscreenPopGesture.m */,
-			);
-			path = ZFNavigationController;
 			sourceTree = "<group>";
 		};
 		A505CB431FDE2CB800FBD4A3 /* SVStatusHUD */ = {
@@ -1100,7 +1088,6 @@
 				A579576D20F857B800B74363 /* TZImagePickerController */,
 				A5E738472028977D00E6B19E /* DHGuidePageHUD */,
 				A505CB431FDE2CB800FBD4A3 /* SVStatusHUD */,
-				A505CB241FDE2CB700FBD4A3 /* ZFNavigationController */,
 			);
 			path = ThirdParty;
 			sourceTree = "<group>";
@@ -1761,7 +1748,6 @@
 				A5ED85402023F3FD003BB1C7 /* YBPopupMenu.m in Sources */,
 				A508736D2484E30E005AF8B8 /* JFCityHeaderView.m in Sources */,
 				A508736F2484E30E005AF8B8 /* JFCityViewController.m in Sources */,
-				A505CCA81FDE2CBF00FBD4A3 /* UINavigationController+ZFFullscreenPopGesture.m in Sources */,
 				A508734D2484E236005AF8B8 /* AddressFromMapViewController.m in Sources */,
 				A5550DC71FBA813A00B010C4 /* UIView+DCExtension.m in Sources */,
 				A505CABF1FDE2A0C00FBD4A3 /* XZJsonModel.m in Sources */,
