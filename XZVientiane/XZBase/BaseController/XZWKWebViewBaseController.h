@@ -120,6 +120,9 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 - (void)safelyEvaluateJavaScript:(NSString *)javaScriptString 
                 completionHandler:(void (^ _Nullable)(_Nullable id, NSError * _Nullable error))completionHandler;
 
+// 交互式转场后的WebView状态恢复
+- (void)restoreWebViewStateAfterInteractiveTransition;
+
 @end
 
 NS_ASSUME_NONNULL_END 

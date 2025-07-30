@@ -463,11 +463,52 @@ static inline BOOL isIPhoneXSeries() {
     [super loadView];
 }
 
+#pragma mark - 导航栏和状态栏配置
+
+// 配置导航栏和状态栏的基本设置
+- (void)configureNavigationBarAndStatusBar {
+    NSLog(@"在局 🎨 [CFJClientH5Controller] 配置导航栏和状态栏");
+    
+    // 确保导航栏显示（除非特殊URL需要隐藏）
+    BOOL shouldHideNavBar = [self isHaveNativeHeader:self.pinUrl];
+    [self.navigationController setNavigationBarHidden:shouldHideNavBar animated:NO];
+    
+    if (!shouldHideNavBar) {
+        // 设置导航栏默认样式，确保可见性
+        self.navigationController.navigationBar.translucent = NO;
+        self.navigationController.navigationBar.barTintColor = [UIColor whiteColor];
+        self.navigationController.navigationBar.tintColor = [UIColor blackColor]; // 修复：使用黑色保持项目原有配色
+        
+        // 设置标题文字颜色
+        self.navigationController.navigationBar.titleTextAttributes = @{
+            NSForegroundColorAttributeName: [UIColor blackColor]
+        };
+        
+        // 如果是内页，确保有返回按钮
+        if (self.navigationController.viewControllers.count > 1) {
+            // 让系统处理返回按钮，确保显示
+            self.navigationItem.backBarButtonItem = nil;
+        }
+        
+        NSLog(@"在局 ✅ [CFJClientH5Controller] 导航栏已配置为默认可见样式");
+    }
+    
+    // 配置状态栏
+    [self setNeedsStatusBarAppearanceUpdate];
+    
+    // 隐藏导航条黑线
+    if (self.navigationController && self.navigationController.navigationBar && 
+        self.navigationController.navigationBar.subviews.count > 0 && 
+        [self.navigationController.navigationBar.subviews[0] subviews].count > 0) {
+        self.navigationController.navigationBar.subviews[0].subviews[0].hidden = YES;
+    }
+}
+
 #pragma mark 调用js弹出属性窗口
 
 // iOS 16-18修复：执行延迟的UI操作
 - (void)performDelayedUIOperations {
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 执行延迟的UI操作");
+    NSLog(@"在局 ✨ [CFJClientH5Controller] 执行UI配置操作");
     
     // 防止重复执行
     if (self.delayedUIOperationsExecuted) {
@@ -483,97 +524,41 @@ static inline BOOL isIPhoneXSeries() {
         return;
     }
     
-    // 创建WebView（如果需要）
-    if (!self.webView && self.pinUrl && ![self.pinUrl isEqualToString:@""]) {
-        NSLog(@"在局 ✨ [CFJClientH5Controller] 创建WebView");
-        [self domainOperate];
-    }
+    // 立即配置导航栏和状态栏，避免延迟
+    [self configureNavigationBarAndStatusBar];
     
-    // 设置WebView圆角（如果需要）
-    if (!(self.pushType == isPushNormal) && self.webView && !CGRectIsEmpty(self.webView.bounds)) {
-        NSLog(@"在局 ✨ [CFJClientH5Controller] 设置WebView圆角");
-        UIBezierPath *maskPath = [UIBezierPath bezierPathWithRoundedRect:self.webView.bounds 
-                                                     byRoundingCorners:UIRectCornerTopLeft | UIRectCornerTopRight  
-                                                           cornerRadii:CGSizeMake(10, 10)];
-        CAShapeLayer *maskLayer = [[CAShapeLayer alloc] init];
-        maskLayer.frame = self.webView.bounds;
-        maskLayer.path = maskPath.CGPath;
-        self.webView.layer.mask = maskLayer;
-    }
+    // 立即设置导航栏样式，避免显示默认蓝色
+    [self configureNavigationBarStyle];
     
     // 处理导航栏显示/隐藏
     if ([self isHaveNativeHeader:self.pinUrl]) {
         NSLog(@"在局 ✨ [CFJClientH5Controller] 隐藏导航栏");
         [self.navigationController setNavigationBarHidden:YES animated:NO];
-        // 更新状态栏样式
-        [self setNeedsStatusBarAppearanceUpdate];
     } else {
         NSLog(@"在局 ✨ [CFJClientH5Controller] 显示导航栏");
         [self.navigationController setNavigationBarHidden:NO animated:NO];
-        // 更新状态栏样式
-        [self setNeedsStatusBarAppearanceUpdate];
     }
+    
+    // 更新状态栏样式
+    [self setNeedsStatusBarAppearanceUpdate];
     
     // 隐藏导航条黑线
-    if (self.navigationController && self.navigationController.navigationBar && 
-        self.navigationController.navigationBar.subviews.count > 0 && 
-        [self.navigationController.navigationBar.subviews[0] subviews].count > 0) {
-        NSLog(@"在局 ✨ [CFJClientH5Controller] 隐藏导航栏黑线");
-        self.navigationController.navigationBar.subviews[0].subviews[0].hidden = YES;
+    [self hideNavigationBarBottomLine];
+    
+    // 优化：立即创建WebView（如果需要）
+    if (!self.webView && self.pinUrl && ![self.pinUrl isEqualToString:@""]) {
+        NSLog(@"在局 ✨ [CFJClientH5Controller] 立即创建WebView，无延迟");
+        // 使用异步创建WebView，避免阻塞UI线程
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self domainOperate];
+        });
     }
+    
+    // 设置WebView圆角（如果需要）
+    [self configureWebViewCornerRadius];
     
     // Badge更新
-    NSInteger num = [[NSUserDefaults standardUserDefaults] integerForKey:@"clinetMessageNum"];
-    NSInteger shop = [[NSUserDefaults standardUserDefaults] integerForKey:@"shoppingCartNum"];
-    if (self.rightMessage) {
-        [self.navigationItem.rightBarButtonItem pp_addBadgeWithNumber:num];
-    }
-    if (self.leftMessage) {
-        [self.navigationItem.leftBarButtonItem pp_addBadgeWithNumber:num];
-    }
-    if (self.rightShop) {
-        [self.navigationItem.rightBarButtonItem pp_addBadgeWithNumber:shop];
-    }
-    if (self.leftShop) {
-        [self.navigationItem.leftBarButtonItem pp_addBadgeWithNumber:shop];
-    }
-    
-    // 导航栏样式设置
-    NSString *statusBarBackgroundColor = [[NSUserDefaults standardUserDefaults] objectForKey:@"StatusBarBackgroundColor"];
-    
-    // 设置导航栏背景色
-    if (bgColor && bgColor.length) {
-        self.navigationController.navigationBar.barTintColor = [UIColor colorWithHexString:bgColor];
-    } else if (statusBarBackgroundColor && statusBarBackgroundColor.length) {
-        self.navigationController.navigationBar.barTintColor = [UIColor colorWithHexString:statusBarBackgroundColor];
-    } else {
-        // 默认设置白色背景
-        self.navigationController.navigationBar.barTintColor = [UIColor whiteColor];
-    }
-    
-    // 设置导航栏前景色（返回按钮、标题等）
-    if (color && color.length) {
-        self.navigationController.navigationBar.tintColor = [UIColor colorWithHexString:color];
-        self.navigationController.navigationBar.titleTextAttributes = [NSDictionary dictionaryWithObject:[UIColor colorWithHexString:color] forKey:NSForegroundColorAttributeName];
-    } else {
-        // 根据背景色自动选择前景色
-        NSString *effectiveBgColor = (bgColor && bgColor.length) ? bgColor : statusBarBackgroundColor;
-        if ([effectiveBgColor isEqualToString:@"#000000"] || [effectiveBgColor isEqualToString:@"black"]) {
-            // 如果背景是黑色，使用白色前景
-            self.navigationController.navigationBar.tintColor = [UIColor whiteColor];
-            self.navigationController.navigationBar.titleTextAttributes = [NSDictionary dictionaryWithObject:[UIColor whiteColor] forKey:NSForegroundColorAttributeName];
-        } else {
-            // 其他情况（包括白色背景、无背景色等）都使用黑色前景，确保返回按钮可见
-            self.navigationController.navigationBar.tintColor = [UIColor blackColor];
-            self.navigationController.navigationBar.titleTextAttributes = [NSDictionary dictionaryWithObject:[UIColor blackColor] forKey:NSForegroundColorAttributeName];
-        }
-    }
-    
-    NSLog(@"在局 🎨 [导航栏样式] bgColor: %@, color: %@, statusBarBgColor: %@, 最终tintColor: %@", 
-          bgColor ?: @"nil", 
-          color ?: @"nil", 
-          statusBarBackgroundColor ?: @"nil",
-          self.navigationController.navigationBar.tintColor);
+    [self updateNavigationBarBadges];
     
     // TabBar显示控制
     NSArray *arrController = self.navigationController.viewControllers;
@@ -598,6 +583,177 @@ static inline BOOL isIPhoneXSeries() {
     }
     
     NSLog(@"在局 ✨ [CFJClientH5Controller] 延迟的UI操作执行完成");
+}
+
+// 配置导航栏样式的辅助方法
+- (void)configureNavigationBarStyle {
+    NSLog(@"在局 🎨 [CFJClientH5Controller] 配置导航栏样式");
+    
+    // 获取JavaScript配置的颜色
+    NSString *statusBarBackgroundColor = bgColor;
+    
+    // 配置导航栏颜色
+    if (bgColor && bgColor.length > 0) {
+        // 使用JavaScript配置的颜色
+        UIColor *navBarColor = [UIColor colorWithHexString:bgColor];
+        self.navigationController.navigationBar.barTintColor = navBarColor;
+        
+        if (color && color.length > 0) {
+            UIColor *tintColor = [UIColor colorWithHexString:color];
+            self.navigationController.navigationBar.tintColor = tintColor;
+            self.navigationController.navigationBar.titleTextAttributes = @{
+                NSForegroundColorAttributeName: tintColor
+            };
+        } else {
+            // 如果没有指定文字颜色，根据背景颜色自动选择
+            UIColor *autoTintColor = [self shouldUseLightContentForColor:navBarColor] ? [UIColor whiteColor] : [UIColor blackColor];
+            self.navigationController.navigationBar.tintColor = autoTintColor;
+            self.navigationController.navigationBar.titleTextAttributes = @{
+                NSForegroundColorAttributeName: autoTintColor
+            };
+        }
+    } else {
+        // 使用默认样式，确保可见性
+        self.navigationController.navigationBar.barTintColor = [UIColor whiteColor];
+        self.navigationController.navigationBar.tintColor = [UIColor blackColor];
+        self.navigationController.navigationBar.titleTextAttributes = @{
+            NSForegroundColorAttributeName: [UIColor blackColor]
+        };
+    }
+    
+    NSLog(@"在局 🎨 [导航栏样式] bgColor: %@, color: %@, 最终tintColor: %@", 
+          bgColor ?: @"nil", 
+          color ?: @"nil",
+          self.navigationController.navigationBar.tintColor);
+}
+
+// 判断背景颜色是否应该使用浅色内容
+- (BOOL)shouldUseLightContentForColor:(UIColor *)color {
+    if (!color) return NO;
+    
+    CGFloat red, green, blue, alpha;
+    if ([color getRed:&red green:&green blue:&blue alpha:&alpha]) {
+        // 计算亮度 (使用标准的亮度公式)
+        CGFloat brightness = (red * 0.299 + green * 0.587 + blue * 0.114);
+        return brightness < 0.5; // 如果背景较暗，使用浅色内容
+    }
+    return NO;
+}
+
+// 隐藏导航栏底部黑线的辅助方法
+- (void)hideNavigationBarBottomLine {
+    // 隐藏导航条黑线 - 兼容不同iOS版本
+    if (@available(iOS 13.0, *)) {
+        UINavigationBarAppearance *appearance = self.navigationController.navigationBar.standardAppearance;
+        if (appearance) {
+            appearance.shadowColor = [UIColor clearColor];
+            self.navigationController.navigationBar.standardAppearance = appearance;
+            self.navigationController.navigationBar.scrollEdgeAppearance = appearance;
+        }
+    } else {
+        // iOS 13以下版本的处理方式
+        if (self.navigationController && self.navigationController.navigationBar && 
+            self.navigationController.navigationBar.subviews.count > 0 && 
+            [self.navigationController.navigationBar.subviews[0] subviews].count > 0) {
+            self.navigationController.navigationBar.subviews[0].subviews[0].hidden = YES;
+        }
+    }
+}
+
+// 配置WebView圆角的辅助方法
+- (void)configureWebViewCornerRadius {
+    if (self.webView && !(self.pushType == isPushNormal)) {
+        // 设置WebView圆角
+        self.webView.layer.cornerRadius = 15.0f;
+        self.webView.layer.masksToBounds = YES;
+    }
+}
+
+// 更新导航栏Badge的辅助方法
+- (void)updateNavigationBarBadges {
+    // 更新消息Badge
+    if (self.leftMessage || self.rightMessage) {
+        NSInteger messageNum = [[NSUserDefaults standardUserDefaults] integerForKey:@"clinetMessageNum"];
+        if (self.leftMessage && self.navigationItem.leftBarButtonItem) {
+            [self.navigationItem.leftBarButtonItem pp_addBadgeWithNumber:messageNum];
+        }
+        if (self.rightMessage && self.navigationItem.rightBarButtonItem) {
+            [self.navigationItem.rightBarButtonItem pp_addBadgeWithNumber:messageNum];
+        }
+    }
+    
+    // 更新购物车Badge
+    if (self.leftShop || self.rightShop) {
+        NSInteger shopNum = [[NSUserDefaults standardUserDefaults] integerForKey:@"shoppingCartNum"];
+        if (self.leftShop && self.navigationItem.leftBarButtonItem) {
+            [self.navigationItem.leftBarButtonItem pp_addBadgeWithNumber:shopNum];
+        }
+        if (self.rightShop && self.navigationItem.rightBarButtonItem) {
+            [self.navigationItem.rightBarButtonItem pp_addBadgeWithNumber:shopNum];
+        }
+    }
+}
+
+// 交互式转场后恢复WebView状态
+- (void)restoreWebViewStateAfterInteractiveTransition {
+    NSLog(@"在局🔄 [CFJClientH5Controller] 恢复交互式转场后的WebView状态");
+    
+    if (!self.webView) {
+        return;
+    }
+    
+    // 确保WebView可见并可交互
+    self.webView.hidden = NO;
+    self.webView.alpha = 1.0;
+    self.webView.userInteractionEnabled = YES;
+    
+    // 触发JavaScript事件，通知页面重新显示
+    [self safelyEvaluateJavaScript:@"(function(){\
+        if (typeof window.onPageRestore === 'function') {\
+            window.onPageRestore();\
+        }\
+        var event = new CustomEvent('pageRestore');\
+        window.dispatchEvent(event);\
+        return '页面状态已恢复';\
+    })()" completionHandler:^(id result, NSError *error) {
+        if (result) {
+            NSLog(@"在局✅ [CFJClientH5Controller] 页面状态恢复通知: %@", result);
+        }
+    }];
+    
+    // 重新配置导航栏，防止交互式转场影响UI状态
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self configureNavigationBarAndStatusBar];
+        [self configureNavigationBarStyle];
+    });
+}
+
+// 优化WebView加载逻辑的辅助方法
+- (void)optimizeWebViewLoading {
+    NSLog(@"在局🚀 [WebView优化] 开始优化WebView加载");
+    
+    // 如果WebView还没有创建，立即创建
+    if (!self.webView && self.pinUrl && self.pinUrl.length > 0) {
+        NSLog(@"在局🚀 [WebView优化] WebView未创建，立即执行domainOperate");
+        [self domainOperate];
+        return;
+    }
+    
+    // 如果WebView已经存在，检查是否需要重新加载
+    if (self.webView) {
+        // 检查WebView的当前状态
+        NSString *currentURL = self.webView.URL ? self.webView.URL.absoluteString : @"";
+        
+        // 如果WebView是空的或者只加载了baseURL，需要重新加载
+        if ([currentURL isEqualToString:@"about:blank"] || 
+            [currentURL containsString:@"manifest/"] || 
+            currentURL.length == 0) {
+            NSLog(@"在局🚀 [WebView优化] 检测到WebView状态异常: %@，重新加载", currentURL);
+            [self domainOperate];
+        } else {
+            NSLog(@"在局✅ [WebView优化] WebView状态正常: %@", currentURL);
+        }
+    }
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -628,14 +784,9 @@ static inline BOOL isIPhoneXSeries() {
     NSLog(@"在局 ✨ [CFJClientH5Controller] 开始执行延迟的UI操作");
     [self performDelayedUIOperations];
     
-    // 确保WebView开始加载
-    if (!self.isWebViewLoading && !self.isLoading && self.pinUrl) {
-        NSLog(@"在局 ✨ [CFJClientH5Controller] viewDidAppear中检测到WebView未加载，触发domainOperate");
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (!self.isWebViewLoading && !self.isLoading) {
-                [self domainOperate];
-            }
-        });
+    // 使用优化的WebView加载逻辑
+    if (!self.isWebViewLoading && !self.isLoading) {
+        [self optimizeWebViewLoading];
     }
     
     if (self.isCheck) {
@@ -699,18 +850,60 @@ static inline BOOL isIPhoneXSeries() {
     if ([viewControllers indexOfObject:self] == NSNotFound) {
         NSLog(@"在局 🔄 [CFJClientH5Controller] 检测到页面正在被移除（可能是手势返回）");
         
+        // 检查是否正在进行交互式转场
+        BOOL isInteractiveTransition = NO;
+        if ([self.navigationController isKindOfClass:NSClassFromString(@"XZNavigationController")]) {
+            // 使用KVC安全地检查交互式转场状态
+            @try {
+                NSNumber *isInteractiveValue = [self.navigationController valueForKey:@"isInteractiveTransition"];
+                isInteractiveTransition = [isInteractiveValue boolValue];
+            } @catch (NSException *exception) {
+                NSLog(@"在局⚠️ [CFJClientH5Controller] 无法检查交互式转场状态: %@", exception.reason);
+            }
+        }
+        
+        NSLog(@"在局🔍 [CFJClientH5Controller] 交互式转场状态: %@", isInteractiveTransition ? @"YES" : @"NO");
+        
         //页面卸载
         NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageUnload" data:nil];
         [self objcCallJs:callJsDic];
         
-        // 如果是内页，确保WebView被正确清理
-        if (self.navigationController.viewControllers.count > 0 && self.pinUrl && self.pinUrl.length > 0) {
-            NSLog(@"在局 🧹 [CFJClientH5Controller] 清理内页WebView资源");
+        // 只有在非交互式转场时才立即清理WebView资源
+        if (!isInteractiveTransition && self.navigationController.viewControllers.count > 0 && self.pinUrl && self.pinUrl.length > 0) {
+            NSLog(@"在局 🧹 [CFJClientH5Controller] 清理内页WebView资源（非交互式转场）");
             // 停止加载
             if (self.webView) {
                 [self.webView stopLoading];
                 self.webView.navigationDelegate = nil;
             }
+        } else if (isInteractiveTransition) {
+            NSLog(@"在局⏳ [CFJClientH5Controller] 交互式转场中，延迟清理WebView资源");
+            // 交互式转场中，延迟清理以免干扰动画
+            // 优化：减少延迟时间，从0.8秒改为0.5秒
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                // 转场完成后再检查是否需要清理
+                NSArray *currentViewControllers = self.navigationController.viewControllers;
+                NSUInteger selfIndex = [currentViewControllers indexOfObject:self];
+                
+                if (selfIndex == NSNotFound) {
+                    NSLog(@"在局 🧹 [CFJClientH5Controller] 延迟清理内页WebView资源");
+                    if (self.webView) {
+                        [self.webView stopLoading];
+                        self.webView.navigationDelegate = nil;
+                    }
+                } else {
+                    NSLog(@"在局✅ [CFJClientH5Controller] 交互式转场被取消，保留WebView资源");
+                    // 转场被取消，确保WebView状态正常
+                    if (self.webView) {
+                        self.webView.hidden = NO;
+                        self.webView.alpha = 1.0;
+                        self.webView.userInteractionEnabled = YES;
+                        
+                        // 触发WebView状态恢复
+                        [self restoreWebViewStateAfterInteractiveTransition];
+                    }
+                }
+            });
         }
     }
     else {
@@ -1092,8 +1285,8 @@ static inline BOOL isIPhoneXSeries() {
         // 重置UI操作标志
         self.delayedUIOperationsExecuted = NO;
         
-        // 使用延迟来确保UI操作被执行，即使viewDidAppear被延迟
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // 优化：减少延迟时间，从0.8秒改为0.3秒，提高响应速度
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             if (!self.delayedUIOperationsExecuted) {
                 NSLog(@"在局🚨 [CFJClientH5Controller] 检测到UI操作未执行，执行延迟的UI操作");
                 [self performDelayedUIOperations];
