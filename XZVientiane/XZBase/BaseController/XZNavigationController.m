@@ -233,17 +233,6 @@
                                 NSLog(@"在局✅ [转场取消] 已恢复toVC的WebView状态");
                             }
                             
-                            // 额外保护：确保toVC的导航栏状态正确
-                            if ([toVC respondsToSelector:@selector(configureNavigationBarAndStatusBar)]) {
-                                SEL configureSel = NSSelectorFromString(@"configureNavigationBarAndStatusBar");
-                                NSMethodSignature *signature = [toVC methodSignatureForSelector:configureSel];
-                                NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
-                                [invocation setTarget:toVC];
-                                [invocation setSelector:configureSel];
-                                [invocation invoke];
-                                
-                                NSLog(@"在局✅ [转场取消] 已恢复toVC的导航栏状态");
-                            }
                         });
                     } else {
                         NSLog(@"在局⚠️ [转场取消] toVC没有webView");
@@ -279,18 +268,6 @@
                                 [invocation invoke];
                                 
                                 NSLog(@"在局✅ [转场取消] 已备用恢复fromVC的WebView状态");
-                            }
-                            
-                            // 额外保护：确保fromVC导航栏状态正确
-                            if ([fromVC respondsToSelector:@selector(configureNavigationBarAndStatusBar)]) {
-                                SEL configureSel = NSSelectorFromString(@"configureNavigationBarAndStatusBar");
-                                NSMethodSignature *signature = [fromVC methodSignatureForSelector:configureSel];
-                                NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
-                                [invocation setTarget:fromVC];
-                                [invocation setSelector:configureSel];
-                                [invocation invoke];
-                                
-                                NSLog(@"在局✅ [转场取消] 已备用恢复fromVC导航栏状态");
                             }
                         } else {
                             NSLog(@"在局⚠️ [转场取消] fromVC没有webView");

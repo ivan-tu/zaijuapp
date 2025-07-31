@@ -86,7 +86,6 @@ static inline BOOL isIPhoneXSeries() {
 #define TITLES @[@"登录", @"注册"]
 #define ICONS  @[@"login",@"regist"]
 
-// iOS 18修复：移除静态变量，使用实例属性
 
 @interface CFJClientH5Controller ()<TZImagePickerControllerDelegate,YBPopupMenuDelegate,JFLocationDelegate,JFCityViewControllerDelegate>
 {
@@ -122,10 +121,6 @@ static inline BOOL isIPhoneXSeries() {
 @property (assign, nonatomic)CGPoint timePosition;
 @property (assign, nonatomic)CGPoint currentPosition;
 
-// iOS 18修复：跟踪viewDidAppear是否被调用
-@property (assign, nonatomic) BOOL viewDidAppearCalled;
-// iOS 16-18修复：跟踪UI操作是否已执行
-@property (assign, nonatomic) BOOL delayedUIOperationsExecuted;
 
 // 添加回调方法声明
 - (void)callBack:(NSString *)type params:(NSDictionary *)params;
@@ -463,196 +458,43 @@ static inline BOOL isIPhoneXSeries() {
     [super loadView];
 }
 
-#pragma mark - 导航栏和状态栏配置
-
-// 配置导航栏和状态栏的基本设置
-- (void)configureNavigationBarAndStatusBar {
-    NSLog(@"在局 🎨 [CFJClientH5Controller] 配置导航栏和状态栏");
-    NSLog(@"在局🏠 [导航栏初始化] 当前URL: %@", self.pinUrl ?: @"nil");
-    NSLog(@"在局🏠 [导航栏初始化] 当前标题: %@", self.navigationItem.title ?: @"nil");
-    
-    // 确保导航栏显示（除非特殊URL需要隐藏）
-    NSLog(@"在局🏠 [导航栏初始化] 检查前 - navigationBarHidden: %@", self.navigationController.navigationBarHidden ? @"YES" : @"NO");
-    NSLog(@"在局🏠 [导航栏初始化] ulrArray内容: %@", [XZPackageH5 sharedInstance].ulrArray);
-    BOOL shouldHideNavBar = [self isHaveNativeHeader:self.pinUrl];
-    [self.navigationController setNavigationBarHidden:shouldHideNavBar animated:NO];
-    NSLog(@"在局🏠 [导航栏初始化] 是否隐藏导航栏: %@", shouldHideNavBar ? @"是" : @"否");
-    NSLog(@"在局🏠 [导航栏初始化] 设置后 - navigationBarHidden: %@", self.navigationController.navigationBarHidden ? @"YES" : @"NO");
-    
-    if (!shouldHideNavBar) {
-        // 设置导航栏默认样式，确保可见性
-        self.navigationController.navigationBar.translucent = NO;
-        // 修复：使用系统默认颜色或淡灰色作为默认背景
-        self.navigationController.navigationBar.barTintColor = [UIColor colorWithRed:0.97 green:0.97 blue:0.97 alpha:1.0]; // 淡灰色背景
-        self.navigationController.navigationBar.tintColor = [UIColor blackColor]; // 黑色按钮
-        
-        // 设置标题文字颜色
-        self.navigationController.navigationBar.titleTextAttributes = @{
-            NSForegroundColorAttributeName: [UIColor blackColor]
-        };
-        
-        // 如果是内页，确保有返回按钮
-        if (self.navigationController.viewControllers.count > 1) {
-            // 让系统处理返回按钮，确保显示
-            self.navigationItem.backBarButtonItem = nil;
-        }
-        
-        NSLog(@"在局 ✅ [CFJClientH5Controller] 导航栏已配置为默认可见样式(白底黑字，蓝色按钮)");
-    }
-    
-    // 配置状态栏
-    [self setNeedsStatusBarAppearanceUpdate];
-    
-    // 隐藏导航条黑线
-    if (self.navigationController && self.navigationController.navigationBar && 
-        self.navigationController.navigationBar.subviews.count > 0 && 
-        [self.navigationController.navigationBar.subviews[0] subviews].count > 0) {
-        self.navigationController.navigationBar.subviews[0].subviews[0].hidden = YES;
-    }
-}
 
 #pragma mark 调用js弹出属性窗口
 
-// iOS 16-18修复：执行延迟的UI操作
-- (void)performDelayedUIOperations {
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 执行UI配置操作");
-    NSLog(@"在局🏠 [标题栏调试] 当前是首页: %@, Tab索引: %ld", 
-          self.tabBarController.selectedIndex == 0 ? @"是" : @"否", 
-          (long)self.tabBarController.selectedIndex);
-    NSLog(@"在局🏠 [标题栏调试] 当前bgColor: %@, color: %@", bgColor ?: @"nil", color ?: @"nil");
-    
-    // 防止重复执行
-    if (self.delayedUIOperationsExecuted) {
-        NSLog(@"在局⚠️ [标题栏调试] performDelayedUIOperations已执行过，跳过");
-        return;
-    }
-    self.delayedUIOperationsExecuted = YES;
-    
-    // 确保在主线程执行
-    if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self performDelayedUIOperations];
-        });
-        return;
-    }
-    
-    // 立即配置导航栏和状态栏，避免延迟
-    NSLog(@"在局🔍 [performDelayedUIOperations] 配置前 - navigationController: %@", self.navigationController);
-    NSLog(@"在局🔍 [performDelayedUIOperations] 配置前 - navigationBarHidden: %@", self.navigationController.navigationBarHidden ? @"YES" : @"NO");
-    NSLog(@"在局🔍 [performDelayedUIOperations] 配置前 - navigationBar: %@", self.navigationController.navigationBar);
-    NSLog(@"在局🔍 [performDelayedUIOperations] 配置前 - navigationBar.hidden: %@", self.navigationController.navigationBar.hidden ? @"YES" : @"NO");
-    [self configureNavigationBarAndStatusBar];
-    
-    // 立即设置导航栏样式，避免显示默认蓝色
-    [self configureNavigationBarStyle];
-    
-    // 处理导航栏显示/隐藏
-    NSLog(@"在局🔍 [performDelayedUIOperations] 准备检查isHaveNativeHeader");
-    BOOL shouldHide = [self isHaveNativeHeader:self.pinUrl];
-    NSLog(@"在局🔍 [performDelayedUIOperations] isHaveNativeHeader返回: %@", shouldHide ? @"YES" : @"NO");
-    if (shouldHide) {
-        NSLog(@"在局 ✨ [CFJClientH5Controller] 隐藏导航栏");
-        [self.navigationController setNavigationBarHidden:YES animated:NO];
-    } else {
-        NSLog(@"在局 ✨ [CFJClientH5Controller] 显示导航栏");
-        [self.navigationController setNavigationBarHidden:NO animated:NO];
-    }
-    NSLog(@"在局🔍 [performDelayedUIOperations] 设置后 - navigationBarHidden: %@", self.navigationController.navigationBarHidden ? @"YES" : @"NO");
-    
-    // 更新状态栏样式
-    [self setNeedsStatusBarAppearanceUpdate];
-    
-    // 隐藏导航条黑线
-    [self hideNavigationBarBottomLine];
-    
-    // 优化：立即创建WebView（如果需要）
-    if (!self.webView && self.pinUrl && ![self.pinUrl isEqualToString:@""]) {
-        NSLog(@"在局 ✨ [CFJClientH5Controller] 立即创建WebView，无延迟");
-        // 使用异步创建WebView，避免阻塞UI线程
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self domainOperate];
-        });
-    }
-    
-    // 设置WebView圆角（如果需要）
-    [self configureWebViewCornerRadius];
-    
-    // Badge更新
-    [self updateNavigationBarBadges];
-    
-    // TabBar显示控制
-    NSArray *arrController = self.navigationController.viewControllers;
-    NSInteger VcCount = arrController.count;
-    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"NoTabBar"]) {
-        if (VcCount < 2) {
-            self.tabBarController.tabBar.hidden = YES;
-        }
-    } else {
-        if (VcCount < 2) {
-            self.tabBarController.tabBar.hidden = NO;
-            if (self.isTabbarShow) {
-                NSLog(@"在局 ✨ [CFJClientH5Controller] 显示TabBar");
-                self.tabBarController.tabBar.hidden = NO;
-            } else {
-                NSLog(@"在局 ✨ [CFJClientH5Controller] 隐藏TabBar");
-                self.tabBarController.tabBar.hidden = YES;
-            }
-        } else {
-            self.tabBarController.tabBar.hidden = YES;
-        }
-    }
-    
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 延迟的UI操作执行完成");
-}
-
-// 配置导航栏样式的辅助方法
-- (void)configureNavigationBarStyle {
-    NSLog(@"在局 🎨 [CFJClientH5Controller] 配置导航栏样式");
-    NSLog(@"在局🎨 [导航栏样式] bgColor: %@, color: %@", bgColor ?: @"nil", color ?: @"nil");
-    
-    // 获取JavaScript配置的颜色
-    NSString *statusBarBackgroundColor = bgColor;
+// 配置导航栏颜色
+- (void)configureNavigationBarColors {
+    // 确保导航栏不透明
+    self.navigationController.navigationBar.translucent = NO;
     
     // 配置导航栏颜色
     if (bgColor && bgColor.length > 0) {
-        // 使用JavaScript配置的颜色
         UIColor *navBarColor = [UIColor colorWithHexString:bgColor];
         self.navigationController.navigationBar.barTintColor = navBarColor;
-        NSLog(@"在局🎨 [导航栏样式] 设置背景色: %@", bgColor);
         
+        // 配置文字和按钮颜色
+        UIColor *tintColor = nil;
         if (color && color.length > 0) {
-            UIColor *tintColor = [UIColor colorWithHexString:color];
-            self.navigationController.navigationBar.tintColor = tintColor;
-            self.navigationController.navigationBar.titleTextAttributes = @{
-                NSForegroundColorAttributeName: tintColor
-            };
-            NSLog(@"在局🎨 [导航栏样式] 设置文字颜色: %@", color);
+            tintColor = [UIColor colorWithHexString:color];
         } else {
-            // 如果没有指定文字颜色，根据背景颜色自动选择
-            UIColor *autoTintColor = [self shouldUseLightContentForColor:navBarColor] ? [UIColor whiteColor] : [UIColor blackColor];
-            self.navigationController.navigationBar.tintColor = autoTintColor;
-            self.navigationController.navigationBar.titleTextAttributes = @{
-                NSForegroundColorAttributeName: autoTintColor
-            };
-            NSLog(@"在局🎨 [导航栏样式] 自动选择文字颜色: %@", autoTintColor == [UIColor whiteColor] ? @"白色" : @"黑色");
+            // 根据背景色自动选择合适的前景色
+            tintColor = [self shouldUseLightContentForColor:navBarColor] ? [UIColor whiteColor] : [UIColor blackColor];
         }
+        
+        self.navigationController.navigationBar.tintColor = tintColor;
+        self.navigationController.navigationBar.titleTextAttributes = @{
+            NSForegroundColorAttributeName: tintColor
+        };
     } else {
-        // 修复：首次加载时使用更明显的默认样式
-        // 使用淡灰色背景和蓝色按钮，确保标题栏可见
-        UIColor *defaultBarColor = [UIColor colorWithRed:0.97 green:0.97 blue:0.97 alpha:1.0]; // 淡灰色
+        // 默认样式：淡灰色背景+黑色文字
+        UIColor *defaultBarColor = [UIColor colorWithRed:0.97 green:0.97 blue:0.97 alpha:1.0];
         self.navigationController.navigationBar.barTintColor = defaultBarColor;
-        self.navigationController.navigationBar.tintColor = [UIColor systemBlueColor]; // 修正：使用蓝色按钮
+        self.navigationController.navigationBar.tintColor = [UIColor blackColor];
         self.navigationController.navigationBar.titleTextAttributes = @{
             NSForegroundColorAttributeName: [UIColor blackColor]
         };
-        NSLog(@"在局🎨 [导航栏样式] 使用默认样式：淡灰色背景+黑字+蓝色按钮");
     }
-    
-    NSLog(@"在局 🎨 [导航栏样式] bgColor: %@, color: %@, 最终tintColor: %@", 
-          bgColor ?: @"nil", 
-          color ?: @"nil",
-          self.navigationController.navigationBar.tintColor);
 }
+
 
 // 判断背景颜色是否应该使用浅色内容
 - (BOOL)shouldUseLightContentForColor:(UIColor *)color {
@@ -754,12 +596,6 @@ static inline BOOL isIPhoneXSeries() {
             NSLog(@"在局✅ [CFJClientH5Controller] 页面状态恢复通知: %@", result);
         }
     }];
-    
-    // 重新配置导航栏，防止交互式转场影响UI状态
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self configureNavigationBarAndStatusBar];
-        [self configureNavigationBarStyle];
-    });
 }
 
 // 优化WebView加载逻辑的辅助方法
@@ -791,36 +627,8 @@ static inline BOOL isIPhoneXSeries() {
 }
 
 - (void)viewDidAppear:(BOOL)animated {
-    // iOS 18紧急修复：防止重复调用
-    if (self.viewDidAppearCalled) {
-        return;
-    }
-    self.viewDidAppearCalled = YES;
-    
-    // iOS 16-18修复：标记UI操作已执行
-    self.delayedUIOperationsExecuted = YES;
-    
-    NSLog(@"在局 ✨ [CFJClientH5Controller] viewDidAppear开始 - animated: %d", animated);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 时间戳: %@", [NSDate date]);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 主线程检查: %@", [NSThread isMainThread] ? @"是主线程" : @"不是主线程");
-    NSLog(@"在局 ✨ [CFJClientH5Controller] self: %@", self);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] view.superview: %@", self.view.superview);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] view.window: %@", self.view.window);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] pinUrl: %@", self.pinUrl);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] webView: %@", self.webView);
-    NSLog(@"在局 ✨ [CFJClientH5Controller] isWebViewLoading: %@", self.isWebViewLoading ? @"YES" : @"NO");
-    NSLog(@"在局 ✨ [CFJClientH5Controller] navigationController.viewControllers.count: %ld", (long)self.navigationController.viewControllers.count);
-    
-    // iOS 18修复：已在方法开头处理
     
     [super viewDidAppear:animated];
-    NSLog(@"在局 ✨ [CFJClientH5Controller] super viewDidAppear调用完成");
-    NSLog(@"在局 ✨ [CFJClientH5Controller] viewDidAppear - tabIndex: %ld, url: %@", 
-          (long)self.tabBarController.selectedIndex, self.pinUrl);
-    
-    // 在viewDidAppear中执行延迟的UI操作
-    NSLog(@"在局 ✨ [CFJClientH5Controller] 开始执行延迟的UI操作");
-    [self performDelayedUIOperations];
     
     // 使用优化的WebView加载逻辑
     if (!self.isWebViewLoading && !self.isLoading) {
@@ -837,21 +645,7 @@ static inline BOOL isIPhoneXSeries() {
             [[XZPackageH5 sharedInstance] checkVersion];
 
         });
-//                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-//                            //版本更新提示
-//                            [[PgyUpdateManager sharedPgyManager] startManagerWithAppId:@"11dc0d780559c80853a4a42041ce88c1"];   // 请将 PGY_APP_ID 换成应用的 App Key
-//                            [[PgyUpdateManager sharedPgyManager] checkUpdate];
-//                        });
-        
     }
-    //是否添加引导页
-    //    if (![[NSUserDefaults standardUserDefaults] boolForKey:BOOLFORKEY]) {
-    //        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:BOOLFORKEY];
-    //        NSArray *imageNameArray = @[@"guideImage1",@"guideImage2",@"guideImage3",@"guideImage4",@"guideImage5"];
-    //        DHGuidePageHUD *guidePage = [[DHGuidePageHUD alloc] dh_initWithFrame:[UIApplication sharedApplication].keyWindow.bounds imageNameArray:imageNameArray buttonIsHidden:NO];
-    //        guidePage.slideInto = YES;
-    //        [[UIApplication sharedApplication].keyWindow addSubview:guidePage];
-    //    }
     if (self.removePage.length) {
         NSMutableArray *marr = [[NSMutableArray alloc]initWithArray:self.navigationController.viewControllers];
         for (CFJClientH5Controller *vc in marr) {
@@ -869,14 +663,7 @@ static inline BOOL isIPhoneXSeries() {
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    NSLog(@"在局 🌙 [CFJClientH5Controller] viewWillDisappear - tabIndex: %ld, url: %@", 
-          (long)self.tabBarController.selectedIndex, self.pinUrl);
     
-    // iOS 18紧急修复：重置标志
-    self.viewDidAppearCalled = NO;
-    
-    // iOS 16-18修复：重置UI操作标志
-    self.delayedUIOperationsExecuted = NO;
     
     self.isCancel = YES;
     if (self.cancelSignal) {
@@ -961,22 +748,18 @@ static inline BOOL isIPhoneXSeries() {
 }
 
 - (void)viewDidLoad {
-    NSLog(@"在局🎯 [CFJClientH5Controller] viewDidLoad开始 - navigationController: %@", self.navigationController);
-    NSLog(@"在局🎯 [CFJClientH5Controller] viewDidLoad - self: %@", self);
-    NSLog(@"在局🎯 [CFJClientH5Controller] viewDidLoad - tabBarController: %@", self.tabBarController);
-    NSLog(@"在局🎯 [CFJClientH5Controller] viewDidLoad - pinUrl: %@", self.pinUrl);
-    
     [super viewDidLoad];
     
     if (self.isCheck) {
         self.JFlocationManager = [[JFLocation alloc] init];
         _JFlocationManager.delegate = self;
     }
-    //获取配置
-    NSLog(@"在局🎯 [CFJClientH5Controller] viewDidLoad - 调用setNavMessage");
+    
+    // 设置导航栏配置
     [self setNavMessage];
     [self addNotif];
     self.view.backgroundColor = [UIColor tyBgViewColor];
+    
     switch (self.pushType) {
         case isPushPresent:
         {
@@ -1006,11 +789,17 @@ static inline BOOL isIPhoneXSeries() {
         default:
             break;
     }
-    // 注意：不要重复调用domainOperate，父类已经调用了
 }
 
 - (void)setNavMessage {
     [self setUpNavWithDic:self.navDic];
+    
+    // 配置导航栏显示/隐藏
+    BOOL shouldHide = [self isHaveNativeHeader:self.pinUrl];
+    [self.navigationController setNavigationBarHidden:shouldHide animated:NO];
+    
+    // 更新状态栏样式
+    [self setNeedsStatusBarAppearanceUpdate];
 }
 
 #pragma mark - 导航条处理
@@ -1032,10 +821,12 @@ static inline BOOL isIPhoneXSeries() {
     NSDictionary *rightDic = [Dic objectForKey:@"rightItem"];
     NSDictionary *middleDic = [Dic objectForKey:@"middleItem"];
     
-    NSLog(@"在局 🎨 [setUpNavWithDic] 设置导航栏配置 - color: %@, bgColor: %@", color ?: @"nil", bgColor ?: @"nil");
+    // 立即配置导航栏样式
+    [self configureNavigationBarColors];
     
-    // 注意：实际的导航栏颜色设置将在 performDelayedUIOperations 中执行
-    // 这里只是保存配置，避免重复设置导致的问题
+    // 隐藏导航条黑线
+    [self hideNavigationBarBottomLine];
+    
     if (leftDic) {
         if (![[leftDic objectForKey:@"buttonPicture"] length] && ![[leftDic objectForKey:@"text"] length]){
             UIBarButtonItem *backButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"" style:UIBarButtonItemStylePlain target:nil action:nil];
@@ -1316,24 +1107,7 @@ static inline BOOL isIPhoneXSeries() {
 - (void)viewWillAppear:(BOOL)animated {
     NSLog(@"在局🌟 [CFJClientH5Controller] viewWillAppear开始 - self: %@, pinUrl: %@", self, self.pinUrl);
     
-    // iOS 18修复：重置viewDidAppear标志
-    self.viewDidAppearCalled = NO;
-    
-    // iOS 18修复：确保视图转场正常
     [super viewWillAppear:animated];
-    
-    // 重置UI操作标志
-    self.delayedUIOperationsExecuted = NO;
-    
-    // 修复：确保所有iOS版本都会执行导航栏设置
-    // 问题：之前只有iOS 16+才会延迟执行performDelayedUIOperations
-    // 解决：所有版本都检查并执行
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (!self.delayedUIOperationsExecuted) {
-            NSLog(@"在局🚨 [CFJClientH5Controller] viewWillAppear中检测到UI操作未执行，执行延迟的UI操作");
-            [self performDelayedUIOperations];
-        }
-    });
     
     
     // 检查view的状态
@@ -1347,8 +1121,6 @@ static inline BOOL isIPhoneXSeries() {
         self.navigationController.interactivePopGestureRecognizer.enabled = YES;
     }
     
-    // 🚨 紧急修复：不要在viewWillAppear中做任何可能阻塞的操作
-    // 所有UI操作都应该快速完成或延迟到viewDidAppear
     
     // 延迟到viewDidAppear后设置圆角，避免影响Tab切换动画
     if (!(self.pushType == isPushNormal)) {
@@ -1376,7 +1148,6 @@ static inline BOOL isIPhoneXSeries() {
     // 简化流程：不在viewWillAppear中创建WebView，等待viewDidAppear自然调用
     
     
-    // iOS 18紧急修复：统一在上面的逻辑中处理，删除重复代码
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView{
@@ -4571,7 +4342,6 @@ static inline BOOL isIPhoneXSeries() {
     };
 }
 
-// 移除所有紧急修复方法，让iOS生命周期正常执行
 
 @end
 

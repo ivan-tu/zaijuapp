@@ -48,7 +48,6 @@
     
     NSMutableArray *cookieAry = [NSMutableArray array];
     
-    // 🚨 紧急修复：避免主线程阻塞
     // 如果在主线程，跳过Cookie获取，避免阻塞
     if ([NSThread isMainThread]) {
         // 使用缓存的Cookie或空数组

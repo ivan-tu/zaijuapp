@@ -951,11 +951,20 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 🔧 修复下拉刷新箭头图标缺失问题
     // 设置箭头图标 (通过配置现有的arrowView)
     if (header.arrowView) {
-        // 首先尝试使用MJRefresh自带的图片
-        UIImage *arrowImage = [UIImage imageNamed:@"MJRefresh.bundle/mj_arrow@2x.png"];
+        // 首先尝试使用MJRefresh自带的图片（正确的路径）
+        UIImage *arrowImage = [UIImage imageNamed:@"MJRefresh.bundle/arrow@2x"];
+        if (!arrowImage) {
+            // 尝试另一种路径格式
+            arrowImage = [UIImage imageNamed:@"Pods/MJRefresh/MJRefresh/MJRefresh.bundle/arrow@2x"];
+        }
+        if (!arrowImage) {
+            // 尝试从Bundle中加载
+            NSBundle *mjBundle = [NSBundle bundleWithPath:[[NSBundle bundleForClass:[MJRefreshNormalHeader class]] pathForResource:@"MJRefresh" ofType:@"bundle"]];
+            arrowImage = [UIImage imageNamed:@"arrow@2x" inBundle:mjBundle compatibleWithTraitCollection:nil];
+        }
         if (!arrowImage) {
             // 如果没有找到MJRefresh的图片，尝试项目中的图片
-            arrowImage = [UIImage imageNamed:@"arrow_down"];
+            arrowImage = [UIImage imageNamed:@"arrow"];
         }
         if (!arrowImage) {
             // 如果还是没有，创建默认箭头
@@ -964,6 +973,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         header.arrowView.image = arrowImage;
         header.arrowView.hidden = NO; // 确保箭头可见
         header.arrowView.tintColor = [UIColor grayColor]; // 设置箭头颜色
+        
+        NSLog(@"在局🏹 [下拉刷新] 箭头图片设置结果: %@", arrowImage ? @"成功" : @"失败");
     }
     
     // 设置下拉刷新文本
@@ -3509,8 +3520,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                         self.webView.navigationDelegate != nil; // 确保delegate存在
     
     if (isReallyDead) {
-        NSLog(@"在局🚨 [紧急修复] WebView确实处于死亡状态，进入重建流程！");
-        NSLog(@"在局🚨 [紧急修复] 详细状态: elapsed=%.2f, webView.isLoading=%@, delegate=%@", 
+        NSLog(@"在局⚠️ [WebView状态] WebView需要重建，详细状态: elapsed=%.2f, webView.isLoading=%@, delegate=%@", 
               elapsed, self.webView.isLoading ? @"YES" : @"NO", self.webView.navigationDelegate);
         
         // 强制重建WebView
@@ -3906,7 +3916,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 移除替代加载方法，统一使用正常加载流程
 
-// 移除所有紧急修复方法，让iOS生命周期正常执行
 
 #pragma mark - 页面加载监控
 
@@ -4408,8 +4417,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         NSLog(@"在局🔍 [视图诊断] WebView scrollView contentOffset: %@", NSStringFromCGPoint(wkWebView.scrollView.contentOffset));
         NSLog(@"在局🔍 [视图诊断] WebView scrollView bounds: %@", NSStringFromCGRect(wkWebView.scrollView.bounds));
         
-        // 强制重置scrollView状态
-        wkWebView.scrollView.contentOffset = CGPointZero;
+        // 注释掉强制重置滚动位置的代码，避免页面切换时滚动到顶部
+        // wkWebView.scrollView.contentOffset = CGPointZero;
         [wkWebView.scrollView setNeedsDisplay];
         [wkWebView.scrollView setNeedsLayout];
         [wkWebView.scrollView layoutIfNeeded];

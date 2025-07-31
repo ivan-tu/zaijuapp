@@ -253,17 +253,7 @@
 }
 #pragma mark - <UITabBarControllerDelegate>
 
-// iOS 18修复：实现shouldSelectViewController代理方法
 - (BOOL)tabBarController:(UITabBarController *)tabBarController shouldSelectViewController:(UIViewController *)viewController {
-    // iOS 18修复：在切换前确保当前视图控制器的转场已完成
-    if (@available(iOS 13.0, *)) {
-        // 取消任何正在进行的转场
-        if (self.transitionCoordinator && self.transitionCoordinator.isAnimated) {
-            [self.transitionCoordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> _Nonnull context) {
-                // 转场完成
-            }];
-        }
-    }
     
     // 懒加载逻辑 - 检查是否为NavigationController
     if ([viewController isKindOfClass:[UINavigationController class]]) {
@@ -298,27 +288,14 @@
 
 //tabarController 代理
 - (void)tabBarController:(UITabBarController *)tabBarController didSelectViewController:(UIViewController *)viewController {
-    // iOS 18 修复：避免转场协调器导致的阻塞
     if ([viewController isKindOfClass:[UINavigationController class]]) {
         UINavigationController *nav = (UINavigationController *)viewController;
         if (nav.viewControllers.count > 0) {
             UIViewController *rootVC = nav.viewControllers[0];
             
-            // iOS 18修复：强制触发视图生命周期
-            if (@available(iOS 16.0, *)) {
-                // iOS 16+需要特殊处理
-                if (![rootVC isViewLoaded] || !rootVC.view.window) {
-                    // 触发viewDidLoad
-                    [rootVC view];
-                    // 强制布局
-                    [rootVC.view setNeedsLayout];
-                    [rootVC.view layoutIfNeeded];
-                }
-            }
         }
     }
     
-    // iOS 18修复：简化转场处理，避免使用transitionCoordinator
     dispatch_async(dispatch_get_main_queue(), ^{
         // 发送刷新通知
         UIApplicationState state = [[UIApplication sharedApplication] applicationState];
