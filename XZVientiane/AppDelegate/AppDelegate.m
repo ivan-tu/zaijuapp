@@ -13,6 +13,8 @@
 #import "PublicSettingModel.h"
 #import "ClientSettingModel.h"
 #import "XZWKWebViewBaseController.h" // 导入WebView基类以使用预加载方法
+// TODO: 需要在Xcode中添加XZWebViewPerformanceManager文件到项目后取消注释
+// #import "XZWebViewPerformanceManager.h" // WebView性能优化管理器
 // 友盟分享相关导入 - 使用正确路径
 #import <UMShare/UMShare.h>
 #import <UMShare/UMSociallogMacros.h>
@@ -163,6 +165,10 @@
     // 启动HTML模板预加载优化（后台异步执行，不影响启动速度）
     [XZWKWebViewBaseController preloadHTMLTemplates];
     
+    // 初始化WebView性能管理器并预热资源
+    // TODO: 需要在Xcode中添加XZWebViewPerformanceManager文件到项目后取消注释
+    // [[XZWebViewPerformanceManager sharedManager] preloadWebViewResources];
+    
     // 立即初始化TabBar，不等待网络权限检查
     // 直接创建TabBar控制器，避免延迟
     self.tabbarVC = [[XZTabBarController alloc] init];
@@ -233,17 +239,23 @@
     self.locationManager = [[AMapLocationManager alloc] init];
     // 带逆地理信息的一次定位（返回坐标和地址信息）
     [self.locationManager setDesiredAccuracy:kCLLocationAccuracyHundredMeters];
-    //   定位超时时间，最低2s，此处设置为2s
-    self.locationManager.locationTimeout = 2;
-    //   逆地理请求超时时间，最低2s，此处设置为2s
-    self.locationManager.reGeocodeTimeout = 2;
+    //   定位超时时间，增加到10秒以提高成功率
+    self.locationManager.locationTimeout = 10;
+    //   逆地理请求超时时间，增加到8秒
+    self.locationManager.reGeocodeTimeout = 8;
     [self.locationManager requestLocationWithReGeocode:YES completionBlock:^(CLLocation *location, AMapLocationReGeocode *regeocode, NSError *error) {
         if (error) {
             // 定位服务出错
+            NSLog(@"在局❌ [首页定位] 定位失败，错误码:%ld, 描述:%@", (long)error.code, error.localizedDescription);
             
-            if (error.code == AMapLocationErrorLocateFailed) {
-                return;
-            }
+            // 设置默认值，避免完全无定位信息
+            NSUserDefaults *Defaults = [NSUserDefaults standardUserDefaults];
+            [Defaults setObject:@(0) forKey:@"currentLat"];
+            [Defaults setObject:@(0) forKey:@"currentLng"];
+            [Defaults setObject:@"定位失败" forKey:@"currentCity"];
+            [Defaults setObject:@"请手动选择位置" forKey:@"currentAddress"];
+            [Defaults synchronize];
+            return;
         }
         // 定位获取成功
         
@@ -267,6 +279,7 @@
         [Defaults setObject:cityName forKey:@"currentCity"];
         [Defaults setObject:addressName forKey:@"currentAddress"];
 
+        NSLog(@"在局✅ [首页定位] 定位成功 - 纬度:%.6f, 经度:%.6f, 城市:%@", coordinate.latitude, coordinate.longitude, cityName);
         [Defaults synchronize];
     }];
 }
@@ -963,8 +976,10 @@
                 }
                 case kCTCellularDataNotRestricted: {
                     NSLog(@"在局✅ [AppDelegate] 网络权限已开启");
+                    
                     // 重置标志
                     self.hasShownNetworkPermissionAlert = NO;
+                    BOOL wasRestricted = self.networkRestricted;
                     self.networkRestricted = NO;
                     
                     __weak typeof(self) weakSelf = self;
@@ -972,16 +987,20 @@
                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                         __strong typeof(weakSelf) strongSelf = weakSelf;
                         if (strongSelf && strongSelf.window) {
-                            //2.2已经开启网络权限 监听网络状态
+                            NSLog(@"在局🔧 [AppDelegate] 网络权限恢复处理 - wasRestricted: %@", wasRestricted ? @"YES" : @"NO");
+                            
+                            //2.2已经开启网络权限 监听网络状态 - 无论之前状态如何都要初始化
                             [strongSelf addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
                             
-                            // 网络权限恢复后，只有当LoadingView还存在时才移除（避免重复移除）
-                            if (!strongSelf.isLoadingViewRemoved) {
-                                [strongSelf removeGlobalLoadingViewWithReason:@"网络权限恢复"];
+                            // 只有从受限状态恢复时才移除LoadingView
+                            if (wasRestricted && !strongSelf.isLoadingViewRemoved) {
+                                [strongSelf removeGlobalLoadingViewWithReason:@"网络权限从受限恢复"];
                             }
                             
-                            // 修复权限授予后首页空白问题 - 主动触发首页加载
-                            [strongSelf triggerFirstTabLoadIfNeeded];
+                            // 只有从受限状态恢复时才主动触发首页加载
+                            if (wasRestricted) {
+                                [strongSelf triggerFirstTabLoadIfNeeded];
+                            }
                             
                             // 网络权限恢复，强制重新初始化首页
                             NSLog(@"在局🔥 [AppDelegate] 网络权限恢复，强制重新初始化首页");
@@ -1061,8 +1080,19 @@
  */
 - (void)addReachabilityManager:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     
-    // 防止重复初始化
-    if (self.mallConfigModel) {
+    // 防止重复初始化，但如果是网络权限恢复场景则允许重新初始化
+    if (self.mallConfigModel && !self.internetReachability) {
+        NSLog(@"在局🔧 [AppDelegate] mallConfigModel已存在但网络管理器为空，重新初始化");
+        // 继续执行初始化
+    } else if (self.mallConfigModel && self.internetReachability) {
+        NSLog(@"在局ℹ️ [AppDelegate] 网络管理器已初始化，跳过重复初始化");
+        
+        // 检查网络管理器是否在正常工作
+        if (![self.internetReachability isReachable]) {
+            NSLog(@"在局⚠️ [AppDelegate] 网络管理器显示不可达，重新启动监控");
+            [self.internetReachability stopMonitoring];
+            [self.internetReachability startMonitoring];
+        }
         return;
     }
     

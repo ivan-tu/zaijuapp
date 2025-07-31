@@ -85,7 +85,6 @@ DEF_SINGLETON(XZPackageH5)
                         if ([fCurVer compare:fVeFromNet options:NSNumericSearch] == NSOrderedAscending) {
                             dispatch_async(dispatch_get_main_queue(), ^{
                                 [JHSysAlertUtil presentAlertViewWithTitle:@"版本更新" message:notes cancelTitle:@"下次更新" defaultTitle:@"立即更新" distinct:YES cancel:nil confirm:^{
-                                    //TODO 修改应用id  响见：1128668754
                                     NSURL *appUrl = [NSURL URLWithString:strVerUrl];
                                     [[UIApplication sharedApplication] openURL:appUrl];
                                 }];

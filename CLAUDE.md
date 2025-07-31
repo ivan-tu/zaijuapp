@@ -21,6 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 开发规范与记忆
 - 修改结束不要测试编译，让用户自己测试
 - 禁止使用js的console来做调试日志，因为xcode接收不到console的日志
+- 项目刚刚完成大优化，如果有不确定如何实现的问题可以查看优化历史
 
 ## 常用命令
 

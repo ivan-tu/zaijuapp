@@ -84,19 +84,6 @@
 - (void)titleLableTapped:(UIGestureRecognizer *)gesture {
 }
 
-//- (BOOL)shouldAutorotate {
-//    return YES;
-//}
-
-//-(UIInterfaceOrientationMask)supportedInterfaceOrientations {
-//    if (ISIPAD) {
-//        return  UIInterfaceOrientationMaskLandscape;
-//    }
-//    else {
-//        return  UIInterfaceOrientationMaskPortrait;
-//    }
-//}
-
 - (void)didReceiveMemoryWarning {
     NSLog(@"在局%@ 内存警告",[NSString stringWithUTF8String:object_getClassName(self)]);
 

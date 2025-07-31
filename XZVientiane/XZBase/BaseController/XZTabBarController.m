@@ -288,6 +288,14 @@
 
 //tabarController 代理
 - (void)tabBarController:(UITabBarController *)tabBarController didSelectViewController:(UIViewController *)viewController {
+    // 记录当前选中的tab索引
+    NSInteger currentIndex = tabBarController.selectedIndex;
+    static NSInteger lastSelectedIndex = -1;
+    BOOL isRepeatClick = (lastSelectedIndex == currentIndex);
+    
+    NSLog(@"在局🔄 [TabBar代理] 当前tab: %ld, 上次tab: %ld, 是否重复: %@", 
+          (long)currentIndex, (long)lastSelectedIndex, isRepeatClick ? @"是" : @"否");
+    
     if ([viewController isKindOfClass:[UINavigationController class]]) {
         UINavigationController *nav = (UINavigationController *)viewController;
         if (nav.viewControllers.count > 0) {
@@ -297,11 +305,19 @@
     }
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        // 发送刷新通知
-        UIApplicationState state = [[UIApplication sharedApplication] applicationState];
-        if (state == UIApplicationStateActive) {
-            [self sendRefreshNotification];
+        // 优化：只在重复点击同一个tab时才发送刷新通知
+        if (isRepeatClick) {
+            UIApplicationState state = [[UIApplication sharedApplication] applicationState];
+            if (state == UIApplicationStateActive) {
+                NSLog(@"在局🔄 [TabBar代理] 检测到重复点击，发送刷新通知");
+                [self sendRefreshNotification];
+            }
+        } else {
+            NSLog(@"在局ℹ️ [TabBar代理] Tab切换，不发送刷新通知");
         }
+        
+        // 更新最后选中的索引
+        lastSelectedIndex = currentIndex;
         
         // 延迟执行TabBar动画，确保不影响视图转场
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{

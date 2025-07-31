@@ -10,7 +10,8 @@
 
 @protocol JFCityViewControllerDelegate <NSObject>
 
-- (void)cityName:(NSString *)name cityCode:(NSString *)code;
+// 修改参数类型以适应实际传入的数据类型（可能是NSString或NSNumber）
+- (void)cityName:(NSString *)name cityCode:(id)code;
 
 @end
 

@@ -35,7 +35,6 @@
 #import "SVStatusHUD.h"
 #import <UMShare/UMShare.h>
 #import "JHSysAlertUtil.h"
-#import "AppDelegate.h"
 #import "XZPackageH5.h"
 #import "MOFSPickerManager.h"
 #import "XZIcomoonDefine.h"
@@ -51,7 +50,6 @@
 #import "CustomHybridProcessor.h"
 #import "NSString+addition.h"
 #import <UMCommon/MobClick.h>
-#import <Photos/Photos.h>
 #import <AlipaySDK/AlipaySDK.h>
 #import <AMapFoundationKit/AMapFoundationKit.h>
 #import <AMapLocationKit/AMapLocationKit.h>
@@ -65,22 +63,11 @@
 #import "JFCityViewController.h"
 #import <JavaScriptCore/JavaScriptCore.h>
 #import "CustomHybridProcessor.h"
-
-static inline BOOL isIPhoneXSeries() {
-    BOOL iPhoneXSeries = NO;
-    if (UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPhone) {
-        return iPhoneXSeries;
-    }
-    
-    if (@available(iOS 11.0, *)) {
-        UIWindow *mainWindow = [[[UIApplication sharedApplication] delegate] window];
-        if (mainWindow.safeAreaInsets.bottom > 0.0) {
-            iPhoneXSeries = YES;
-        }
-    }
-    
-    return iPhoneXSeries;
-}
+//JSBridge
+// TODO: 需要在Xcode中添加以下文件到项目
+// #import "JSActionHandlerManager.h"
+// #import "XZiOSVersionManager.h"
+// #import "XZAuthenticationManager.h"
 #define JDomain  [NSString stringWithFormat:@"https://%@",[[NSUserDefaults standardUserDefaults] objectForKey:@"kUserDefaults_domainStr"]]
 #define ScreenWidth [UIScreen mainScreen].bounds.size.width
 #define TITLES @[@"登录", @"注册"]
@@ -103,6 +90,9 @@ static inline BOOL isIPhoneXSeries() {
     CGFloat _margin;
 }
 
+// 通知观察者数组，用于正确移除
+@property (nonatomic, strong) NSMutableArray *notificationObservers;
+
 @property (strong, nonatomic) NSString *orderNum; //订单号，银联支付拿订单号去后台验证是否支付成功
 @property (assign, nonatomic) NSInteger lastPosition;
 @property (strong, nonatomic) NSArray *viewImageAry;
@@ -117,10 +107,6 @@ static inline BOOL isIPhoneXSeries() {
 // 恢复定位管理器属性
 @property (strong,nonatomic)AMapLocationManager *locationManager;
 @property (nonatomic, strong) JFLocation *JFlocationManager;
-
-@property (assign, nonatomic)CGPoint timePosition;
-@property (assign, nonatomic)CGPoint currentPosition;
-
 
 // 添加回调方法声明
 - (void)callBack:(NSString *)type params:(NSDictionary *)params;
@@ -142,6 +128,14 @@ static inline BOOL isIPhoneXSeries() {
 // 智能检测并处理登录状态变化
 - (void)detectAndHandleLoginStateChange:(void(^)(NSDictionary*))completion {
     if (!self.webView || ![self.webView isKindOfClass:[WKWebView class]]) {
+        return;
+    }
+    
+    // 确保在主线程检查应用状态
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self detectAndHandleLoginStateChange:completion];
+        });
         return;
     }
     
@@ -306,45 +300,49 @@ static inline BOOL isIPhoneXSeries() {
 }
 
 - (void)dealloc {
+    // 移除所有通知观察者
+    if (self.notificationObservers) {
+        for (id observer in self.notificationObservers) {
+            [[NSNotificationCenter defaultCenter] removeObserver:observer];
+        }
+        [self.notificationObservers removeAllObjects];
+    }
+    
+    // 移除传统方式添加的观察者
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)addNotif {
     WEAK_SELF;
     
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"payresultnotif" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+    // 初始化观察者数组
+    if (!self.notificationObservers) {
+        self.notificationObservers = [NSMutableArray array];
+    }
+    
+    // 支付结果通知
+    id observer1 = [[NSNotificationCenter defaultCenter] addObserverForName:@"payresultnotif" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         [self handlePayResult:note.object];
     }];
+    [self.notificationObservers addObject:observer1];
     
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"weixinPay" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+    // 微信支付通知
+    id observer2 = [[NSNotificationCenter defaultCenter] addObserverForName:@"weixinPay" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         [self handleweixinPayResult:note.object];
     }];
+    [self.notificationObservers addObject:observer2];
     
     // 监听微信分享结果
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"wechatShareResult" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+    id observer3 = [[NSNotificationCenter defaultCenter] addObserverForName:@"wechatShareResult" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         [self handleWechatShareResult:note.object];
     }];
-    
-    // 监听网络权限恢复通知 - 修复Release版本首页空白问题
-//    [[NSNotificationCenter defaultCenter] addObserverForName:@"NetworkPermissionRestored" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
-//        STRONG_SELF;
-//        if (!self) return;
-//        
-//        
-//        // 只处理首页（第一个Tab）
-//        if (self.tabBarController.selectedIndex == 0) {
-//            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-//                NSLog(@"在局🔄 [CFJClientH5Controller] 网络权限恢复，重新触发domainOperate");
-//                [self domainOperate];
-//            });
-//        }
-//    }];
+    [self.notificationObservers addObject:observer3];
     
     // 监听网络状态变化
-    [[NSNotificationCenter defaultCenter] addObserverForName:AFNetworkingReachabilityDidChangeNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+    id observer4 = [[NSNotificationCenter defaultCenter] addObserverForName:AFNetworkingReachabilityDidChangeNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         if (!self) return;
         
@@ -355,44 +353,78 @@ static inline BOOL isIPhoneXSeries() {
         if (status != AFNetworkReachabilityStatusNotReachable) {
             NSLog(@"在局🔄 [CFJClientH5Controller] 网络恢复，通知JavaScript重试");
             // 通知JavaScript网络已恢复，让它重试失败的请求
-            [self safelyEvaluateJavaScript:@"(function(){"
-                "if (typeof window.onNetworkAvailable === 'function') {"
-                    "window.onNetworkAvailable();"
-                "}"
-                "// 触发自定义事件"
-                "var event = new CustomEvent('networkAvailable');"
-                "window.dispatchEvent(event);"
-                "// 如果页面有网络恢复后的处理函数，调用它"
-                "if (typeof app !== 'undefined' && typeof app.onNetworkRestore === 'function') {"
-                    "app.onNetworkRestore();"
-                "}"
-                "return '网络恢复通知已发送';"
-            "})()" completionHandler:^(id result, NSError *error) {
-                if (result) {
-                    NSLog(@"在局🔄 [CFJClientH5Controller] JavaScript网络恢复通知: %@", result);
-                }
+            // 步骤1: 设置网络恢复标志
+            [self safelyEvaluateJavaScript:@"window.networkRestored = true; 'flag_set'" completionHandler:^(id result, NSError *error) {
+                NSLog(@"在局🔧 [网络恢复-步骤1] 设置标志: %@", result ?: error.localizedDescription);
             }];
+            
+            // 步骤2: 尝试使用实际存在的方法触发页面重新加载
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self safelyEvaluateJavaScript:@"(function(){"
+                    "if (typeof app !== 'undefined' && typeof app.reloadOtherPages === 'function') {"
+                        "app.reloadOtherPages(); return 'reloadOtherPages_called';"
+                    "} else if (typeof app !== 'undefined' && typeof app.getCurrentPages === 'function') {"
+                        "app.getCurrentPages(); return 'getCurrentPages_called';"
+                    "} else {"
+                        "return 'no_suitable_method_found';"
+                    "}"
+                "})()" completionHandler:^(id result, NSError *error) {
+                    NSLog(@"在局🔧 [网络恢复-步骤2] 方法调用: %@", result ?: error.localizedDescription);
+                }];
+            });
+            
+            // 步骤3: 触发页面事件
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self safelyEvaluateJavaScript:@"document.dispatchEvent(new Event('visibilitychange')); 'event_dispatched'" completionHandler:^(id result, NSError *error) {
+                    NSLog(@"在局🔧 [网络恢复-步骤3] 事件触发: %@", result ?: error.localizedDescription);
+                }];
+            });
+            
+            // 额外延迟1秒后再次尝试触发数据加载，以防第一次调用时页面还未完全准备好
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                // 步骤1: 尝试重新加载页面数据
+                [self safelyEvaluateJavaScript:@"(function(){if(typeof app!=='undefined'&&typeof app.reloadOtherPages==='function'){app.reloadOtherPages();return 'reload_called';}return 'reload_not_available';})()" completionHandler:^(id result, NSError *error) {
+                    NSLog(@"在局🔧 [延迟加载-步骤1] 重新加载: %@", result ?: error.localizedDescription);
+                }];
+                
+                // 步骤2: 触发页面事件
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [self safelyEvaluateJavaScript:@"document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); 'events_fired'" completionHandler:^(id result, NSError *error) {
+                        NSLog(@"在局🔧 [延迟加载-步骤2] 事件触发: %@", result ?: error.localizedDescription);
+                    }];
+                });
+                
+                // 步骤3: 模拟用户滚动交互
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [self safelyEvaluateJavaScript:@"window.scrollTo(0, 1); window.scrollTo(0, 0); 'scroll_triggered'" completionHandler:^(id result, NSError *error) {
+                        NSLog(@"在局🔧 [延迟加载-步骤3] 滚动触发: %@", result ?: error.localizedDescription);
+                    }];
+                });
+            });
         }
     }];
+    [self.notificationObservers addObject:observer4];
     
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"HideTabBarNotif" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+    id observer5 = [[NSNotificationCenter defaultCenter] addObserverForName:@"HideTabBarNotif" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         [UIView animateWithDuration:0.5 animations:^{
             UIView *qrView = [self.view viewWithTag:1001];
             qrView.frame = CGRectMake(15, [UIScreen mainScreen].bounds.size.height, 40, 40);
         }];
     }];
+    [self.notificationObservers addObject:observer5];
     
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"ShowTabBarNotif" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+    id observer6 = [[NSNotificationCenter defaultCenter] addObserverForName:@"ShowTabBarNotif" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         [UIView animateWithDuration:0.5 animations:^{
             UIView *qrView = [self.view viewWithTag:1001];
             qrView.frame = CGRectMake(15, [UIScreen mainScreen].bounds.size.height - 100, 40, 40);
         }];
     }];
+    [self.notificationObservers addObject:observer6];
     
     //变更消息数量
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"changeMessageNum" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+    id observer7 = [[NSNotificationCenter defaultCenter] addObserverForName:@"changeMessageNum" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         UIViewController *VC = [self currentViewController];
         if ([VC isEqual:self]) {
@@ -411,9 +443,10 @@ static inline BOOL isIPhoneXSeries() {
             }
         }
     }];
+    [self.notificationObservers addObject:observer7];
     
     //刷新页面触发请求
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"reloadMessage" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+    id observer8 = [[NSNotificationCenter defaultCenter] addObserverForName:@"reloadMessage" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         UIViewController *VC = [self currentViewController];
         if ([VC isEqual:self]) {
@@ -422,9 +455,10 @@ static inline BOOL isIPhoneXSeries() {
             }
         }
     }];
+    [self.notificationObservers addObject:observer8];
     
     //返回到首页
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"backToHome" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+    id observer9 = [[NSNotificationCenter defaultCenter] addObserverForName:@"backToHome" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         UIViewController *VC = [self currentViewController];
         if ([VC isEqual:self]) {
@@ -449,6 +483,7 @@ static inline BOOL isIPhoneXSeries() {
             }
         }
     }];
+    [self.notificationObservers addObject:observer9];
 }
 
 - (void)loadView {
@@ -566,6 +601,23 @@ static inline BOOL isIPhoneXSeries() {
 // 交互式转场后恢复WebView状态
 - (void)restoreWebViewStateAfterInteractiveTransition {
     NSLog(@"在局🔄 [CFJClientH5Controller] 恢复交互式转场后的WebView状态");
+    
+    // 检查是否是Tab切换导致的调用
+    BOOL isTabSwitch = NO;
+    if (self.tabBarController) {
+        UIViewController *selectedVC = self.tabBarController.selectedViewController;
+        if (selectedVC == self.navigationController && 
+            self.navigationController.viewControllers.count == 1 &&
+            self.navigationController.topViewController == self) {
+            isTabSwitch = YES;
+        }
+    }
+    
+    if (isTabSwitch) {
+        NSLog(@"在局ℹ️ [CFJClientH5Controller] 检测到Tab切换，跳过交互式转场恢复");
+        return;
+    }
+    
     NSLog(@"在局🔧 [CFJClientH5Controller] 修复前 - 准备调用父类方法重置_isDisappearing");
     
     // 🔧 关键修复：重置_isDisappearing标志，允许JavaScript执行
@@ -716,6 +768,9 @@ static inline BOOL isIPhoneXSeries() {
                         [self.webView stopLoading];
                         self.webView.navigationDelegate = nil;
                     }
+                    
+                    // 🔧 新增功能：手势返回时的tab栏显示控制
+                    [self handleTabBarVisibilityAfterPopGesture];
                 } else {
                     NSLog(@"在局✅ [CFJClientH5Controller] 交互式转场被取消，保留WebView资源");
                     // 转场被取消，确保WebView状态正常
@@ -1170,1253 +1225,285 @@ static inline BOOL isIPhoneXSeries() {
 - (void)handleJavaScriptCall:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     NSDictionary *jsDic = data;
     NSString *function = [jsDic objectForKey:@"action"];
-    NSDictionary *dataDic = [jsDic objectForKey:@"data"];
+    id dataObject = [jsDic objectForKey:@"data"];  // 使用id类型，不强制转换为字典
     
+    NSLog(@"在局🔧 [handleJavaScriptCall] 处理action: %@, data: %@", function, dataObject);
     
-    // 优先处理网络请求
-    if ([function isEqualToString:@"request"]) {
-        [self rpcRequestWithJsDic:dataDic completion:completion];
-        return;
-    }
-    
-    // 兼容原有的webviewBackCallBack
-    self.webviewBackCallBack = ^(id responseData) {
-        if (completion) {
-            completion(responseData);
-        }
+    // 统一回调格式化方法
+    XZWebViewJSCallbackBlock safeCompletion = ^(NSDictionary *result) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) {
+                completion(result);
+            }
+        });
     };
-#pragma mark  -----------  2.0方法开始
+    
+    // 网络请求
+    if ([function isEqualToString:@"request"]) {
+        // request需要字典类型的数据
+        NSDictionary *dataDic = [dataObject isKindOfClass:[NSDictionary class]] ? (NSDictionary *)dataObject : @{};
+        [self rpcRequestWithJsDic:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // 原生数据获取
     if ([function isEqualToString:@"nativeGet"]) {
-        NSString *myData = jsDic[@"data"];
-        self.webviewBackCallBack = completion;
-        NSString *filepath=[[BaseFileManager appH5LocailManifesPath] stringByAppendingPathComponent:myData];
-        NSString *myStr = [NSString stringWithContentsOfURL:[NSURL fileURLWithPath:filepath] encoding:NSUTF8StringEncoding error:nil];
-        
-        // 确保myStr不为nil，避免[object object]问题
-        if (!myStr) {
-            myStr = @"";
-        }
-        
-        if (self.webviewBackCallBack) {
-            // 使用新的格式化方法，返回JavaScript端期望的格式
-            NSDictionary *response = [self formatCallbackResponse:@"nativeGet" 
-                                                           data:myStr 
-                                                        success:YES 
-                                                   errorMessage:nil];
-            self.webviewBackCallBack(response);
-        }
+        // nativeGet可以接受任何类型的数据
+        [self handleNativeGet:dataObject completion:safeCompletion];
         return;
     }
     
-    //判断是否安装了微信客户端
+    // 为大部分方法准备字典类型的数据
+    NSDictionary *dataDic = [dataObject isKindOfClass:[NSDictionary class]] ? (NSDictionary *)dataObject : @{};
+    
+    // 微信相关
     if ([function isEqualToString:@"hasWx"]) {
-        self.webviewBackCallBack = completion;
-        BOOL ische = [XZPackageH5 sharedInstance].isWXAppInstalled;
-        if (self.webviewBackCallBack) {
-            // 使用新的格式化方法，返回JavaScript端期望的格式
-            NSDictionary *response = [self formatCallbackResponse:@"hasWx" 
-                                                           data:@{@"status": ische ? @(1) : @(0)} 
-                                                        success:YES 
-                                                   errorMessage:nil];
-            self.webviewBackCallBack(response);
-        }
+        [self handleHasWx:dataDic completion:safeCompletion];
         return;
     }
-    //判断是否是流海屏
+    
+    // 设备检测
     if ([function isEqualToString:@"isiPhoneX"]) {
-        self.webviewBackCallBack = completion;
-        if (self.webviewBackCallBack) {
-            // 使用新的格式化方法，返回JavaScript端期望的格式
-            NSDictionary *response = [self formatCallbackResponse:@"isiPhoneX" 
-                                                           data:@{@"status": isIPhoneXSeries() ? @(1) : @(0)} 
-                                                        success:YES 
-                                                   errorMessage:nil];
-            self.webviewBackCallBack(response);
-        }
+        [self handleIsIPhoneX:dataDic completion:safeCompletion];
         return;
     }
+    
+    // 消息相关
     if ([function isEqualToString:@"readMessage"]) {
-        NSInteger number =[[jsDic objectForKey:@"data"] integerValue];;
-        NSInteger num = [[NSUserDefaults standardUserDefaults] integerForKey:@"clinetMessageNum"];
-        NSInteger newNum = num - number;
-        if (newNum > 0) {
-            [[NSUserDefaults standardUserDefaults] setInteger:newNum forKey:@"clinetMessageNum"];
-            [[NSUserDefaults standardUserDefaults]synchronize];
-            WEAK_SELF;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                STRONG_SELF;
-                [self.tabBarController.tabBar showBadgeOnItemIndex:3 withNum:newNum];
-            });
-        }
-        else {
-            [[NSUserDefaults standardUserDefaults] setInteger:0 forKey:@"clinetMessageNum"];
-            [[NSUserDefaults standardUserDefaults]synchronize];
-            //隐藏底部角标
-            WEAK_SELF;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                STRONG_SELF;
-                [self.tabBarController.tabBar hideBadgeOnItemIndex:3];
-            });
-        }
+        [self handleReadMessage:dataDic completion:safeCompletion];
         return;
     }
-    //设置底部角标
+    
+    // TabBar相关
     if ([function isEqualToString:@"setTabBarBadge"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.tabBarController.tabBar showBadgeOnItemIndex:3 withNum:1];
-        });
+        [self handleSetTabBarBadge:dataDic completion:safeCompletion];
         return;
     }
-    //隐藏底部角标
     if ([function isEqualToString:@"removeTabBarBadge"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.tabBarController.tabBar hideBadgeOnItemIndex:3];
-        });
+        [self handleRemoveTabBarBadge:dataDic completion:safeCompletion];
         return;
     }
-    
-    //设置底部红点
     if ([function isEqualToString:@"showTabBarRedDot"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.tabBarController.tabBar showRedDotOnItemIndex:1];
-        });
+        [self handleShowTabBarRedDot:dataDic completion:safeCompletion];
         return;
     }
-    //移除底部红点
     if ([function isEqualToString:@"hideTabBarRedDot"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.tabBarController.tabBar hideRedDotOnItemIndex:1];
-        });
+        [self handleHideTabBarRedDot:dataDic completion:safeCompletion];
         return;
     }
     
-    //跳转
-       if ([function isEqualToString:@"navigateTo"]) {
-           
-           // 检查当前线程
-           if (![NSThread isMainThread]) {
-           }
-           
-           dispatch_async(dispatch_get_main_queue(), ^{
-               NSString * Url = (NSString *)dataDic;
-               
-               if (![Url containsString:@"https://"]) {
-                   Url = [NSString stringWithFormat:@"%@%@", JDomain, Url];
-               }
-               
-               // 检查是否为配置域名的内部链接
-               NSString *configuredDomain = [[NSUserDefaults standardUserDefaults] objectForKey:@"kUserDefaults_domainStr"];
-               BOOL isInternalLink = NO;
-               if (configuredDomain && configuredDomain.length > 0) {
-                   isInternalLink = [Url containsString:configuredDomain];
-               } else {
-                   // 如果没有配置域名，默认使用zaiju.com作为内部域名
-                   configuredDomain = @"zaiju.com";
-                   isInternalLink = [Url containsString:configuredDomain];
-               }
-               
-               if (!isInternalLink) {
-                   // 外部链接，直接用HTMLWebViewController加载
-                   NSLog(@"在局🌐 [navigateTo] 外部链接，使用HTMLWebViewController加载: %@", Url);
-                   HTMLWebViewController *htmlWebVC = [[HTMLWebViewController alloc] init];
-                   htmlWebVC.webViewDomain = Url;
-                   htmlWebVC.hidesBottomBarWhenPushed = YES;
-                   
-                   [self.navigationController pushViewController:htmlWebVC animated:YES];
-                   
-                   // 监听push完成
-                   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                   });
-                   return;
-               }
-               
-               // 内部链接，使用CustomHybridProcessor处理
-//               [[HybridManager shareInstance] LocialPathByUrlStr:Url templateDic:self.templateDic templateStr:self.templateStr componentJsAndCs:self.ComponentJsAndCs componentDic:self.ComponentDic success:^(NSString * _Nonnull filePath, NSString * _Nonnull templateStr, NSString * _Nonnull title, BOOL isFileExsit) {
-                   [CustomHybridProcessor custom_LocialPathByUrlStr:Url
-                                                        templateDic:self.templateDic
-                                                   componentJsAndCs:self.ComponentJsAndCs
-                                                       componentDic:self.ComponentDic
-                                                            success:^(NSString * _Nonnull filePath, NSString * _Nonnull templateStr, NSString * _Nonnull title, BOOL isFileExsit) {
-                   if (isFileExsit) {
-                       CFJClientH5Controller *appH5VC = [[CFJClientH5Controller alloc] initWithNibName:nil bundle:nil];
-                       appH5VC.hidesBottomBarWhenPushed = YES;
-                       
-                       // 调试pinDataStr内容
-                       
-                       // 设置内页属性
-                       appH5VC.pinUrl = Url; // 使用完整URL
-                       appH5VC.replaceUrl = Url;
-                       
-                       // 检查templateStr是否有效
-                       if (templateStr && templateStr.length > 0) {
-                           appH5VC.pinDataStr = templateStr; // 设置HTML内容
-                       } else {
-                       }
-                       
-                       appH5VC.pagetitle = title;
-                       
-                       // 设置templateStr属性，供内页使用
-                       appH5VC.templateStr = templateStr;
-                       
-                       
-                       
-                       // 检查navigationController是否正常
-                       if (!self.navigationController) {
-                           NSLog(@"在局❌ [navigateTo] navigationController为nil!");
-                           return;
-                       }
-                       
-                       // 执行push
-                       
-                       // 检查当前是否在执行动画
-                       if (self.navigationController.view.layer.animationKeys.count > 0) {
-                           dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                               [self.navigationController pushViewController:appH5VC animated:YES];
-                           });
-                       } else {
-                           // 统一使用动画push，让自定义转场动画正常工作
-                           [self.navigationController pushViewController:appH5VC animated:YES];
-                       }
-                       
-                       WEAK_SELF;
-                       appH5VC.nextPageDataBlock = ^(NSDictionary *dic) {
-                           STRONG_SELF;
-                           NSLog(@"在局[navigateTo] nextPageData:%@",dic);
-                           self.nextPageData = dic;
-                           NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"dialogBridge" data:dic];
-                           [self objcCallJs:callJsDic];
-                       };
-                       
-                       // 监听push完成
-                       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                           });
-                   } else {
-                       if ([filePath containsString:@"http"]) {
-                           HTMLWebViewController *htmlWebVC = [[HTMLWebViewController alloc] init];
-                           htmlWebVC.webViewDomain = Url;
-                           htmlWebVC.hidesBottomBarWhenPushed = YES;
-                           [self.navigationController pushViewController:htmlWebVC animated:YES];
-                       }
-                       else {
-                           [JHSysAlertUtil presentAlertViewWithTitle:@"温馨提示" message:@"正在开发中" confirmTitle:@"确定" handler:nil];
-                       }
-                   }
-               }];
-           });
-           return;
-       }
-    //给上个页面传值操作,data是{delta:1}，返回几层 ,如果没传data，就是返回1层
+    // 导航相关 - navigateTo需要传递原始的dataObject，不是dataDic
+    if ([function isEqualToString:@"navigateTo"]) {
+        [self handleNavigateTo:dataObject completion:safeCompletion];
+        return;
+    }
     if ([function isEqualToString:@"navigateBack"]) {
-        if ([[jsDic objectForKey:@"data"] isKindOfClass:[NSString class]]) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [self.navigationController popViewControllerAnimated:NO];
-            });
-        }
-        else {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if ([[dataDic objectForKey:@"delta"] integerValue]) {
-                    NSInteger index = [[dataDic objectForKey:@"delta"] integerValue];
-                    NSInteger count = self.navigationController.viewControllers.count;
-                    if (index < 0) {
-                        if ([self.navigationController.viewControllers[-index] isKindOfClass:[CFJClientH5Controller class]]) {
-                            [self.navigationController popToViewController:self.navigationController.viewControllers[-index] animated:YES];
-                        }
-                    }
-                    else {
-                        if ([self.navigationController.viewControllers[count - index - 1] isKindOfClass:[CFJClientH5Controller class]]) {
-                            [self.navigationController popToViewController:self.navigationController.viewControllers[count - index - 1] animated:NO];
-                        }
-                    }
-                    
-                }
-            });
-        }
+        [self handleNavigateBack:dataDic completion:safeCompletion];
         return;
     }
-    //返回首页(目前处理返回顶层控制器)
     if ([function isEqualToString:@"reLaunch"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            // 在TabBar应用中，应该切换到第一个Tab（首页）
-            if (self.tabBarController) {
-                self.tabBarController.selectedIndex = 0; // 切换到首页
-            } else {
-                // 如果不是TabBar应用，则使用原来的逻辑
-                [self.navigationController popToRootViewControllerAnimated:YES];
-            }
-        });
-        
-        // 返回成功响应
-        if (completion) {
-            completion(@{
-                @"success": @"true",
-                @"data": @{},
-                @"errorMessage": @"",
-                @"code": @0
-            });
-        }
-        return;
-    }
-    //刷新当前页以外页面
-    if ([function isEqualToString:@"reloadOtherPages"]) {
-        // 在发送通知前先检查状态
-        UIApplicationState state = [[UIApplication sharedApplication] applicationState];
-        if (state == UIApplicationStateActive) {
-            // 智能检测登录状态变化
-            [self detectAndHandleLoginStateChange:completion];
-            
-            [[NSNotificationCenter defaultCenter]postNotificationName:@"RefreshOtherAllVCNotif" object:self];
-        }
-        
-        // WKWebView升级后需要给JS端明确的回调响应
-        if (completion) {
-            completion(@{
-                @"success": @"true",
-                @"data": @{},
-                @"errorMessage": @"",
-                @"code": @0
-            });
-        }
+        [self handleReLaunch:dataDic completion:safeCompletion];
         return;
     }
     
-    // 停止下拉刷新
-    if ([function isEqualToString:@"stopPullDownRefresh"]) {
-        NSLog(@"在局🔄 [CFJClientH5Controller] 处理stopPullDownRefresh");
-        dispatch_async(dispatch_get_main_queue(), ^{
-            @try {
-                // 处理WebView的scrollView下拉刷新
-                if ([self.webView isKindOfClass:[WKWebView class]]) {
-                    WKWebView *wkWebView = (WKWebView *)self.webView;
-                    UIScrollView *scrollView = wkWebView.scrollView;
-                    
-                    // 更安全的方式检查和使用MJRefresh
-                    if ([scrollView respondsToSelector:@selector(mj_header)]) {
-                        id mj_header = [scrollView valueForKey:@"mj_header"];
-                        if (mj_header) {
-                            // 使用KVC更安全
-                            NSNumber *isRefreshing = [mj_header valueForKey:@"isRefreshing"];
-                            if (isRefreshing && [isRefreshing boolValue]) {
-                                [mj_header performSelector:@selector(endRefreshing) withObject:nil];
-                                NSLog(@"在局🔄 [stopPullDownRefresh] 下拉刷新已停止");
-                            }
-                        }
-                    }
-                }
-            } @catch (NSException *exception) {
-                NSLog(@"在局❌ [stopPullDownRefresh] 处理下拉刷新时发生异常: %@", exception.reason);
-            }
-        });
-        
-        // 返回成功响应
-        if (completion) {
-            completion(@{
-                @"success": @"true",
-                @"data": @{},
-                @"errorMessage": @""
-            });
-        }
+    // 定位相关
+    if ([function isEqualToString:@"getLocation"]) {
+        [self handleGetLocation:dataDic completion:safeCompletion];
         return;
     }
-    if ([function isEqualToString:@"dialogBridge"]) {
-        //将数据传给上个页面
-        self.nextPageDataBlock(dataDic);
+    if ([function isEqualToString:@"showLocation"]) {
+        [self handleShowLocation:dataDic completion:safeCompletion];
         return;
     }
-    //显示模态弹窗
+    if ([function isEqualToString:@"selectLocation"]) {
+        [self handleSelectLocation:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"selectLocationCity"]) {
+        [self handleSelectLocationCity:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // 页面生命周期
+    if ([function isEqualToString:@"pageShow"]) {
+        [self handlePageShow:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"pageHide"]) {
+        [self handlePageHide:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"pageUnload"]) {
+        [self handlePageUnload:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // 工具功能
+    if ([function isEqualToString:@"copyLink"]) {
+        [self handleCopyLink:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"share"]) {
+        [self handleShare:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"saveImage"]) {
+        [self handleSaveImage:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // 导航栏控制
+    if ([function isEqualToString:@"setNavigationBarTitle"]) {
+        [self handleSetNavigationBarTitle:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"hideNavationbar"]) {
+        [self handleHideNavigationBar:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"showNavationbar"]) {
+        [self handleShowNavigationBar:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // 第三方登录和支付
+    if ([function isEqualToString:@"weixinLogin"]) {
+        [self handleWeixinLogin:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"weixinPay"]) {
+        [self handleWeixinPay:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"aliPay"]) {
+        [self handleAliPay:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // 文件操作
+    if ([function isEqualToString:@"chooseFile"]) {
+        [self handleChooseFile:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"uploadFile"]) {
+        [self handleUploadFile:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"previewImage"]) {
+        [self handlePreviewImage:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // 扫码
+    if ([function isEqualToString:@"QRScan"]) {
+        [self handleQRScan:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // 用户相关
+    if ([function isEqualToString:@"userLogin"]) {
+        [self handleUserLogin:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"userLogout"]) {
+        [self handleUserLogout:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // Tab切换
+    if ([function isEqualToString:@"switchTab"]) {
+        [self handleSwitchTab:dataDic completion:safeCompletion];
+        return;
+    }
+    
+    // UI组件
     if ([function isEqualToString:@"showModal"]) {
-        NSString *title = [[dataDic objectForKey:@"title"] length] ?  [dataDic objectForKey:@"title"] : @"";
-        NSString *cancleText = [[dataDic objectForKey:@"cancelText"] length] ?  [dataDic objectForKey:@"cancelText"] : @"取消";
-        NSString *confirmText = [[dataDic objectForKey:@"confirmText"] length] ?  [dataDic objectForKey:@"confirmText"] : @"确认";
-        ShowAlertView  *alert = [ShowAlertView showAlertWithTitle:title message:[dataDic objectForKey:@"content"]];
-        
-        // 创建独立的回调处理，避免被后续调用覆盖
-        XZWebViewJSCallbackBlock modalCallback = completion;
-        
-        WEAK_SELF;
-        [alert addItemWithTitle:cancleText itemType:(ShowAlertItemTypeBlack) callback:^(ShowAlertView *showview) {
-            STRONG_SELF;
-            NSLog(@"在局🔄 [showModal] 用户点击取消按钮");
-            if (modalCallback) {
-                // 使用新的格式化方法，返回JavaScript端期望的格式
-                NSDictionary *response = [self formatCallbackResponse:@"showModal" 
-                                                               data:@{@"cancel": @"true"} 
-                                                            success:YES 
-                                                       errorMessage:nil];
-                modalCallback(response);
-            }
-        }];
-        [alert addItemWithTitle:confirmText itemType:(ShowStatusTextTypeCustom) callback:^(ShowAlertView *showview) {
-            STRONG_SELF;
-            NSLog(@"在局🔄 [showModal] 用户点击确认按钮");
-            if (modalCallback) {
-                // 使用新的格式化方法，返回JavaScript端期望的格式
-                NSDictionary *response = [self formatCallbackResponse:@"showModal" 
-                                                               data:@{@"confirm": @"true"} 
-                                                            success:YES 
-                                                       errorMessage:nil];
-                modalCallback(response);
-            }
-        }];
-        [alert show];
+        [self handleShowModal:dataDic completion:safeCompletion];
         return;
     }
-    
-    //显示Toast提示
     if ([function isEqualToString:@"showToast"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            NSString *title = [dataDic objectForKey:@"title"] ?: @"";
-            NSString *icon = [dataDic objectForKey:@"icon"] ?: @"none";
-            NSTimeInterval duration = [[dataDic objectForKey:@"duration"] doubleValue] / 1000.0 ?: 1.0; // 转换为秒
-            
-            if (title.length > 0) {
-                // 使用SVStatusHUD显示Toast提示
-                if ([icon isEqualToString:@"success"]) {
-                    // 显示成功图标（可以使用系统的勾号图标）
-                    UIImage *successImage = [UIImage imageNamed:@"success_icon"] ?: [UIImage systemImageNamed:@"checkmark.circle.fill"];
-                    [SVStatusHUD showWithImage:successImage status:title duration:duration];
-                } else if ([icon isEqualToString:@"loading"]) {
-                    // 显示加载信息
-                    [SVStatusHUD showWithMessage:title];
-                } else {
-                    // 显示普通信息
-                    [SVStatusHUD showWithMessage:title];
-                    
-                    // 设置自动消失时间
-                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(duration * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                        // SVStatusHUD可能没有dismiss方法，让视图自然消失
-                    });
-                }
-            }
-        });
-        
-        // 返回成功响应
-        if (completion) {
-            completion(@{
-                @"success": @"true",
-                @"data": @{},
-                @"errorMessage": @"",
-                @"code": @0
-            });
-        }
+        [self handleShowToast:dataDic completion:safeCompletion];
         return;
     }
     if ([function isEqualToString:@"showActionSheet"]) {
-        self.webviewBackCallBack = completion;
-        ShowAlertView  *alert = [ShowAlertView showActionSheet];
-        NSArray *items = [dataDic objectForKey:@"itemList"];
-        for (NSInteger i = 0; i <items.count; i++) {
-            WEAK_SELF;
-            [alert addItemWithTitle:items[i] itemType:(ShowAlertItemTypeBlack) callback:^(ShowAlertView *showview) {
-                STRONG_SELF;
-                if (self.webviewBackCallBack) {
-                    // 使用新的格式化方法，返回JavaScript端期望的格式
-                    NSDictionary *response = [self formatCallbackResponse:@"showActionSheet" 
-                                                                   data:@{@"tapIndex": @(i)} 
-                                                                success:YES 
-                                                           errorMessage:nil];
-                    self.webviewBackCallBack(response);
-                }
-            }];
-        }
-        [alert addItemWithTitle:@"取消" itemType:(ShowStatusTextTypeCustom) callback:nil];
-        [alert show];
-        return;
-    }
-    //消息,角标数变更操作
-    if ([function isEqualToString:@"changeMessageNum"]) {
-        NSInteger number = [[dataDic objectForKey:@"number"] integerValue];
-        NSInteger num = [[NSUserDefaults standardUserDefaults] integerForKey:@"clinetMessageNum"];
-        NSInteger newNum = num - number;
-        if (newNum > 0) {
-            [[NSUserDefaults standardUserDefaults] setInteger:newNum forKey:@"clinetMessageNum"];
-            [[NSUserDefaults standardUserDefaults]synchronize];
-            WEAK_SELF;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                STRONG_SELF;
-                [self.tabBarController.tabBar showBadgeOnItemIndex:3 withNum:newNum];
-            });
-        }
-        else {
-            [[NSUserDefaults standardUserDefaults] setInteger:0 forKey:@"clinetMessageNum"];
-            [[NSUserDefaults standardUserDefaults]synchronize];
-            //隐藏底部角标
-            WEAK_SELF;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                STRONG_SELF;
-                [self.tabBarController.tabBar hideBadgeOnItemIndex:3];
-            });
-        }
-        return;
-    }
-    if ([function isEqualToString:@"copyLink"]) {
-        self.webviewBackCallBack = completion;
-        UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
-        pasteboard.string = [NSString stringWithFormat:@"%@",[dataDic objectForKey:@"url"]];
-        if (self.webviewBackCallBack) {
-            self.webviewBackCallBack(@{@"data":@"",
-                                       @"success":@"true",
-                                       @"errorMassage":@""
-            });
-        }
+        [self handleShowActionSheet:dataDic completion:safeCompletion];
         return;
     }
     
-    //停止下拉刷新
-    if ([function isEqualToString:@"stopPullDownRefresh"]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            @try {
-                if (self.webView && self.webView.scrollView) {
-                    UIScrollView *scrollView = self.webView.scrollView;
-                    
-                    // 更安全的方式检查和使用MJRefresh
-                    if ([scrollView respondsToSelector:@selector(mj_header)]) {
-                        id mj_header = [scrollView valueForKey:@"mj_header"];
-                        if (mj_header) {
-                            // 使用KVC更安全
-                            NSNumber *isRefreshing = [mj_header valueForKey:@"isRefreshing"];
-                            if (isRefreshing && [isRefreshing boolValue]) {
-                                [mj_header performSelector:@selector(endRefreshing) withObject:nil];
-                                NSLog(@"在局🔄 [stopPullDownRefresh] 下拉刷新已停止");
-                            }
-                        }
-                    }
-                }
-            } @catch (NSException *exception) {
-                NSLog(@"在局❌ [stopPullDownRefresh] 处理下拉刷新时发生异常: %@", exception.reason);
-            }
-        });
-        
-        // 返回成功响应
-        if (completion) {
-            completion(@{
-                @"success": @"true",
-                @"data": @{},
-                @"errorMessage": @"",
-                @"code": @0
-            });
-        }
-        return;
-    }
-    
-    //第三方分享
-    if ([function isEqualToString:@"share"]) {
-        self.webviewBackCallBack = completion;
-        [self shareContent:dataDic presentedVC:self];
-    }
-    //保存图片
-    if ([function isEqualToString:@"saveImage"]) {
-        self.webviewBackCallBack = completion;
-        PHAuthorizationStatus author = [PHPhotoLibrary authorizationStatus];
-        if (author == kCLAuthorizationStatusRestricted || author ==kCLAuthorizationStatusDenied){
-            //无权限
-            NSString *tips = [NSString stringWithFormat:@"请在设备的设置-隐私-照片选项中，允许应用访问你的照片"];
-            [JHSysAlertUtil presentAlertViewWithTitle:@"温馨提示" message:tips confirmTitle:@"确定" handler:nil];
-            return;
-        }
-        else {
-            NSString *imageStr = dataDic[@"filePath"];
-            [self saveImageToPhotos:[self getImageFromURL:imageStr]];
-        }
-    }
-    
-   
-    //关闭模态弹窗
-    if ([function isEqualToString:@"closePresentWindow"]) {
-        [self dismissViewControllerAnimated:YES completion:nil];
-        return;
-    }
-    
-    //更换页面标题
-    if ([function isEqualToString:@"setNavigationBarTitle"]) {
-        self.navigationItem.title = [dataDic objectForKey:@"title"];
-        return;
-    }
-    if ([function isEqualToString:@"weixinLogin"]) {
-        self.webviewBackCallBack = completion;
-        
-        // 不要立即返回成功，而是等待微信授权完成
-        // completion 回调将在 fetchWechatUserInfoWithCode 中调用
-        
-        // 使用微信SDK直接进行授权，而不是通过UMSocialManager
-        [self performWechatDirectLogin];
-        
-        // 不在这里调用completion，让微信授权完成后调用
-        return;
-    }
-    //微信支付
-    if ([function isEqualToString:@"weixinPay"]) {
-        self.webviewBackCallBack = completion;
-        [self payRequest:jsDic withPayType:@"weixin"];
-    }
-    //支付宝支付
-    if ([function isEqualToString:@"aliPay"]) {
-        self.webviewBackCallBack = completion;
-        [self payRequest:jsDic withPayType:@"alipay"];
-    }
-    //选择文件
-    if ([function isEqualToString:@"chooseFile"]) {
-        self.webviewBackCallBack = completion;
-        [self pushTZImagePickerControllerWithDic:dataDic];
-    }
-    //上传文件
-    if ([function isEqualToString:@"uploadFile"]) {
-        [self QiNiuUploadImageWithData:dataDic];
-    }
-    //扫描二维码
-    if ([function isEqualToString:@"QRScan"]) {
-        CFJScanViewController *qrVC = [[CFJScanViewController alloc]init];
-        qrVC.hidesBottomBarWhenPushed = YES;
-        [self.navigationController pushViewController:qrVC animated:YES];
-        return;
-    }
-#pragma mark ----CFJ修改浏览图片
-    if ([function isEqualToString:@"previewImage"]) {
-        self.viewImageAry = [dataDic objectForKey:@"urls"];
-        NSInteger currentIndex = [self getIndexByUrl:[dataDic objectForKey:@"current"] : self.viewImageAry];
-        [[LBPhotoBrowserManager defaultManager] showImageWithURLArray:self.viewImageAry fromImageViewFrames:nil selectedIndex:currentIndex imageViewSuperView:self.view];
-        [[[LBPhotoBrowserManager.defaultManager addLongPressShowTitles:@[@"保存",@"取消"]] addTitleClickCallbackBlock:^(UIImage *image, NSIndexPath *indexPath, NSString *title, BOOL isGif, NSData *gifImageData) {
-            LBPhotoBrowserLog(@"%@",title);
-            if(![title isEqualToString:@"保存"]) return;
-            if (!isGif) {
-                [[LBAlbumManager shareManager] saveImage:image];
-            }
-            else {
-                [[LBAlbumManager shareManager] saveGifImageWithData:gifImageData];
-            }
-        }]addPhotoBrowserWillDismissBlock:^{
-            LBPhotoBrowserLog(@"即将销毁");
-        }];
-    }
-    //登录
-    if ([function isEqualToString:@"userLogin"]) {
-        [self RequestWithJsDic:dataDic type:@"1"];
-        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"isLogin"];
-        [[NSUserDefaults standardUserDefaults]synchronize];
-        
-        // 清除HTML缓存，确保页面能正确刷新
-        [[HTMLCache sharedCache] removeAllCache];
-        
-        NSDictionary *imData = [dataDic objectForKey:@"imData"];
-        GeDianUserInfo *userInfo = [[GeDianUserInfo alloc] init];
-        userInfo.nickname = getSafeString([imData objectForKey:@"username"]);
-        userInfo.userId = getSafeString([imData objectForKey:@"_id"]);
-        userInfo.headpic = [NSString stringWithFormat:@"%@%@",QiNiuChace,getSafeString([imData objectForKey:@"headpic"])];
-        
-        // 登录成功后的处理
-        dispatch_async(dispatch_get_main_queue(), ^{
-            // 刷新所有页面
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"RefreshOtherAllVCNotif" object:self];
-            
-            // 跳转到首页并选中第一个tab
-            if (self.tabBarController) {
-                self.tabBarController.selectedIndex = 0;
-                
-                // 发送backToHome通知
-                NSDictionary *setDic = @{@"selectNumber": @"0"};
-                [[NSNotificationCenter defaultCenter] postNotificationName:@"backToHome" object:setDic];
-            }
-        });
-    }
-    //退出登录
-    if ([function isEqualToString:@"userLogout"]) {
-        [self RequestWithJsDic:dataDic type:@"2"];
-        [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"isLogin"];
-        [[NSUserDefaults standardUserDefaults]synchronize];
-        
-        // 清除HTML缓存和Cookie
-        [[HTMLCache sharedCache] removeAllCache];
-        [WKWebView cookieDeleteAllCookie];
-        
-        // 重置所有tab页面到初始状态，清除内页导航历史
-        [self resetAllTabsToInitialState];
-        
-        //隐藏底部角标
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.tabBarController.tabBar hideBadgeOnItemIndex:3];
-        });
-        [[NSUserDefaults standardUserDefaults] setInteger:0 forKey:@"clinetMessageNum"];
-        [[NSUserDefaults standardUserDefaults] setInteger:0 forKey:@"shoppingCartNum"];
-        [[NSUserDefaults standardUserDefaults] synchronize];
-        
-        // 退出登录后的处理
-        dispatch_async(dispatch_get_main_queue(), ^{
-            // 刷新所有页面
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"RefreshOtherAllVCNotif" object:self];
-            
-            // 跳转到首页并选中第一个tab
-            if (self.tabBarController && [self.tabBarController isKindOfClass:[UITabBarController class]]) {
-                self.tabBarController.selectedIndex = 0;
-                
-                // 发送backToHome通知
-                NSDictionary *setDic = @{@"selectNumber": @"0"};
-                [[NSNotificationCenter defaultCenter] postNotificationName:@"backToHome" object:setDic];
-            }
-        });
-    }
-    
-    //返回首层页面
-    if ([function isEqualToString:@"switchTab"]) {
-        [self.navigationController popToRootViewControllerAnimated:YES];
-        NSString *number  =[[XZPackageH5 sharedInstance] getNumberWithLink:(NSString *)dataDic];
-        NSDictionary *setDic = @{
-            @"selectNumber": number
-        };
-        dispatch_time_t when = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC));
-        dispatch_after(when, dispatch_get_main_queue(), ^{
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"backToHome" object:setDic];
-        });
-        return;
-    }
-    //获取当前定位城市
-       if ([function isEqualToString:@"getLocation"]) {
-           NSLog(@"在局getCurrentPosition");
-           //        if ([self.pinUrl isEqualToString:@"https://test.mendianquan.com/p/mdq/index/index"]) {
-           //            [self location];
-           //        }
-           self.webviewBackCallBack = completion;
-           NSUserDefaults *Defaults = [NSUserDefaults standardUserDefaults];
-           if (([[Defaults objectForKey:@"currentLat"] integerValue] != 0 || [[Defaults objectForKey:@"currentLng"] integerValue] != 0) && ![[Defaults objectForKey:@"currentCity"] isEqualToString:@"请选择"]) {
-               NSDictionary *localDic = @{
-                                          @"lat":[Defaults objectForKey:@"currentLat"] ?: @(0),
-                                          @"lng":[Defaults objectForKey:@"currentLng"] ?: @(0),
-                                          @"city":[Defaults objectForKey:@"currentCity"] ?: @"请选择",
-                                          @"address":[Defaults objectForKey:@"currentAddress"] ?: @"请选择"
-                                          };
-               // 使用新的格式化方法，返回JavaScript端期望的格式
-               NSDictionary *response = [self formatCallbackResponse:@"getLocation" 
-                                                              data:localDic 
-                                                           success:YES 
-                                                      errorMessage:nil];
-               self.webviewBackCallBack(response);
-               return;
-               
-           }
-           else {
-               if ([self isLocationServiceOpen]) {
-                   // 带逆地理信息的一次定位（返回坐标和地址信息）
-                   self.locationManager = [[AMapLocationManager alloc] init];
-                   // 带逆地理信息的一次定位（返回坐标和地址信息）
-                   [_locationManager setDesiredAccuracy:kCLLocationAccuracyHundredMeters];
-                   //   定位超时时间，最低2s，此处设置为2s
-                   _locationManager.locationTimeout =2;
-                   //   逆地理请求超时时间，最低2s，此处设置为2s
-                   _locationManager.reGeocodeTimeout = 2;
-                   [_locationManager requestLocationWithReGeocode:YES completionBlock:^(CLLocation *location, AMapLocationReGeocode *regeocode, NSError *error) {
-                       if (error)
-                       {
-                           NSLog(@"在局locError:{%ld - %@};", (long)error.code, error.localizedDescription);
-                           
-                           if (error.code == AMapLocationErrorLocateFailed)
-                           {
-                               return;
-                           }
-                       }
-                       NSLog(@"在局location:%@", location);
-                       
-                       if (regeocode)
-                       {
-                           NSLog(@"在局reGeocode:%@", regeocode);
-                       }
-                       CLLocationCoordinate2D coordinate = location.coordinate;
-                       if (coordinate.latitude == 0 && coordinate.longitude == 0) {
-                           [Defaults setObject:@(0) forKey:@"currentLat"];
-                           [Defaults setObject:@(0) forKey:@"currentLng"];
-                           [Defaults setObject:@"请选择" forKey:@"currentCity"];
-                           [Defaults setObject:@"请选择" forKey:@"currentAddress"];
-                       }
-                       else {
-                           [Defaults setObject:@(coordinate.latitude) forKey:@"currentLat"];
-                           [Defaults setObject:@(coordinate.longitude) forKey:@"currentLng"];
-                           
-                           // 检查逆地理编码是否有效（海外或模拟器可能没有数据）
-                           BOOL hasValidGeocode = regeocode && 
-                               (regeocode.formattedAddress.length > 0 || 
-                                regeocode.city.length > 0 || 
-                                regeocode.district.length > 0 || 
-                                regeocode.POIName.length > 0);
-                           
-                           NSString *cityName = @"请选择";
-                           NSString *addressName = @"请选择";
-                           
-                           if (hasValidGeocode) {
-                               // 有效的逆地理编码数据
-                               if (regeocode.city.length > 0) {
-                                   cityName = regeocode.city;
-                               } else if (regeocode.district.length > 0) {
-                                   cityName = regeocode.district;
-                               } else if (regeocode.POIName.length > 0) {
-                                   cityName = regeocode.POIName;
-                               }
-                               addressName = regeocode.formattedAddress.length > 0 ? regeocode.formattedAddress : cityName;
-                           } else {
-                               // 逆地理编码失败，可能在海外或模拟器
-                               // 检查是否是模拟器的默认坐标（旧金山）
-                               if (fabs(coordinate.latitude - 37.7858) < 0.01 && fabs(coordinate.longitude - (-122.4064)) < 0.01) {
-                                   // 模拟器环境，提供测试数据
-                                   cityName = @"北京市";
-                                   addressName = @"北京市朝阳区";
-                               } else if (fabs(coordinate.latitude - 24.612013) < 0.01 && fabs(coordinate.longitude - 118.048764) < 0.01) {
-                                   // 检测到厦门坐标，直接使用
-                                   cityName = @"厦门市";
-                                   addressName = @"福建省厦门市";
-                               } else {
-                                   // 真实设备在海外，提示用户手动选择
-                                   cityName = @"位置服务不可用";
-                                   addressName = @"请手动选择城市";
-                                   NSLog(@"在局🌍 检测到海外位置，建议手动选择城市");
-                               }
-                           }
-                           
-                           [Defaults setObject:cityName forKey:@"currentCity"];
-                           [Defaults setObject:addressName forKey:@"currentAddress"];
-                       }
-                       [Defaults synchronize];
-                       // 使用与存储相同的逻辑处理返回数据
-                       NSString *cityName = [Defaults objectForKey:@"currentCity"] ?: @"请选择";
-                       NSString *addressName = [Defaults objectForKey:@"currentAddress"] ?: @"请选择";
-                       NSDictionary *localDic = @{
-                                                  @"lat":@(coordinate.latitude),
-                                                  @"lng":@(coordinate.longitude),
-                                                  @"city":cityName,
-                                                  @"address":addressName
-                                                  };
-                       // 使用新的格式化方法，返回JavaScript端期望的格式
-                       NSDictionary *response = [self formatCallbackResponse:@"getLocation" 
-                                                                      data:localDic 
-                                                                   success:YES 
-                                                              errorMessage:nil];
-                       self.webviewBackCallBack(response);
-                       
-                   }];
-               }
-               else {
-                   NSLog(@"在局❌ [getLocation] 定位权限被拒绝");
-                   
-                   // 返回错误信息给JavaScript
-                   NSDictionary *errorDic = @{
-                       @"lat": @(0),
-                       @"lng": @(0),
-                       @"city": @"定位权限未开启",
-                       @"address": @"请在设置中开启定位权限"
-                   };
-                   NSDictionary *response = [self formatCallbackResponse:@"getLocation" 
-                                                                  data:errorDic 
-                                                               success:NO 
-                                                          errorMessage:@"定位权限未开启"];
-                   self.webviewBackCallBack(response);
-                   
-                   // 延迟显示提示，避免阻塞JavaScript回调
-                   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                       [JHSysAlertUtil presentAlertViewWithTitle:@"温馨提示" message:@"该功能需要使用定位功能,请先开启定位权限" cancelTitle:@"取消" defaultTitle:@"去设置" distinct:YES cancel:nil confirm:^{
-                           NSURL *url = [NSURL URLWithString:UIApplicationOpenSettingsURLString];
-                           if ([[UIApplication sharedApplication] canOpenURL:url]) {
-                               [[UIApplication sharedApplication] openURL:url];
-                           }
-                       }];
-                   });
-               }
-               
-           }
-           return;
-           
-       }
-       //选择poi数据
-       if ([function isEqualToString:@"selectLocation"]) {
-           self.webviewBackCallBack = completion;
-           AddressFromMapViewController *vc = [[AddressFromMapViewController alloc] init];
-           vc.addressList = nil;
-           WEAK_SELF;
-           vc.selectedEvent = ^(CLLocationCoordinate2D coordinate, NSString *addressName,NSString *formattedAddress) {
-               STRONG_SELF;
-               self.webviewBackCallBack(
-                                        @{@"data": @{@"lat":@(coordinate.latitude),
-                                                     @"lng":@(coordinate.longitude),
-                                                     @"city":addressName,
-                                                     @"address":formattedAddress
-                                                     },
-                                          @"success":@"true",
-                                          @"errorMessage":@""
-                                          });
-               [[NSUserDefaults standardUserDefaults] setObject:@(coordinate.latitude) forKey:@"currentLat"];
-               [[NSUserDefaults standardUserDefaults] setObject:@(coordinate.longitude) forKey:@"currentLng"];
-               [[NSUserDefaults standardUserDefaults] setObject:addressName forKey:@"currentCity"];
-               [[NSUserDefaults standardUserDefaults] setObject:addressName forKey:@"currentAddress"];
-
-               [[NSUserDefaults standardUserDefaults] synchronize];
-           };
-           vc.hidesBottomBarWhenPushed = YES;
-           [self.navigationController pushViewController:vc animated:YES];
-       }
-
-       //选择城市
-       if ([function isEqualToString:@"selectLocationCity"]) {
-           self.webviewBackCallBack = completion;
-           if (!self.isCreat) {
-               self.isCreat = YES;
-               WEAK_SELF;
-               [[NSNotificationCenter defaultCenter] addObserverForName:@"cityLocation" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification * _Nonnull note) {
-                   STRONG_SELF;
-                   NSDictionary *dic = note.object;
-                   self.webviewBackCallBack(
-                                            @{@"data": @{@"currentLat":[dic objectForKey:@"currentLat"],
-                                                         @"currentLng":[dic objectForKey:@"currentLng"]
-                                                         },
-                                              @"success":@"true",
-                                              @"errorMessage":@""
-                                              });
-               }];
-           }
-           JFCityViewController *cityViewController = [[JFCityViewController alloc] init];
-           cityViewController.delegate = self;
-           cityViewController.title = @"选择城市";
-           UINavigationController *navigationController = [[UINavigationController alloc] initWithRootViewController:cityViewController];
-           [self presentViewController:navigationController animated:YES completion:nil];
-       }
-    
-#pragma mark --------  2.0 方法结束
-    
-    if ([function isEqualToString:@"hideNavationbar"]) {
-        [self hideNavatinBar];
-        self.webView.scrollView.bounces = NO;
-    }
-    if ([function isEqualToString:@"showNavationbar"]) {
-        [self showNavatinBar];
-        self.webView.scrollView.bounces = YES;
-    }
-    if ([function isEqualToString:@"reload"]) {
-        if (NoReachable) {
-            return;
-        }
-        [[HTMLCache sharedCache] removeObjectForKey:self.webViewDomain];
-        [self domainOperate];
-        if (self.rightMessage) {
-            [ManageCenter requestMessageNumber:^(id aResponseObject, NSError *anError) {
-                NSInteger num = [[aResponseObject objectForKey:@"data"] integerValue];
-                if (num == 0 || !num) {
-                    num = 0;
-                }
-                [self.navigationItem.rightBarButtonItem pp_addBadgeWithNumber:num];
-            }];
-        }
-        if (self.leftMessage) {
-            [ManageCenter requestMessageNumber:^(id aResponseObject, NSError *anError) {
-                NSInteger num = [[aResponseObject objectForKey:@"data"] integerValue];
-                if (num == 0 || !num) {
-                    num = 0;
-                }
-                [self.navigationItem.leftBarButtonItem pp_addBadgeWithNumber:num];
-            }];
-        }
-        if (self.rightShop) {
-            [ManageCenter requestshoppingCartNumber:^(id aResponseObject, NSError *anError) {
-                NSInteger num = [[aResponseObject objectForKey:@"data"] integerValue];
-                if (num == 0 || !num) {
-                    num = 0;
-                }
-                [self.navigationItem.rightBarButtonItem pp_addBadgeWithNumber:num];
-            }];
-        }
-        if (self.leftShop) {
-            [ManageCenter requestshoppingCartNumber:^(id aResponseObject, NSError *anError) {
-                NSInteger num = [[aResponseObject objectForKey:@"data"] integerValue];
-                if (num == 0 || !num) {
-                    num = 0;
-                }
-                [self.navigationItem.leftBarButtonItem pp_addBadgeWithNumber:num];
-            }];
-        }
-    }
-    if ([function isEqualToString:@"closeCurrentTab"]) {
-        if (self.navigationController.viewControllers.count > 1) {
-            [self.navigationController popViewControllerAnimated:YES];
-        }
-        else {
-            [self dismissViewControllerAnimated:YES completion:nil];
-        }
-        return;
-    }
-    if ([function isEqualToString:@"customReturn"]) {
-        self.backStr = [dataDic objectForKey:@"url"];
-        return;
-    }
-    
-    //弹出滚轮选择器
-    if ([function isEqualToString:@"fancySelect"]) {
-        self.webviewBackCallBack = completion;
-        NSArray *array = [dataDic objectForKey:@"value"];
-        
-        WEAK_SELF;
-        [[MOFSPickerManager shareManger] showPickerViewWithData:array 
-                                                            tag:1 
-                                                          title:@"" 
-                                                    cancelTitle:@"取消" 
-                                                    commitTitle:@"确认" 
-                                                    commitBlock:^(NSString *string) {
-            STRONG_SELF;
-            NSArray *indexArr = [string componentsSeparatedByString:@","];
-            NSDictionary *response = [self formatCallbackResponse:@"fancySelect" 
-                                                           data:@{@"value": indexArr[0]} 
-                                                        success:YES 
-                                                   errorMessage:nil];
-            self.webviewBackCallBack(response);
-            
-        } cancelBlock:^{
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"fancySelect" 
-                                                           data:@{@"value": @""} 
-                                                        success:NO 
-                                                   errorMessage:@"用户取消"];
-            self.webviewBackCallBack(response);
-        }];
-        return;
-    }
+    // 选择器
     if ([function isEqualToString:@"areaSelect"]) {
-        self.webviewBackCallBack = completion;
-        NSString *string = [dataDic objectForKey:@"id"] ? [dataDic objectForKey:@"id"] : @"";
-        WEAK_SELF;
-        [[MOFSPickerManager shareManger] showMOFSAddressPickerWithDefaultZipcode:string title:@"" cancelTitle:@"取消" commitTitle:@"确定" commitBlock:^(NSString *address, NSString *zipcode) {
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"areaSelect" 
-                                                           data:@{@"code": zipcode ?: @"", @"value": address ?: @""} 
-                                                        success:YES 
-                                                   errorMessage:nil];
-            self.webviewBackCallBack(response);
-        } cancelBlock:^{
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"areaSelect" 
-                                                           data:@{@"code": @"-1", @"value": @""} 
-                                                        success:NO 
-                                                   errorMessage:@"用户取消"];
-            self.webviewBackCallBack(response);
-        }];
-        return;
-    }
-    if ([function isEqualToString:@"areaSecondarySelect"]) {
-        self.webviewBackCallBack = completion;
-        NSString *string = [dataDic objectForKey:@"id"] ? [dataDic objectForKey:@"id"] : @"";
-        WEAK_SELF;
-        [[MOFSPickerManager shareManger] showCFJAddressPickerWithDefaultZipcode:string title:@"" cancelTitle:@"取消" commitTitle:@"确定" commitBlock:^(NSString *address, NSString *zipcode) {
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"areaSelect" 
-                                                           data:@{@"code": zipcode ?: @"", @"value": address ?: @""} 
-                                                        success:YES 
-                                                   errorMessage:nil];
-            self.webviewBackCallBack(response);
-        } cancelBlock:^{
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"areaSelect" 
-                                                           data:@{@"code": @"-1", @"value": @""} 
-                                                        success:NO 
-                                                   errorMessage:@"用户取消"];
-            self.webviewBackCallBack(response);
-        }];
+        [self handleAreaSelect:dataDic completion:safeCompletion];
         return;
     }
     if ([function isEqualToString:@"dateSelect"]) {
-        self.webviewBackCallBack = completion;
-        NSDateFormatter *df = [NSDateFormatter new];
-        df.dateFormat = @"yyyy-MM-dd";
-        NSString *string = [dataDic objectForKey:@"value"] ? [dataDic objectForKey:@"value"] : @"";
-        NSDate *newdate = [self stringToDate:string withDateFormat:@"yyyy-MM-dd"];
-        //最小可选日期
-        NSDate *min = [NSDate date];
-        BOOL isMin = [[dataDic objectForKey:@"future"] boolValue];
-        WEAK_SELF;
-        [[MOFSPickerManager shareManger]showDatePickerWithfirstDate:newdate minDate:isMin ? min : nil maxDate:nil datePickerMode:UIDatePickerModeDate commitBlock:^(NSDate *date) {
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"dateSelect" 
-                                                           data:@{@"value": [df stringFromDate:date]} 
-                                                        success:YES 
-                                                   errorMessage:nil];
-            self.webviewBackCallBack(response);
-        } cancelBlock:^{
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"dateSelect" 
-                                                           data:@{@"value": @""} 
-                                                        success:NO 
-                                                   errorMessage:@"用户取消"];
-            self.webviewBackCallBack(response);
-        }];
-        return;
-    }
-    if ([function isEqualToString:@"dateAndTimeSelect"]) {
-        self.webviewBackCallBack = completion;
-        NSDateFormatter *df = [NSDateFormatter new];
-        df.dateFormat = @"yyyy-MM-dd HH:mm";
-        NSString *string = [dataDic objectForKey:@"value"] ? [dataDic objectForKey:@"value"] : @"";
-        NSDate *newdate = [self stringToDate:string withDateFormat:@"yyyy-MM-dd"];
-        //最小可选日期
-        NSDate *min = [NSDate date];
-        BOOL isMin = [[dataDic objectForKey:@"future"] boolValue];
-        WEAK_SELF;
-        [[MOFSPickerManager shareManger]showDatePickerWithfirstDate:newdate minDate:isMin ? min : nil maxDate:nil datePickerMode:UIDatePickerModeDateAndTime commitBlock:^(NSDate *date) {
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"dateAndTimeSelect" 
-                                                           data:@{@"value": [df stringFromDate:date]} 
-                                                        success:YES 
-                                                   errorMessage:nil];
-            self.webviewBackCallBack(response);
-        } cancelBlock:^{
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"dateAndTimeSelect" 
-                                                           data:@{@"value": @""} 
-                                                        success:NO 
-                                                   errorMessage:@"用户取消"];
-            self.webviewBackCallBack(response);
-        }];
+        [self handleDateSelect:dataDic completion:safeCompletion];
         return;
     }
     if ([function isEqualToString:@"timeSelect"]) {
-        self.webviewBackCallBack = completion;
-        NSDateFormatter *df = [NSDateFormatter new];
-        df.dateFormat = @"HH:mm";
-        NSString *string = [dataDic objectForKey:@"value"] ? [dataDic objectForKey:@"value"] : @"";
-        NSDate *newdate = [self stringToDate:string withDateFormat:@"HH:mm"];
-        WEAK_SELF;
-        [[MOFSPickerManager shareManger]showDatePickerWithfirstDate:newdate minDate:nil maxDate:nil datePickerMode:UIDatePickerModeTime commitBlock:^(NSDate *date) {
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"timeSelect" 
-                                                           data:@{@"value": [df stringFromDate:date]} 
-                                                        success:YES 
-                                                   errorMessage:nil];
-            self.webviewBackCallBack(response);
-        } cancelBlock:^{
-            STRONG_SELF;
-            NSDictionary *response = [self formatCallbackResponse:@"timeSelect" 
-                                                           data:@{@"value": @""} 
-                                                        success:NO 
-                                                   errorMessage:@"用户取消"];
-            self.webviewBackCallBack(response);
-        }];
+        [self handleTimeSelect:dataDic completion:safeCompletion];
         return;
     }
-    //    if ([function isEqualToString:@"userSignin"]) {
-    //        //刷新其他页面
-    //        [[HTMLCache sharedCache] removeAllCache];
-    //        NSString *portrait = [NSString stringWithFormat:@"%@%@",@"http://gdstatic.naddn.com/",[dataDic objectForKey:@"portrait"]];
-    //        [[NSUserDefaults standardUserDefaults] setObject:dataDic[@"loginUid"] forKey:@"loginUid"];
-    //        [[NSUserDefaults standardUserDefaults] setObject:dataDic[@"userName"] forKey:@"userName"];
-    //        [[NSUserDefaults standardUserDefaults] setObject:dataDic[@"userPhone"] forKey:@"userPhone"];
-    //
-    //        [[NSUserDefaults standardUserDefaults] setObject:portrait forKey:@"avatarURLPath"];
-    //        [[NSUserDefaults standardUserDefaults] synchronize];
-    //        [[NSNotificationCenter defaultCenter] postNotificationName:@"RefreshOtherAllVCNotif" object:self];
-    //        [ManageCenter requestMessageNumber:^(id aResponseObject, NSError *anError) {
-    //        }];
-    //        [ManageCenter requestshoppingCartNumber:^(id aResponseObject, NSError *anError) {
-    //        }];
-    //    }
-    //录音
-    //    if ([function isEqualToString:@"soundRecording"]) {
-    //        self.webviewBackCallBack = completion;
-    //        RecordMangerView *view = [[RecordMangerView alloc]initWithFrame:CGRectMake(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)];
-    //        view.delegate = self;
-    //        UIWindow *window = [UIApplication sharedApplication].keyWindow;
-    //        [window addSubview:view];
-    //    }
-    //播放网络录音
-    if ([function isEqualToString:@"soundPlay"]) {
-        NSString *urlstr = [dataDic objectForKey:@"data"];
-        //        NSData *data = [NSData dataWithContentsOfURL:[NSURL URLWithString:urlstr]];
-        //        if ([urlstr containsString:@".amr"]) {
-        //            [data writeToFile:[self amrPath] atomically:YES];
-        //            [self convertAMR:[self amrPath] toWAV:[self wavPath]];
-        //        }
-        //        else {
-        //            [data writeToFile:[self wavPath] atomically:YES];
-        //        }
-        //        NSError *error;
-        //        play = [[AVAudioPlayer alloc]initWithData:[NSData dataWithContentsOfFile:[self wavPath]] error:&error];
-        //        play.volume = 1.0f;
-        //        [play play];
-        AVPlayerItem *item = [[AVPlayerItem alloc] initWithURL:[NSURL URLWithString:urlstr]];
-        play = [[AVPlayer alloc] initWithPlayerItem:item];
-        [play play];
-        if (!self.isCreat) {
-            self.isCreat = YES;
-            //监听音频播放结束
-            [[NSNotificationCenter defaultCenter] addObserver:self
-             
-                                                     selector:@selector(playerItemDidReachEnd)
-             
-                                                         name:AVPlayerItemDidPlayToEndTimeNotification
-             
-                                                       object:playItem];
-        }
+    if ([function isEqualToString:@"fancySelect"]) {
+        [self handleFancySelect:dataDic completion:safeCompletion];
+        return;
     }
-    if ([function isEqualToString:@"openQRCode"]) {
-        self.webviewBackCallBack = completion;
+    if ([function isEqualToString:@"dateAndTimeSelect"]) {
+        [self handleDateAndTimeSelect:dataDic completion:safeCompletion];
+        return;
     }
     
-    
-    
-    /*
-     消息系统
-     js call app时：
-     noticemsg_setNumber：监听js传过来的消息数，保存起来
-     noticemsg_addMsg：监听js传过来的改变消息数要求，需要的操作：
-     1、计算出总的消息数，把总消息数call给js（所有界面都要）;
-     2、把收到的信息通过noticemsg_addMsg接口call给js（所有界面都要）.
-     app call js时：
-     noticemsg_setNumber这个方法只在此处用到
-     noticemsg_addMsg这个方法除了在此用到，还要就是在接到推送通知的时候需要.
-     */
+    // 其他功能
+    if ([function isEqualToString:@"closePresentWindow"]) {
+        [self handleClosePresentWindow:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"changeMessageNum"]) {
+        [self handleChangeMessageNum:dataDic completion:safeCompletion];
+        return;
+    }
     if ([function isEqualToString:@"noticemsg_setNumber"]) {
-        NSInteger num = [[dataDic objectForKey:@"num"] integerValue];
-        [[NSUserDefaults standardUserDefaults] setInteger:num forKey:@"clinetMessageNum"];
-        [[NSUserDefaults standardUserDefaults] synchronize];
-        
-        // 确保回调成功
-        if (completion) {
-            completion(@{@"success": @"true", @"data": @{}, @"errorMessage": @""});
-        }
+        [self handleNoticeMessageSetNumber:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"reloadOtherPages"]) {
+        [self handleReloadOtherPages:dataDic completion:safeCompletion];
+        return;
+    }
+    if ([function isEqualToString:@"stopPullDownRefresh"]) {
+        [self handleStopPullDownRefresh:dataDic completion:safeCompletion];
         return;
     }
     
-    if (completion) {
-        completion(@{@"success": @"true", @"data": @{}, @"errorMessage": @""});
-    }
+    // 未知的action，返回错误
+    NSLog(@"在局⚠️ [handleJavaScriptCall] 未处理的action: %@", function);
+    safeCompletion(@{
+        @"success": @"false",
+        @"errorMessage": [NSString stringWithFormat:@"Unknown action: %@", function],
+        @"data": @{}
+    });
 }
 
-//第三方登录授权
+#pragma mark - 第三方登录
+
+// 第三方登录授权
+// @deprecated 微信登录已迁移到performWechatDirectLogin方法，建议使用新的直接SDK方法
 - (void)thirdLogin:(NSDictionary *)dic {
     NSString *type = [dic objectForKey:@"type"];
+    
+    // 微信登录重定向到新的实现
+    if ([type isEqualToString:@"weixin"]) {
+        NSLog(@"在局⚠️ [第三方登录] 微信登录已重定向到新的直接SDK实现");
+        [self performWechatDirectLogin];
+        return;
+    }
+    
     UMSocialPlatformType snsName = [self thirdPlatform:type];
     if(snsName == UMSocialPlatformType_UnKnown) {
         NSLog(@"在局❌ [第三方登录] 未知的平台类型，退出");
         return;
     }
     NSString *dataType;
-    if ([type isEqualToString:@"weixin"]) {
-        dataType = @"1";
-        
-        // 检查微信是否安装
-        if(![WXApi isWXAppInstalled]) {
-            NSLog(@"在局❌ [微信登录] 微信应用未安装");
-            if (self.webviewBackCallBack) {
-                self.webviewBackCallBack(@{
-                    @"success": @"false",
-                    @"errorMessage": @"您没有安装微信",
-                    @"data": @{}
-                });
-            }
-            return;
-        }
-        
-        // 检查微信版本是否支持
-        if (![WXApi isWXAppSupportApi]) {
-            NSLog(@"在局❌ [微信登录] 微信版本过低，不支持当前API");
-            if (self.webviewBackCallBack) {
-                self.webviewBackCallBack(@{
-                    @"success": @"false", 
-                    @"errorMessage": @"您的微信版本太低",
-                    @"data": @{}
-                });
-            }
-            return;
-        }
-        
-    } else if ([type isEqualToString:@"qq"]) {
+    if ([type isEqualToString:@"qq"]) {
         dataType = @"2";
     } else if ([type isEqualToString:@"weibo"]) {
         dataType = @"3";
@@ -2431,12 +1518,12 @@ static inline BOOL isIPhoneXSeries() {
     // 设置15秒超时
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (!callbackExecuted) {
-            NSLog(@"在局❌ [微信登录] UMSocialManager超时未回调，强制返回错误");
+            NSLog(@"在局❌ [第三方登录] UMSocialManager超时未回调，强制返回错误");
             callbackExecuted = YES;
             if (self.webviewBackCallBack) {
                 self.webviewBackCallBack(@{
                     @"success": @"false",
-                    @"errorMessage": @"微信登录超时，请重试",
+                    @"errorMessage": @"第三方登录超时，请重试",
                     @"data": @{}
                 });
             }
@@ -2507,32 +1594,34 @@ static inline BOOL isIPhoneXSeries() {
     }];
 }
 
-// 微信直接登录方法
-- (void)performWechatDirectLogin {
-    
+// 检查微信应用可用性
+- (BOOL)checkWechatAvailabilityWithAction:(NSString *)action {
     // 检查微信是否安装
     if(![WXApi isWXAppInstalled]) {
-        NSLog(@"在局❌ [微信直接登录] 微信应用未安装");
+        NSLog(@"在局❌ [%@] 微信应用未安装", action);
         if (self.webviewBackCallBack) {
-            self.webviewBackCallBack(@{
-                @"success": @"false",
-                @"errorMessage": @"您没有安装微信",
-                @"data": @{}
-            });
+            self.webviewBackCallBack([self formatCallbackResponse:action data:@{} success:NO errorMessage:@"您没有安装微信"]);
         }
-        return;
+        return NO;
     }
     
     // 检查微信版本是否支持
     if (![WXApi isWXAppSupportApi]) {
-        NSLog(@"在局❌ [微信直接登录] 微信版本过低，不支持当前API");
+        NSLog(@"在局❌ [%@] 微信版本过低，不支持当前API", action);
         if (self.webviewBackCallBack) {
-            self.webviewBackCallBack(@{
-                @"success": @"false", 
-                @"errorMessage": @"您的微信版本太低",
-                @"data": @{}
-            });
+            self.webviewBackCallBack([self formatCallbackResponse:action data:@{} success:NO errorMessage:@"您的微信版本太低"]);
         }
+        return NO;
+    }
+    
+    return YES;
+}
+
+// 微信直接登录方法
+- (void)performWechatDirectLogin {
+    
+    // 检查微信可用性
+    if (![self checkWechatAvailabilityWithAction:@"weixinLogin"]) {
         return;
     }
     
@@ -2542,24 +1631,37 @@ static inline BOOL isIPhoneXSeries() {
                                                  name:@"wechatAuthResult"
                                                object:nil];
     
+    // 添加超时保护机制
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf && strongSelf.webviewBackCallBack) {
+            NSLog(@"在局❌ [微信直接登录] 授权超时，强制返回错误");
+            // 移除监听器
+            [[NSNotificationCenter defaultCenter] removeObserver:strongSelf name:@"wechatAuthResult" object:nil];
+            // 返回超时错误
+            strongSelf.webviewBackCallBack([strongSelf formatCallbackResponse:@"weixinLogin" data:@{} success:NO errorMessage:@"微信登录超时，请重试"]);
+            // 清空回调
+            strongSelf.webviewBackCallBack = nil;
+        }
+    });
+    
     // 创建微信授权请求
     SendAuthReq *req = [[SendAuthReq alloc] init];
     req.scope = @"snsapi_userinfo";  // 获取用户信息权限
     req.state = [NSString stringWithFormat:@"wechat_login_%ld", (long)[[NSDate date] timeIntervalSince1970]];
     
-    
     // 发送授权请求
     [WXApi sendReq:req completion:^(BOOL success) {
         if (!success) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (self.webviewBackCallBack) {
-                    self.webviewBackCallBack(@{
-                        @"success": @"false",
-                        @"errorMessage": @"微信授权请求发送失败",
-                        @"data": @{}
-                    });
+                __strong typeof(weakSelf) strongSelf = weakSelf;
+                if (strongSelf && strongSelf.webviewBackCallBack) {
+                    // 移除监听器
+                    [[NSNotificationCenter defaultCenter] removeObserver:strongSelf name:@"wechatAuthResult" object:nil];
+                    strongSelf.webviewBackCallBack([strongSelf formatCallbackResponse:@"weixinLogin" data:@{} success:NO errorMessage:@"微信授权请求发送失败"]);
                     // 清空回调
-                    self.webviewBackCallBack = nil;
+                    strongSelf.webviewBackCallBack = nil;
                 }
             });
         }
@@ -2568,6 +1670,11 @@ static inline BOOL isIPhoneXSeries() {
 
 // 处理微信授权结果
 - (void)handleWechatAuthResult:(NSNotification *)notification {
+    
+    // 防止重复处理或超时后处理
+    if (!self.webviewBackCallBack) {
+        return;
+    }
     
     // 移除监听器
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"wechatAuthResult" object:nil];
@@ -2579,13 +1686,14 @@ static inline BOOL isIPhoneXSeries() {
         NSString *code = authResult[@"code"];
         NSString *state = authResult[@"state"];
         
-        
         // 使用code获取用户信息
         [self fetchWechatUserInfoWithCode:code state:state];
     } else {
         NSLog(@"在局❌ [微信授权结果] 授权失败: %@", authResult[@"errorMessage"]);
         if (self.webviewBackCallBack) {
-            self.webviewBackCallBack(authResult);
+            // 使用统一的错误格式
+            NSString *errorMessage = authResult[@"errorMessage"] ?: @"微信授权失败";
+            self.webviewBackCallBack([self formatCallbackResponse:@"weixinLogin" data:@{} success:NO errorMessage:errorMessage]);
             // 清空回调
             self.webviewBackCallBack = nil;
         }
@@ -2669,23 +1777,40 @@ static inline BOOL isIPhoneXSeries() {
         NSString *unionid = responseObject[@"unionid"] ?: @"";
         
         // 构造完整的返回数据
-        NSDictionary *responseData = @{
-            @"data": @{
-                @"userInfo": @{
-                    @"avatarUrl": headimgurl,
-                    @"nickName": nickname
-                },
-                @"openId": openId,
-                @"unionid": unionid,
-                @"channel": deviceToken,
-                @"code": code,
-                @"state": state
+        NSDictionary *userData = @{
+            @"userInfo": @{
+                @"avatarUrl": headimgurl,
+                @"nickName": nickname
             },
-            @"success": @"true",
-            @"errorMessage": @""
+            @"openId": openId,
+            @"unionid": unionid,
+            @"channel": deviceToken,
+            @"code": code,
+            @"state": state
         };
         
+        NSDictionary *responseData = [self formatCallbackResponse:@"weixinLogin" data:userData success:YES errorMessage:nil];
+        
         NSLog(@"在局📤 [微信用户详情] 向JavaScript返回完整数据: %@", responseData);
+        
+        // 保存微信登录信息到统一认证管理器
+        // TODO: 需要在Xcode中添加XZAuthenticationManager文件后启用
+        /*
+        XZUserInfo *userInfo = [[XZUserInfo alloc] init];
+        userInfo.nickname = nickname;
+        userInfo.headpic = headimgurl;
+        userInfo.openId = openId;
+        userInfo.unionId = unionid;
+        // 注意：微信登录通常没有直接的userId，可能需要后端返回
+        userInfo.extraInfo = @{
+            @"code": code ?: @"",
+            @"state": state ?: @"",
+            @"channel": deviceToken ?: @""
+        };
+        
+        // 保存到认证管理器（暂时不设置token和userId，等待后端返回）
+        [[XZAuthenticationManager sharedManager] updateUserInfo:userInfo];
+        */
         
         // 等待App进入前台后再执行回调
         [self waitForAppActiveStateAndExecuteCallback:responseData];
@@ -2698,13 +1823,10 @@ static inline BOOL isIPhoneXSeries() {
 
 // 返回微信登录错误
 - (void)returnWechatLoginError:(NSString *)errorMessage {
-    NSDictionary *errorResponse = @{
-        @"success": @"false",
-        @"errorMessage": errorMessage,
-        @"data": @{}
-    };
-    
-    [self waitForAppActiveStateAndExecuteCallback:errorResponse];
+    if (self.webviewBackCallBack) {
+        NSDictionary *errorResponse = [self formatCallbackResponse:@"weixinLogin" data:@{} success:NO errorMessage:errorMessage];
+        [self waitForAppActiveStateAndExecuteCallback:errorResponse];
+    }
 }
 
 // 获取分享配置信息
@@ -2737,6 +1859,14 @@ static inline BOOL isIPhoneXSeries() {
 
 // 等待App进入前台后执行回调
 - (void)waitForAppActiveStateAndExecuteCallback:(NSDictionary *)responseData {
+    // 确保在主线程访问UI API
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self waitForAppActiveStateAndExecuteCallback:responseData];
+        });
+        return;
+    }
+    
     // 检查App当前状态
     UIApplicationState currentState = [[UIApplication sharedApplication] applicationState];
     
@@ -2948,7 +2078,7 @@ static inline BOOL isIPhoneXSeries() {
     UIImage *img = [self getImageFromURL:imgStr];
     NSData *newData = [UIImage compressImage:img toByte:131072];
     shareObject.hdImageData = newData;
-    //TODO  发布版小程序
+    //发布版小程序
     shareObject.miniProgramType = UShareWXMiniProgramTypeRelease;
     messageObject.shareObject = shareObject;
     
@@ -3234,30 +2364,109 @@ static inline BOOL isIPhoneXSeries() {
     }
     //微信
     else if ([payType isEqualToString:@"weixin"]) {
+        NSLog(@"在局🔧 [微信支付] 开始处理微信支付请求，原始数据: %@", dic);
+        
+        // 兼容两种数据格式：嵌套在data字段中的 和 直接的支付参数
         NSDictionary *messageDic = [dic objectForKey:@"data"];
+        if (!messageDic || ![messageDic isKindOfClass:[NSDictionary class]]) {
+            // 如果没有data字段，则直接使用dic作为支付参数
+            messageDic = dic;
+            NSLog(@"在局🔧 [微信支付] 使用直接参数格式");
+        } else {
+            NSLog(@"在局🔧 [微信支付] 使用嵌套参数格式");
+        }
+        
+        NSLog(@"在局🔧 [微信支付] 处理的支付参数: %@", messageDic);
+        
         if (messageDic && [messageDic isKindOfClass:[NSDictionary class]]) {
+            // 检查微信是否可用
+            if(![WXApi isWXAppInstalled]) {
+                NSLog(@"在局❌ [微信支付] 微信应用未安装");
+                if (self.webviewBackCallBack) {
+                    self.webviewBackCallBack(@{
+                        @"success": @"false",
+                        @"errorMessage": @"请先安装微信应用"
+                    });
+                }
+                return;
+            }
+            if (![WXApi isWXAppSupportApi]) {
+                NSLog(@"在局❌ [微信支付] 微信版本过低，不支持支付");
+                if (self.webviewBackCallBack) {
+                    self.webviewBackCallBack(@{
+                        @"success": @"false", 
+                        @"errorMessage": @"微信版本过低，请升级微信"
+                    });
+                }
+                return;
+            }
+            
+            // 创建支付请求
             PayReq *request = [[PayReq alloc] init];
-            request.partnerId = [messageDic objectForKey:@"partnerid"];
+            
+            // 类型安全的参数提取
+            id partnerIdObj = [messageDic objectForKey:@"partnerid"];
+            request.partnerId = [partnerIdObj isKindOfClass:[NSString class]] ? (NSString *)partnerIdObj : [NSString stringWithFormat:@"%@", partnerIdObj];
+            
             request.prepayId = [messageDic objectForKey:@"prepayid"];
             request.package = [messageDic objectForKey:@"package"];
             request.nonceStr = [messageDic objectForKey:@"noncestr"];
-            request.timeStamp = (UInt32)[messageDic objectForKey:@"timestamp"];
             
+            // 时间戳类型安全转换
+            id timestampObj = [messageDic objectForKey:@"timestamp"];
+            if ([timestampObj isKindOfClass:[NSString class]]) {
+                request.timeStamp = (UInt32)[(NSString *)timestampObj integerValue];
+            } else if ([timestampObj isKindOfClass:[NSNumber class]]) {
+                request.timeStamp = (UInt32)[(NSNumber *)timestampObj unsignedIntValue];
+            } else {
+                request.timeStamp = 0;
+            }
+            
+            NSLog(@"在局🔧 [微信支付] 支付参数设置 - partnerId:%@, prepayId:%@, package:%@, nonceStr:%@, timeStamp:%u", 
+                  request.partnerId, request.prepayId, request.package, request.nonceStr, (unsigned int)request.timeStamp);
+            
+            // 验证必要参数
+            if (!request.partnerId || !request.prepayId || !request.package || !request.nonceStr || request.timeStamp == 0) {
+                NSLog(@"在局❌ [微信支付] 支付参数不完整");
+                if (self.webviewBackCallBack) {
+                    self.webviewBackCallBack(@{
+                        @"success": @"false",
+                        @"errorMessage": @"支付参数不完整"
+                    });
+                }
+                return;
+            }
+            
+            // 重新计算签名（确保签名正确）
             NSString *appid = [[PublicSettingModel sharedInstance] weiXin_AppID];
-            NSString *stringA = [NSString stringWithFormat:@"appid=%@&noncestr=%@&package=%@&partnerid=%@&prepayid=%@&timestamp=%u",appid,request.nonceStr,request.package,request.partnerId,request.prepayId,(unsigned int)request.timeStamp];
+            NSString *stringA = [NSString stringWithFormat:@"appid=%@&noncestr=%@&package=%@&partnerid=%@&prepayid=%@&timestamp=%u",
+                               appid, request.nonceStr, request.package, request.partnerId, request.prepayId, (unsigned int)request.timeStamp];
             NSString *appKey = [[PublicSettingModel sharedInstance] weiXin_Key];
-            NSString *stringSignTemp = [NSString stringWithFormat:@"%@&key=%@",stringA,appKey];
+            NSString *stringSignTemp = [NSString stringWithFormat:@"%@&key=%@", stringA, appKey];
             NSString *sign = [stringSignTemp MD5];
             request.sign = [sign uppercaseString];
             
-            if(![WXApi isWXAppInstalled]) {
-                return;
-                
+            NSLog(@"在局🔧 [微信支付] 签名计算 - 原字符串: %@", stringA);
+            NSLog(@"在局🔧 [微信支付] 签名计算 - 最终签名: %@", request.sign);
+            
+            // 发送支付请求
+            [WXApi sendReq:request completion:^(BOOL success) {
+                NSLog(@"在局🔧 [微信支付] 支付请求发送结果: %@", success ? @"成功" : @"失败");
+                if (!success && self.webviewBackCallBack) {
+                    self.webviewBackCallBack(@{
+                        @"success": @"false",
+                        @"errorMessage": @"微信支付调用失败"
+                    });
+                }
+            }];
+        } else {
+            NSLog(@"在局❌ [微信支付] 支付参数格式错误");
+            if (self.webviewBackCallBack) {
+                self.webviewBackCallBack(@{
+                    @"success": @"false",
+                    @"errorMessage": @"支付参数格式错误"
+                });
             }
-            if (![WXApi isWXAppSupportApi]) {
-                return;
-            }
-            [WXApi sendReq:request completion:nil];
         }
     }
 }
@@ -3682,6 +2891,15 @@ static inline BOOL isIPhoneXSeries() {
 
 - (UIViewController*) currentViewController {
     
+    // 确保在主线程访问UI API
+    if (![NSThread isMainThread]) {
+        __block UIViewController *result = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            result = [self currentViewController];
+        });
+        return result;
+    }
+    
     // Find best view controller
     UIViewController* viewController = [UIApplication sharedApplication].keyWindow.rootViewController;
     return [self findBestViewController:viewController];
@@ -3741,7 +2959,9 @@ static inline BOOL isIPhoneXSeries() {
         make.left.equalTo(self.view);
         make.right.equalTo(self.view);
         make.bottom.equalTo(self.view);
-        make.top.equalTo(self.view.mas_top).offset(isIPhoneXSeries() ? 44 : 20);
+        // TODO: 需要在Xcode中添加XZiOSVersionManager文件后使用
+        // make.top.equalTo(self.view.mas_top).offset([XZiOSVersionManager sharedManager].statusBarHeight);
+        make.top.equalTo(self.view.mas_top).offset(20); // 临时使用固定值
     }];
     [self.view layoutIfNeeded];
 }
@@ -3995,15 +3215,97 @@ static inline BOOL isIPhoneXSeries() {
 
 #pragma mark - JFCityViewControllerDelegate
 
-- (void)cityName:(NSString *)name cityCode:(NSString *)code {
-    self.webviewBackCallBack(
-                             @{@"data": @{@"cityTitle":name,
-                                          @"cityCode":code
-                             },
-                               @"success":@"true",
-                               @"errorMessage":@""
-                             });
+- (void)cityName:(NSString *)name cityCode:(id)code {
+    NSLog(@"在局🔧 [地区选择回调] 收到城市选择: name=%@, code=%@ (类型:%@)", name, code, [code class]);
+    NSLog(@"在局🔍 [地区选择回调] webviewBackCallBack存在: %@", self.webviewBackCallBack ? @"是" : @"否");
     
+    // 类型安全检查和转换
+    NSString *safeCode = nil;
+    if (code) {
+        if ([code isKindOfClass:[NSString class]]) {
+            safeCode = (NSString *)code;
+        } else if ([code isKindOfClass:[NSNumber class]]) {
+            safeCode = [(NSNumber *)code stringValue];
+            NSLog(@"在局🔧 [地区选择回调] NSNumber转换为NSString: %@ -> %@", code, safeCode);
+        } else {
+            safeCode = [NSString stringWithFormat:@"%@", code];
+            NSLog(@"在局🔧 [地区选择回调] 其他类型转换为NSString: %@ -> %@", code, safeCode);
+        }
+    }
+    
+    // 类型安全检查和转换 - 确保name也是字符串类型
+    NSString *safeName = nil;
+    if (name) {
+        if ([name isKindOfClass:[NSString class]]) {
+            safeName = name;
+        } else {
+            safeName = [NSString stringWithFormat:@"%@", name];
+            NSLog(@"在局🔧 [地区选择回调] name转换为NSString: %@ -> %@", name, safeName);
+        }
+    }
+    
+    // 保存选择的城市到本地存储
+    if (safeName && safeName.length > 0) {
+        [[NSUserDefaults standardUserDefaults] setObject:safeName forKey:@"SelectCity"];
+        [[NSUserDefaults standardUserDefaults] setObject:safeName forKey:@"currentCity"];
+        [[NSUserDefaults standardUserDefaults] setObject:safeName forKey:@"locationCity"]; // 同时更新locationCity
+        if (safeCode && safeCode.length > 0) {
+            [[NSUserDefaults standardUserDefaults] setObject:safeCode forKey:@"currentCityCode"];
+        }
+        [[NSUserDefaults standardUserDefaults] synchronize];
+        NSLog(@"在局💾 [地区选择回调] 已保存城市信息: %@-%@", safeName, safeCode);
+    }
+    
+    if (self.webviewBackCallBack) {
+        // 为不同的JavaScript调用提供不同的返回格式
+        // areaSelect: 返回 cityTitle 和 cityCode
+        // selectLocationCity: 返回 name 和 code
+        
+        NSDictionary *areaSelectData = @{@"cityTitle": safeName ?: @"", @"cityCode": safeCode ?: @""};
+        NSDictionary *citySelectData = @{@"name": safeName ?: @"", @"code": safeCode ?: @"", @"city": safeName ?: @""};
+        
+        // 默认使用areaSelect格式，同时支持selectLocationCity格式
+        NSDictionary *response = [self formatCallbackResponse:@"areaSelect" 
+                                                         data:areaSelectData 
+                                                      success:YES 
+                                                 errorMessage:nil];
+        
+        // 添加额外的城市信息供兼容
+        NSMutableDictionary *mutableResponse = [response mutableCopy];
+        NSMutableDictionary *mutableData = [mutableResponse[@"data"] mutableCopy];
+        [mutableData addEntriesFromDictionary:citySelectData];
+        mutableResponse[@"data"] = mutableData;
+        
+        NSLog(@"在局🔧 [地区选择回调] 准备返回数据: %@", mutableResponse);
+        
+        // 在返回回调数据之前，先设置JavaScript端的存储
+        if (safeName && safeName.length > 0) {
+            NSString *jsCode = [NSString stringWithFormat:@"app.storage.set('areaname', '%@')", safeName];
+            [self safelyEvaluateJavaScript:jsCode completionHandler:^(id result, NSError *error) {
+                if (error) {
+                    NSLog(@"在局⚠️ [地区选择回调] 设置areaname存储失败: %@", error.localizedDescription);
+                } else {
+                    NSLog(@"在局✅ [地区选择回调] 已设置areaname存储: %@", safeName);
+                }
+            }];
+        }
+        
+        self.webviewBackCallBack(mutableResponse);
+        self.webviewBackCallBack = nil; // 清空回调防止重复调用
+    } else {
+        NSLog(@"在局⚠️ [地区选择回调] webviewBackCallBack为空，无法返回数据");
+    }
+    
+    // 自动关闭城市选择页面
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.navigationController && self.navigationController.viewControllers.count > 1) {
+            [self.navigationController popViewControllerAnimated:YES];
+            NSLog(@"在局✅ [地区选择回调] 已自动关闭城市选择页面");
+        }
+    });
+    
+    // 发送城市变更通知，让其他页面知道城市已变更
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"CityChanged" object:@{@"cityName": safeName ?: @"", @"cityCode": safeCode ?: @""}];
 }
 
 #pragma mark --- JFLocationDelegate
@@ -4099,7 +3401,10 @@ static inline BOOL isIPhoneXSeries() {
     
     //更换页面标题
     if ([function isEqualToString:@"setNavigationBarTitle"]) {
-        self.navigationItem.title = [dataDic objectForKey:@"title"];
+        NSString *newTitle = [dataDic objectForKey:@"title"];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.navigationItem.title = newTitle;
+        });
         return;
     }
     if ([function isEqualToString:@"weixinLogin"]) {
@@ -4269,28 +3574,83 @@ static inline BOOL isIPhoneXSeries() {
         formattedData = @{
             @"tapIndex": data[@"tapIndex"] ?: @(-1)
         };
-    } else if ([apiType isEqualToString:@"fancySelect"] || [apiType isEqualToString:@"areaSelect"]) {
-        // 选择器类型：JavaScript端期望 {value: string, code: string}
+    } else if ([apiType isEqualToString:@"fancySelect"]) {
+        // 自定义选择器类型：JavaScript端期望 {value: string, code: string}
         formattedData = @{
             @"value": data[@"value"] ?: @"",
             @"code": data[@"code"] ?: @""
         };
+    } else if ([apiType isEqualToString:@"areaSelect"] || [apiType isEqualToString:@"selectLocationCity"]) {
+        // 地区选择类型：支持多种返回格式
+        NSMutableDictionary *areaData = [NSMutableDictionary dictionary];
+        
+        // 获取城市名称和代码
+        NSString *cityName = data[@"cityTitle"] ?: data[@"name"] ?: @"";
+        NSString *cityCode = data[@"cityCode"] ?: data[@"code"] ?: @"";
+        
+        // 支持 cityTitle/cityCode 格式
+        if (cityName.length > 0) {
+            areaData[@"cityTitle"] = cityName;
+            areaData[@"name"] = cityName;
+            areaData[@"city"] = cityName;
+            
+            // JavaScript组件期望的格式：省-市-区，但我们只有城市，所以重复城市名
+            // 例如："北京" -> "北京-北京-北京"
+            areaData[@"value"] = [NSString stringWithFormat:@"%@-%@-%@", cityName, cityName, cityName];
+        }
+        
+        if (cityCode.length > 0) {
+            areaData[@"cityCode"] = cityCode;
+            areaData[@"code"] = cityCode;
+        }
+        
+        formattedData = areaData;
     } else if ([apiType isEqualToString:@"chooseFile"]) {
         // 文件选择类型：JavaScript端期望文件列表数组
         formattedData = data ?: @[];
     } else if ([apiType isEqualToString:@"getLocation"]) {
-        // 定位类型：JavaScript端期望 {latitude: number, longitude: number, city: string}
-        formattedData = @{
-            @"latitude": data[@"lat"] ?: @(0),
-            @"longitude": data[@"lng"] ?: @(0),
-            @"city": data[@"city"] ?: @"",
-            @"address": data[@"address"] ?: @""
-        };
-    } else if ([apiType isEqualToString:@"hasWx"] || [apiType isEqualToString:@"isiPhoneX"]) {
-        // 状态查询类型：JavaScript端期望 {status: number}
-        formattedData = @{
-            @"status": data[@"status"] ?: @(0)
-        };
+        // 定位类型：支持多种字段名格式
+        NSMutableDictionary *locationData = [NSMutableDictionary dictionary];
+        
+        // 支持 lat/lng 格式
+        if (data[@"lat"]) {
+            locationData[@"lat"] = data[@"lat"];
+            locationData[@"latitude"] = data[@"lat"]; // 兼容格式
+        }
+        if (data[@"lng"]) {
+            locationData[@"lng"] = data[@"lng"];
+            locationData[@"longitude"] = data[@"lng"]; // 兼容格式
+        }
+        if (data[@"city"]) {
+            locationData[@"city"] = data[@"city"];
+        }
+        if (data[@"address"]) {
+            locationData[@"address"] = data[@"address"];
+        }
+        
+        // 设置默认值
+        if (!locationData[@"lat"]) {
+            locationData[@"lat"] = @(0);
+            locationData[@"latitude"] = @(0);
+        }
+        if (!locationData[@"lng"]) {
+            locationData[@"lng"] = @(0);
+            locationData[@"longitude"] = @(0);
+        }
+        if (!locationData[@"city"]) {
+            locationData[@"city"] = @"";
+        }
+        if (!locationData[@"address"]) {
+            locationData[@"address"] = @"";
+        }
+        
+        formattedData = locationData;
+    } else if ([apiType isEqualToString:@"hasWx"]) {
+        // 微信检测类型：返回详细状态信息
+        formattedData = data ?: @{@"hasWx": @NO, @"supportApi": @NO, @"canUse": @NO};
+    } else if ([apiType isEqualToString:@"isiPhoneX"]) {
+        // iPhone X检测类型：返回状态信息
+        formattedData = data ?: @{@"isiPhoneX": @NO};
     } else if ([apiType isEqualToString:@"nativeGet"]) {
         // nativeGet特殊处理，data字段包含实际内容
         formattedData = data ?: @"";
@@ -4340,6 +3700,1215 @@ static inline BOOL isIPhoneXSeries() {
         @"data": formattedData,
         @"errorMessage": errorMessage
     };
+}
+
+#pragma mark - JavaScript Action Handlers
+
+// 原生数据获取
+- (void)handleNativeGet:(id)data completion:(XZWebViewJSCallbackBlock)completion {
+    // 处理两种不同的nativeGet用法
+    if ([data isKindOfClass:[NSDictionary class]]) {
+        // 情况1：获取设备/应用信息 - data是字典，包含key字段
+        NSDictionary *dataDict = (NSDictionary *)data;
+        NSString *key = dataDict[@"key"];
+        
+        if ([key isEqualToString:@"device_info"]) {
+            NSDictionary *deviceInfo = @{
+                @"platform": @"ios",
+                @"version": [UIDevice currentDevice].systemVersion,
+                @"model": [UIDevice currentDevice].model,
+                @"name": [UIDevice currentDevice].name
+            };
+            completion([self formatCallbackResponse:@"nativeGet" data:deviceInfo success:YES errorMessage:nil]);
+        } else if ([key isEqualToString:@"app_info"]) {
+            NSDictionary *appInfo = @{
+                @"version": [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
+                @"bundleId": [[NSBundle mainBundle] bundleIdentifier]
+            };
+            completion([self formatCallbackResponse:@"nativeGet" data:appInfo success:YES errorMessage:nil]);
+        } else {
+            completion([self formatCallbackResponse:@"nativeGet" data:@{} success:NO errorMessage:@"不支持的key"]);
+        }
+    } else if ([data isKindOfClass:[NSString class]]) {
+        // 情况2：获取文件内容 - data是文件路径字符串
+        NSString *filePath = (NSString *)data;
+        NSString *fullPath = [[BaseFileManager appH5LocailManifesPath] stringByAppendingPathComponent:filePath];
+        NSString *fileContent = [NSString stringWithContentsOfURL:[NSURL fileURLWithPath:fullPath] encoding:NSUTF8StringEncoding error:nil];
+        
+        // 确保fileContent不为nil
+        if (!fileContent) {
+            fileContent = @"";
+        }
+        
+        completion([self formatCallbackResponse:@"nativeGet" data:fileContent success:YES errorMessage:nil]);
+    } else {
+        // 不支持的数据类型
+        completion([self formatCallbackResponse:@"nativeGet" data:@{} success:NO errorMessage:@"不支持的数据类型"]);
+    }
+}
+
+// 检查是否有微信
+- (void)handleHasWx:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    BOOL hasWx = [WXApi isWXAppInstalled];
+    BOOL supportApi = [WXApi isWXAppSupportApi];
+    
+    NSLog(@"在局🔍 [hasWx] 微信安装状态: %@, API支持: %@", hasWx ? @"已安装" : @"未安装", supportApi ? @"支持" : @"不支持");
+    
+    // 返回JavaScript端期望的数据格式：{status: 1/0}
+    // 1表示微信可用，0表示微信不可用
+    NSDictionary *wxStatus = @{
+        @"status": @(hasWx && supportApi ? 1 : 0)
+    };
+    
+    NSLog(@"在局📤 [hasWx] 向JavaScript返回数据: %@", wxStatus);
+    
+    completion([self formatCallbackResponse:@"hasWx" data:wxStatus success:YES errorMessage:nil]);
+}
+
+// iPhone X检测
+- (void)handleIsIPhoneX:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    BOOL isIPhoneX = [self isIPhoneX];
+    completion([self formatCallbackResponse:@"isiPhoneX" data:@{@"isiPhoneX": @(isIPhoneX)} success:YES errorMessage:nil]);
+}
+
+// 消息已读
+- (void)handleReadMessage:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    // 实现消息已读逻辑
+    completion([self formatCallbackResponse:@"readMessage" data:@{} success:YES errorMessage:nil]);
+}
+
+// TabBar Badge相关
+- (void)handleSetTabBarBadge:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSString *text = data[@"text"];
+    NSNumber *index = data[@"index"];
+    
+    if (index && text) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UITabBarItem *item = [self.tabBarController.tabBar.items objectAtIndex:index.integerValue];
+            item.badgeValue = text;
+        });
+    }
+    completion([self formatCallbackResponse:@"setTabBarBadge" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleRemoveTabBarBadge:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSNumber *index = data[@"index"];
+    
+    if (index) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UITabBarItem *item = [self.tabBarController.tabBar.items objectAtIndex:index.integerValue];
+            item.badgeValue = nil;
+        });
+    }
+    completion([self formatCallbackResponse:@"removeTabBarBadge" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleShowTabBarRedDot:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSNumber *index = data[@"index"];
+    
+    if (index) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UITabBarItem *item = [self.tabBarController.tabBar.items objectAtIndex:index.integerValue];
+            item.badgeValue = @"";
+        });
+    }
+    completion([self formatCallbackResponse:@"showTabBarRedDot" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleHideTabBarRedDot:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSNumber *index = data[@"index"];
+    
+    if (index) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UITabBarItem *item = [self.tabBarController.tabBar.items objectAtIndex:index.integerValue];
+            item.badgeValue = nil;
+        });
+    }
+    completion([self formatCallbackResponse:@"hideTabBarRedDot" data:@{} success:YES errorMessage:nil]);
+}
+
+// 导航相关
+- (void)handleNavigateTo:(id)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSString *url = nil;
+    
+    // 处理不同的数据格式
+    if ([data isKindOfClass:[NSString class]]) {
+        // 如果data本身就是字符串URL
+        url = (NSString *)data;
+        NSLog(@"在局🔧 [navigateTo] 接收到字符串格式URL: %@", url);
+    } else if ([data isKindOfClass:[NSDictionary class]]) {
+        // 如果data是字典，从中提取url
+        url = data[@"url"];
+        NSLog(@"在局🔧 [navigateTo] 从字典中提取URL: %@", url);
+    } else {
+        NSLog(@"在局❌ [navigateTo] 未知的数据格式: %@", [data class]);
+    }
+    
+    if (url && url.length > 0) {
+        // 检查URL格式，确保它是完整的URL
+        NSString *finalUrl = url;
+        if (![url hasPrefix:@"http://"] && ![url hasPrefix:@"https://"]) {
+            // 如果不是完整URL，尝试拼接域名
+            NSString *domain = [[NSUserDefaults standardUserDefaults] objectForKey:@"kUserDefaults_domainStr"];
+            if (domain && domain.length > 0) {
+                finalUrl = [NSString stringWithFormat:@"https://%@%@", domain, [url hasPrefix:@"/"] ? url : [@"/" stringByAppendingString:url]];
+                NSLog(@"在局🔧 [navigateTo] 拼接后的URL: %@", finalUrl);
+            }
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // 检查是否需要使用特殊的导航配置
+            NSDictionary *settingDic = [NSKeyedUnarchiver unarchiveObjectWithFile:KNavSettingPath];
+            NSString *adressPath = [[finalUrl componentsSeparatedByString:[NSString stringWithFormat:@"://%@", [[NSUserDefaults standardUserDefaults] objectForKey:@"kUserDefaults_domainStr"]]] lastObject];
+            
+            if (adressPath) {
+                // 处理.html后缀和参数
+                if ([adressPath containsString:@".html"]) {
+                    NSRange range = [adressPath rangeOfString:@".html"];
+                    adressPath = [adressPath substringToIndex:range.location];
+                }
+                if ([adressPath containsString:@"?"]) {
+                    adressPath = [[adressPath componentsSeparatedByString:@"?"] objectAtIndex:0];
+                }
+                
+                NSDictionary *setting = [settingDic objectForKey:adressPath];
+                
+                CFJClientH5Controller *webVC = [[CFJClientH5Controller alloc] init];
+                webVC.webViewDomain = finalUrl; // 使用webViewDomain而不是pinUrl
+                webVC.pinUrl = finalUrl;
+                
+                if (setting && [[setting objectForKey:@"showTop"] boolValue]) {
+                    webVC.navDic = setting;
+                }
+                
+                webVC.hidesBottomBarWhenPushed = YES;
+                [self.navigationController pushViewController:webVC animated:YES];
+                
+                NSLog(@"在局✅ [navigateTo] 成功导航到: %@", finalUrl);
+            } else {
+                // 如果无法解析路径，直接使用URL
+                CFJClientH5Controller *webVC = [[CFJClientH5Controller alloc] init];
+                webVC.webViewDomain = finalUrl;
+                webVC.pinUrl = finalUrl;
+                webVC.hidesBottomBarWhenPushed = YES;
+                [self.navigationController pushViewController:webVC animated:YES];
+                
+                NSLog(@"在局✅ [navigateTo] 直接导航到: %@", finalUrl);
+            }
+        });
+        completion([self formatCallbackResponse:@"navigateTo" data:@{} success:YES errorMessage:nil]);
+    } else {
+        NSLog(@"在局❌ [navigateTo] URL为空或无效");
+        completion([self formatCallbackResponse:@"navigateTo" data:@{} success:NO errorMessage:@"URL不能为空"]);
+    }
+}
+
+- (void)handleNavigateBack:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.navigationController popViewControllerAnimated:YES];
+    });
+    completion([self formatCallbackResponse:@"navigateBack" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleReLaunch:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSString *url = data[@"url"];
+    
+    if (url && url.length > 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // 返回到根视图控制器并加载新URL
+            [self.navigationController popToRootViewControllerAnimated:NO];
+            self.pinUrl = url;
+            [self domainOperate];
+        });
+        completion([self formatCallbackResponse:@"reLaunch" data:@{} success:YES errorMessage:nil]);
+    } else {
+        completion([self formatCallbackResponse:@"reLaunch" data:@{} success:NO errorMessage:@"URL不能为空"]);
+    }
+}
+
+// 定位相关
+- (void)handleGetLocation:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [getLocation] 开始处理定位请求，参数: %@", data);
+    
+    // 检查是否需要强制重新定位
+    BOOL forceRefresh = [data[@"refresh"] boolValue];
+    NSLog(@"在局🔍 [getLocation] 是否强制刷新: %@", forceRefresh ? @"是" : @"否");
+    
+    // 检查定位权限
+    CLAuthorizationStatus authStatus = [CLLocationManager authorizationStatus];
+    NSLog(@"在局🔍 [getLocation] 当前定位权限状态: %d", authStatus);
+    
+    if (authStatus == kCLAuthorizationStatusDenied || authStatus == kCLAuthorizationStatusRestricted) {
+        NSLog(@"在局❌ [getLocation] 定位权限被拒绝");
+        completion([self formatCallbackResponse:@"getLocation" data:@{} success:NO errorMessage:@"定位权限未开启，请到设置中允许定位权限"]);
+        return;
+    }
+    
+    // 尝试获取已存储的定位信息
+    NSString *currentLat = [[NSUserDefaults standardUserDefaults] objectForKey:@"currentLat"];
+    NSString *currentLng = [[NSUserDefaults standardUserDefaults] objectForKey:@"currentLng"];
+    NSString *city = [[NSUserDefaults standardUserDefaults] objectForKey:@"locationCity"];
+    
+    NSLog(@"在局🔍 [getLocation] 缓存定位信息 - Lat: %@, Lng: %@, City: %@", currentLat, currentLng, city);
+    
+    if (!forceRefresh && currentLat && currentLng && city && [currentLat length] > 0 && [currentLng length] > 0) {
+        // 如果有缓存的定位信息且不是强制刷新，直接返回
+        NSDictionary *locationData = @{
+            @"lat": @([currentLat doubleValue]),
+            @"lng": @([currentLng doubleValue]),
+            @"city": city,
+            @"address": city
+        };
+        NSLog(@"在局✅ [getLocation] 返回缓存的定位信息: %@", locationData);
+        completion([self formatCallbackResponse:@"getLocation" data:locationData success:YES errorMessage:nil]);
+    } else {
+        // 需要重新定位
+        if (forceRefresh) {
+            NSLog(@"在局🔍 [getLocation] 强制刷新，开始重新定位");
+        } else {
+            NSLog(@"在局🔍 [getLocation] 缓存信息不完整，需要重新定位");
+        }
+        
+        if (authStatus == kCLAuthorizationStatusNotDetermined) {
+            NSLog(@"在局⚠️ [getLocation] 定位权限未确定，请求权限");
+            // 创建临时的位置管理器来请求权限
+            CLLocationManager *tempManager = [[CLLocationManager alloc] init];
+            [tempManager requestWhenInUseAuthorization];
+            
+            // 延迟返回，让用户有时间授权
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                completion([self formatCallbackResponse:@"getLocation" data:@{} success:NO errorMessage:@"请允许应用获取位置权限"]);
+            });
+            return;
+        }
+        
+        // 初始化定位管理器
+        if (!self.locationManager) {
+            self.locationManager = [[AMapLocationManager alloc] init];
+        }
+        
+        // 设置基本参数
+        self.locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters;
+        self.locationManager.locationTimeout = 15; // 增加定位超时时间
+        self.locationManager.reGeocodeTimeout = 10; // 增加逆地理编码超时时间
+        
+        // 单次定位，使用block避免回调冲突
+        [self.locationManager requestLocationWithReGeocode:YES completionBlock:^(CLLocation *location, AMapLocationReGeocode *regeocode, NSError *error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (error) {
+                    NSLog(@"在局❌ [getLocation] 定位失败: %@", error.localizedDescription);
+                    
+                    // 根据错误类型提供更具体的错误信息
+                    NSString *errorMsg = @"定位失败，请重试";
+                    if (error.code == kCLErrorLocationUnknown) {
+                        errorMsg = @"无法获取位置信息，请检查网络连接";
+                    } else if (error.code == kCLErrorDenied) {
+                        errorMsg = @"定位权限被拒绝，请在设置中开启";
+                    } else if (error.code == kCLErrorNetwork) {
+                        errorMsg = @"网络错误，请检查网络连接";
+                    }
+                    
+                    completion([self formatCallbackResponse:@"getLocation" data:@{} success:NO errorMessage:errorMsg]);
+                } else if (!location) {
+                    NSLog(@"在局❌ [getLocation] 定位对象为空");
+                    completion([self formatCallbackResponse:@"getLocation" data:@{} success:NO errorMessage:@"无法获取位置信息"]);
+                } else {
+                    NSString *lat = [NSString stringWithFormat:@"%.6f", location.coordinate.latitude];
+                    NSString *lng = [NSString stringWithFormat:@"%.6f", location.coordinate.longitude];
+                    NSString *cityName = regeocode.city ?: @"未知城市";
+                    NSString *address = regeocode.formattedAddress ?: cityName;
+                    
+                    // 保存定位信息
+                    [[NSUserDefaults standardUserDefaults] setObject:lat forKey:@"currentLat"];
+                    [[NSUserDefaults standardUserDefaults] setObject:lng forKey:@"currentLng"];
+                    [[NSUserDefaults standardUserDefaults] setObject:cityName forKey:@"locationCity"];
+                    [[NSUserDefaults standardUserDefaults] synchronize];
+                    
+                    NSDictionary *locationData = @{
+                        @"lat": @(location.coordinate.latitude),
+                        @"lng": @(location.coordinate.longitude),
+                        @"city": cityName,
+                        @"address": address
+                    };
+                    
+                    NSLog(@"在局✅ [getLocation] 定位成功: %@", locationData);
+                    completion([self formatCallbackResponse:@"getLocation" data:locationData success:YES errorMessage:nil]);
+                }
+            });
+        }];
+    }
+}
+
+- (void)handleShowLocation:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    // 实现显示地图位置
+    completion([self formatCallbackResponse:@"showLocation" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleSelectLocation:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [selectLocation] 开始处理位置选择: %@", data);
+    
+    // 保存回调
+    self.webviewBackCallBack = completion;
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 创建地图位置选择控制器
+        AddressFromMapViewController *mapVC = [[AddressFromMapViewController alloc] init];
+        mapVC.hidesBottomBarWhenPushed = YES;
+        
+        // 如果有当前位置信息，设置默认位置
+        NSString *currentLat = [[NSUserDefaults standardUserDefaults] objectForKey:@"currentLat"];
+        NSString *currentLng = [[NSUserDefaults standardUserDefaults] objectForKey:@"currentLng"];
+        
+        if (currentLat && currentLng) {
+            // 设置地图的初始位置（如果 AddressFromMapViewController 支持的话）
+            NSLog(@"在局🔍 [selectLocation] 设置初始位置: %@, %@", currentLat, currentLng);
+        }
+        
+        [self.navigationController pushViewController:mapVC animated:YES];
+        
+        NSLog(@"在局✅ [selectLocation] 已打开地图位置选择页面");
+    });
+}
+
+- (void)handleSelectLocationCity:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [selectLocationCity] 开始处理城市选择: %@", data);
+    
+    // 保存回调
+    self.webviewBackCallBack = completion;
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 创建城市选择控制器
+        JFCityViewController *cityVC = [[JFCityViewController alloc] init];
+        cityVC.delegate = self;
+        cityVC.hidesBottomBarWhenPushed = YES;
+        
+        // 如果有当前城市信息，可以设置默认选中
+        NSString *currentCity = [[NSUserDefaults standardUserDefaults] objectForKey:@"locationCity"];
+        if (currentCity && currentCity.length > 0) {
+            NSLog(@"在局🔍 [selectLocationCity] 当前城市: %@", currentCity);
+        }
+        
+        [self.navigationController pushViewController:cityVC animated:YES];
+        
+        NSLog(@"在局✅ [selectLocationCity] 已打开城市选择页面");
+    });
+}
+
+// 页面生命周期
+- (void)handlePageShow:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    completion([self formatCallbackResponse:@"pageShow" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handlePageHide:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    completion([self formatCallbackResponse:@"pageHide" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handlePageUnload:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    completion([self formatCallbackResponse:@"pageUnload" data:@{} success:YES errorMessage:nil]);
+}
+
+// 工具功能
+- (void)handleCopyLink:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [handleCopyLink] 处理复制链接请求，数据: %@", data);
+    
+    // 兼容多种字段名：content, url, link, text
+    NSString *content = data[@"content"] ?: data[@"url"] ?: data[@"link"] ?: data[@"text"];
+    
+    NSLog(@"在局🔧 [handleCopyLink] 提取的复制内容: %@", content);
+    
+    if (content && content.length > 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
+            pasteboard.string = content;
+            NSLog(@"在局✅ [handleCopyLink] 内容已复制到剪贴板: %@", content);
+        });
+        completion([self formatCallbackResponse:@"copyLink" data:@{} success:YES errorMessage:nil]);
+    } else {
+        NSLog(@"在局❌ [handleCopyLink] 复制内容为空");
+        completion([self formatCallbackResponse:@"copyLink" data:@{} success:NO errorMessage:@"复制内容不能为空"]);
+    }
+}
+
+- (void)handleShare:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    self.webviewBackCallBack = completion;
+    [self shareContent:data presentedVC:self];
+}
+
+- (void)handleSaveImage:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [handleSaveImage] 处理保存图片请求，数据: %@", data);
+    
+    // 保存回调以供 saveImageToPhotos 的完成回调使用
+    self.webviewBackCallBack = completion;
+    
+    // 检查相册权限
+    PHAuthorizationStatus author = [PHPhotoLibrary authorizationStatus];
+    if (author == kCLAuthorizationStatusRestricted || author == kCLAuthorizationStatusDenied) {
+        NSLog(@"在局❌ [handleSaveImage] 相册权限被拒绝");
+        NSString *tips = @"请在设备的设置-隐私-照片选项中，允许应用访问你的照片";
+        [JHSysAlertUtil presentAlertViewWithTitle:@"温馨提示" message:tips confirmTitle:@"确定" handler:nil];
+        
+        // 返回权限错误
+        completion([self formatCallbackResponse:@"saveImage" data:@{} success:NO errorMessage:@"相册权限未开启"]);
+        return;
+    }
+    
+    // 获取图片路径，兼容多种字段名
+    NSString *imageStr = data[@"filePath"] ?: data[@"url"] ?: data[@"imageUrl"] ?: data[@"src"];
+    
+    NSLog(@"在局🔧 [handleSaveImage] 提取的图片URL: %@", imageStr);
+    
+    if (!imageStr || imageStr.length == 0) {
+        NSLog(@"在局❌ [handleSaveImage] 图片路径为空");
+        completion([self formatCallbackResponse:@"saveImage" data:@{} success:NO errorMessage:@"图片路径不能为空"]);
+        return;
+    }
+    
+    // 从URL获取图片并保存
+    UIImage *image = [self getImageFromURL:imageStr];
+    if (image) {
+        NSLog(@"在局🔧 [handleSaveImage] 开始保存图片到相册");
+        [self saveImageToPhotos:image];
+    } else {
+        NSLog(@"在局❌ [handleSaveImage] 无法从URL获取图片");
+        completion([self formatCallbackResponse:@"saveImage" data:@{} success:NO errorMessage:@"无法获取图片"]);
+    }
+}
+
+// 导航栏控制
+- (void)handleSetNavigationBarTitle:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSString *title = data[@"title"];
+    
+    if (title) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.navigationItem.title = title;
+        });
+    }
+    completion([self formatCallbackResponse:@"setNavigationBarTitle" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleHideNavigationBar:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.navigationController setNavigationBarHidden:YES animated:YES];
+    });
+    completion([self formatCallbackResponse:@"hideNavationbar" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleShowNavigationBar:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.navigationController setNavigationBarHidden:NO animated:YES];
+    });
+    completion([self formatCallbackResponse:@"showNavationbar" data:@{} success:YES errorMessage:nil]);
+}
+
+// 第三方登录和支付
+- (void)handleWeixinLogin:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    self.webviewBackCallBack = completion;
+    [self performWechatDirectLogin];
+}
+
+- (void)handleWeixinPay:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    self.webviewBackCallBack = completion;
+    [self payRequest:data withPayType:@"weixin"];
+}
+
+- (void)handleAliPay:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    self.webviewBackCallBack = completion;
+    [self payRequest:data withPayType:@"alipay"];
+}
+
+// 文件操作
+- (void)handleChooseFile:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    self.webviewBackCallBack = completion;
+    [self pushTZImagePickerControllerWithDic:data];
+}
+
+- (void)handleUploadFile:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    [self QiNiuUploadImageWithData:data];
+    completion([self formatCallbackResponse:@"uploadFile" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handlePreviewImage:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [handlePreviewImage] 处理图片预览请求，数据: %@", data);
+    
+    // 获取图片URL数组
+    NSArray *imageUrls = data[@"urls"];
+    if (!imageUrls || ![imageUrls isKindOfClass:[NSArray class]] || imageUrls.count == 0) {
+        NSLog(@"在局❌ [handlePreviewImage] 图片URL数组为空或格式错误");
+        completion([self formatCallbackResponse:@"previewImage" data:@{} success:NO errorMessage:@"图片URL数组不能为空"]);
+        return;
+    }
+    
+    // 获取当前显示的图片URL
+    NSString *currentImageUrl = data[@"current"];
+    NSInteger currentIndex = 0;
+    
+    if (currentImageUrl && currentImageUrl.length > 0) {
+        currentIndex = [self getIndexByUrl:currentImageUrl :imageUrls];
+        NSLog(@"在局🔧 [handlePreviewImage] 当前图片索引: %ld", (long)currentIndex);
+    }
+    
+    // 保存图片数组到实例变量
+    self.viewImageAry = imageUrls;
+    
+    NSLog(@"在局🔧 [handlePreviewImage] 开始显示图片浏览器，图片数量: %ld", (long)imageUrls.count);
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 显示图片浏览器
+        [[LBPhotoBrowserManager defaultManager] showImageWithURLArray:imageUrls 
+                                                   fromImageViewFrames:nil 
+                                                         selectedIndex:currentIndex 
+                                                   imageViewSuperView:self.view];
+        
+        // 添加长按保存功能
+        [[[LBPhotoBrowserManager.defaultManager addLongPressShowTitles:@[@"保存", @"取消"]] 
+          addTitleClickCallbackBlock:^(UIImage *image, NSIndexPath *indexPath, NSString *title, BOOL isGif, NSData *gifImageData) {
+            NSLog(@"在局🔧 [handlePreviewImage] 长按操作: %@", title);
+            if (![title isEqualToString:@"保存"]) return;
+            
+            if (!isGif) {
+                [[LBAlbumManager shareManager] saveImage:image];
+            } else {
+                [[LBAlbumManager shareManager] saveGifImageWithData:gifImageData];
+            }
+        }] addPhotoBrowserWillDismissBlock:^{
+            NSLog(@"在局🔧 [handlePreviewImage] 图片浏览器即将关闭");
+        }];
+    });
+    
+    // 图片预览是异步操作，立即返回成功
+    completion([self formatCallbackResponse:@"previewImage" data:@{} success:YES errorMessage:nil]);
+}
+
+// 扫码
+- (void)handleQRScan:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        CFJScanViewController *qrVC = [[CFJScanViewController alloc] init];
+        qrVC.hidesBottomBarWhenPushed = YES;
+        [self.navigationController pushViewController:qrVC animated:YES];
+    });
+    completion([self formatCallbackResponse:@"QRScan" data:@{} success:YES errorMessage:nil]);
+}
+
+// 用户相关
+- (void)handleUserLogin:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    // 实现用户登录逻辑
+    completion([self formatCallbackResponse:@"userLogin" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleUserLogout:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    // 实现用户登出逻辑
+    completion([self formatCallbackResponse:@"userLogout" data:@{} success:YES errorMessage:nil]);
+}
+
+// Tab切换
+- (void)handleSwitchTab:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSNumber *index = data[@"index"];
+    
+    if (index) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.tabBarController.selectedIndex = index.integerValue;
+        });
+        completion([self formatCallbackResponse:@"switchTab" data:@{} success:YES errorMessage:nil]);
+    } else {
+        completion([self formatCallbackResponse:@"switchTab" data:@{} success:NO errorMessage:@"缺少index参数"]);
+    }
+}
+
+// UI组件
+- (void)handleShowModal:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSString *title = data[@"title"];
+    NSString *content = data[@"content"];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title 
+                                                                      message:content 
+                                                               preferredStyle:UIAlertControllerStyleAlert];
+        
+        UIAlertAction *confirmAction = [UIAlertAction actionWithTitle:@"确定" 
+                                                               style:UIAlertActionStyleDefault 
+                                                             handler:^(UIAlertAction *action) {
+            completion([self formatCallbackResponse:@"showModal" data:@{@"confirm": @YES} success:YES errorMessage:nil]);
+        }];
+        
+        UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"取消" 
+                                                              style:UIAlertActionStyleCancel 
+                                                            handler:^(UIAlertAction *action) {
+            completion([self formatCallbackResponse:@"showModal" data:@{@"confirm": @NO} success:YES errorMessage:nil]);
+        }];
+        
+        [alert addAction:confirmAction];
+        [alert addAction:cancelAction];
+        [self presentViewController:alert animated:YES completion:nil];
+    });
+}
+
+- (void)handleShowToast:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [handleShowToast] 处理显示Toast请求，数据: %@", data);
+    
+    // 兼容多种字段名：title, message, text, content
+    NSString *message = data[@"title"] ?: data[@"message"] ?: data[@"text"] ?: data[@"content"];
+    
+    // 获取显示时长，默认2秒
+    NSNumber *durationNumber = data[@"duration"];
+    NSTimeInterval duration = durationNumber ? [durationNumber doubleValue] / 1000.0 : 2.0; // JS传毫秒，转换为秒
+    
+    // 获取Toast类型
+    NSString *icon = data[@"icon"];
+    
+    NSLog(@"在局🔧 [handleShowToast] Toast内容: %@, 时长: %.1f秒, 图标: %@", message, duration, icon);
+    
+    if (message && message.length > 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if ([icon isEqualToString:@"success"]) {
+                // 成功图标 - 使用绿色对勾图标
+                UIImage *successImage = [UIImage imageNamed:@"success"] ?: [self createSuccessIcon];
+                [SVStatusHUD showWithImage:successImage status:message duration:duration];
+            } else if ([icon isEqualToString:@"error"] || [icon isEqualToString:@"fail"]) {
+                // 错误图标 - 使用红色错误图标
+                UIImage *errorImage = [UIImage imageNamed:@"error"] ?: [self createErrorIcon];
+                [SVStatusHUD showWithImage:errorImage status:message duration:duration];
+            } else if ([icon isEqualToString:@"loading"]) {
+                // 加载状态 - 只显示文字，不需要图标
+                [SVStatusHUD showWithMessage:message];
+                // 加载状态需要手动关闭，设置定时器
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(duration * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    // SVStatusHUD没有dismiss方法，显示空消息来清除
+                    [SVStatusHUD showWithMessage:@""];
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        // 通过显示空白来隐藏
+                        [SVStatusHUD showWithImage:nil status:@"" duration:0.1];
+                    });
+                });
+            } else {
+                // 默认显示普通消息 - 由于没有duration参数的方法，显示后延时隐藏
+                [SVStatusHUD showWithMessage:message];
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(duration * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [SVStatusHUD showWithImage:nil status:@"" duration:0.1];
+                });
+            }
+            
+            NSLog(@"在局✅ [handleShowToast] Toast已显示");
+        });
+        completion([self formatCallbackResponse:@"showToast" data:@{} success:YES errorMessage:nil]);
+    } else {
+        NSLog(@"在局❌ [handleShowToast] Toast消息为空");
+        completion([self formatCallbackResponse:@"showToast" data:@{} success:NO errorMessage:@"Toast消息不能为空"]);
+    }
+}
+
+- (void)handleShowActionSheet:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSArray *itemList = data[@"itemList"];
+    
+    if (itemList && itemList.count > 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIAlertController *actionSheet = [UIAlertController alertControllerWithTitle:nil 
+                                                                                 message:nil 
+                                                                          preferredStyle:UIAlertControllerStyleActionSheet];
+            
+            for (NSInteger i = 0; i < itemList.count; i++) {
+                NSString *title = itemList[i];
+                UIAlertAction *action = [UIAlertAction actionWithTitle:title 
+                                                               style:UIAlertActionStyleDefault 
+                                                             handler:^(UIAlertAction *action) {
+                    completion([self formatCallbackResponse:@"showActionSheet" data:@{@"tapIndex": @(i)} success:YES errorMessage:nil]);
+                }];
+                [actionSheet addAction:action];
+            }
+            
+            UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"取消" 
+                                                                  style:UIAlertActionStyleCancel 
+                                                                handler:^(UIAlertAction *action) {
+                completion([self formatCallbackResponse:@"showActionSheet" data:@{@"tapIndex": @(-1)} success:YES errorMessage:nil]);
+            }];
+            [actionSheet addAction:cancelAction];
+            
+            [self presentViewController:actionSheet animated:YES completion:nil];
+        });
+    } else {
+        completion([self formatCallbackResponse:@"showActionSheet" data:@{} success:NO errorMessage:@"itemList不能为空"]);
+    }
+}
+
+// 选择器
+- (void)handleAreaSelect:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [areaSelect] 开始处理地区选择: %@", data);
+    
+    // 保存回调
+    self.webviewBackCallBack = completion;
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 创建地区选择控制器
+        JFCityViewController *cityVC = [[JFCityViewController alloc] init];
+        cityVC.delegate = self;
+        cityVC.hidesBottomBarWhenPushed = YES;
+        
+        // 如果有预设的名称，可以在这里设置
+        NSString *currentName = data[@"name"];
+        if (currentName && currentName.length > 0) {
+            // 这里可以设置当前选中的城市名称
+            NSLog(@"在局🔍 [areaSelect] 当前预设城市: %@", currentName);
+        }
+        
+        [self.navigationController pushViewController:cityVC animated:YES];
+    });
+}
+
+- (void)handleDateSelect:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [handleDateSelect] 处理日期选择请求，数据: %@", data);
+    
+    // 解析参数
+    NSString *title = data[@"title"] ?: @"选择日期";
+    NSString *minDate = data[@"minDate"];
+    NSString *maxDate = data[@"maxDate"];
+    NSString *current = data[@"current"];
+    
+    // 日期格式化器
+    NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+    [dateFormatter setDateFormat:@"yyyy-MM-dd"];
+    
+    // 设置最小和最大日期
+    NSDate *minimumDate = nil;
+    NSDate *maximumDate = nil;
+    NSDate *currentDate = [NSDate date];
+    
+    if (minDate && minDate.length > 0) {
+        minimumDate = [dateFormatter dateFromString:minDate];
+    }
+    if (maxDate && maxDate.length > 0) {
+        maximumDate = [dateFormatter dateFromString:maxDate];
+    }
+    if (current && current.length > 0) {
+        NSDate *parsedDate = [dateFormatter dateFromString:current];
+        if (parsedDate) {
+            currentDate = parsedDate;
+        }
+    }
+    
+    NSLog(@"在局🔧 [handleDateSelect] 参数解析 - 标题:%@, 最小日期:%@, 最大日期:%@, 当前日期:%@", 
+          title, minimumDate, maximumDate, currentDate);
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[MOFSPickerManager shareManger] showDatePickerWithTitle:title
+                                                     cancelTitle:@"取消"
+                                                     commitTitle:@"确定"
+                                                       firstDate:currentDate
+                                                         minDate:minimumDate
+                                                         maxDate:maximumDate
+                                                  datePickerMode:UIDatePickerModeDate
+                                                             tag:1001
+                                                     commitBlock:^(NSDate *date) {
+            NSString *selectedDate = [dateFormatter stringFromDate:date];
+            NSLog(@"在局✅ [handleDateSelect] 用户选择日期: %@", selectedDate);
+            
+            NSDictionary *resultData = @{
+                @"date": selectedDate,
+                @"value": selectedDate
+            };
+            completion([self formatCallbackResponse:@"dateSelect" data:resultData success:YES errorMessage:nil]);
+        } cancelBlock:^{
+            NSLog(@"在局🔧 [handleDateSelect] 用户取消选择");
+            completion([self formatCallbackResponse:@"dateSelect" data:@{} success:NO errorMessage:@"用户取消选择"]);
+        }];
+    });
+}
+
+- (void)handleTimeSelect:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [handleTimeSelect] 处理时间选择请求，数据: %@", data);
+    
+    // 解析参数
+    NSString *title = data[@"title"] ?: @"选择时间";
+    NSString *current = data[@"current"];
+    
+    // 时间格式化器
+    NSDateFormatter *timeFormatter = [[NSDateFormatter alloc] init];
+    [timeFormatter setDateFormat:@"HH:mm"];
+    
+    // 设置当前时间
+    NSDate *currentTime = [NSDate date];
+    if (current && current.length > 0) {
+        // 尝试解析传入的时间
+        NSDate *parsedTime = [timeFormatter dateFromString:current];
+        if (parsedTime) {
+            // 将解析的时间设置到今天
+            NSCalendar *calendar = [NSCalendar currentCalendar];
+            NSDateComponents *timeComponents = [calendar components:(NSCalendarUnitHour | NSCalendarUnitMinute) fromDate:parsedTime];
+            NSDateComponents *todayComponents = [calendar components:(NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:[NSDate date]];
+            
+            [todayComponents setHour:timeComponents.hour];
+            [todayComponents setMinute:timeComponents.minute];
+            [todayComponents setSecond:0];
+            
+            currentTime = [calendar dateFromComponents:todayComponents];
+        }
+    }
+    
+    NSLog(@"在局🔧 [handleTimeSelect] 参数解析 - 标题:%@, 当前时间:%@", title, [timeFormatter stringFromDate:currentTime]);
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[MOFSPickerManager shareManger] showDatePickerWithTitle:title
+                                                     cancelTitle:@"取消"
+                                                     commitTitle:@"确定"
+                                                       firstDate:currentTime
+                                                         minDate:nil
+                                                         maxDate:nil
+                                                  datePickerMode:UIDatePickerModeTime
+                                                             tag:1002
+                                                     commitBlock:^(NSDate *date) {
+            NSString *selectedTime = [timeFormatter stringFromDate:date];
+            NSLog(@"在局✅ [handleTimeSelect] 用户选择时间: %@", selectedTime);
+            
+            NSDictionary *resultData = @{
+                @"time": selectedTime,
+                @"value": selectedTime
+            };
+            completion([self formatCallbackResponse:@"timeSelect" data:resultData success:YES errorMessage:nil]);
+        } cancelBlock:^{
+            NSLog(@"在局🔧 [handleTimeSelect] 用户取消选择");
+            completion([self formatCallbackResponse:@"timeSelect" data:@{} success:NO errorMessage:@"用户取消选择"]);
+        }];
+    });
+}
+
+- (void)handleFancySelect:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [handleFancySelect] 处理自定义选择器请求，数据: %@", data);
+    
+    // 解析参数
+    NSString *title = data[@"title"] ?: @"请选择";
+    NSArray *range = data[@"range"];
+    NSString *value = data[@"value"];
+    
+    // 验证数据源
+    if (!range || ![range isKindOfClass:[NSArray class]] || range.count == 0) {
+        NSLog(@"在局❌ [handleFancySelect] 数据源为空或格式错误");
+        completion([self formatCallbackResponse:@"fancySelect" data:@{} success:NO errorMessage:@"选择器数据源不能为空"]);
+        return;
+    }
+    
+    // 处理数据源，确保都是字符串
+    NSMutableArray *dataSource = [NSMutableArray array];
+    for (id item in range) {
+        if ([item isKindOfClass:[NSString class]]) {
+            [dataSource addObject:item];
+        } else if ([item isKindOfClass:[NSDictionary class]]) {
+            // 如果是对象，尝试获取text或label字段
+            NSDictionary *itemDict = (NSDictionary *)item;
+            NSString *text = itemDict[@"text"] ?: itemDict[@"label"] ?: itemDict[@"name"] ?: [itemDict description];
+            [dataSource addObject:text];
+        } else {
+            // 其他类型转为字符串
+            [dataSource addObject:[NSString stringWithFormat:@"%@", item]];
+        }
+    }
+    
+    NSLog(@"在局🔧 [handleFancySelect] 参数解析 - 标题:%@, 数据源数量:%ld, 默认值:%@", 
+          title, (long)dataSource.count, value);
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[MOFSPickerManager shareManger] showPickerViewWithDataArray:dataSource
+                                                                 tag:1003
+                                                               title:title
+                                                         cancelTitle:@"取消"
+                                                         commitTitle:@"确定"
+                                                         commitBlock:^(NSString *selectedString) {
+            NSLog(@"在局✅ [handleFancySelect] 用户选择: %@", selectedString);
+            
+            // 找到选中项在原数据中的索引和对应的原始数据
+            NSInteger selectedIndex = [dataSource indexOfObject:selectedString];
+            id originalItem = (selectedIndex != NSNotFound && selectedIndex < range.count) ? range[selectedIndex] : selectedString;
+            
+            NSDictionary *resultData;
+            if ([originalItem isKindOfClass:[NSDictionary class]]) {
+                // 如果原始数据是字典，返回完整的字典信息
+                NSMutableDictionary *result = [NSMutableDictionary dictionaryWithDictionary:(NSDictionary *)originalItem];
+                result[@"value"] = selectedString;
+                result[@"index"] = @(selectedIndex);
+                resultData = result;
+            } else {
+                // 如果是字符串或其他类型，返回标准格式
+                resultData = @{
+                    @"value": selectedString,
+                    @"index": @(selectedIndex),
+                    @"text": selectedString
+                };
+            }
+            
+            completion([self formatCallbackResponse:@"fancySelect" data:resultData success:YES errorMessage:nil]);
+        } cancelBlock:^{
+            NSLog(@"在局🔧 [handleFancySelect] 用户取消选择");
+            completion([self formatCallbackResponse:@"fancySelect" data:@{} success:NO errorMessage:@"用户取消选择"]);
+        }];
+    });
+}
+
+- (void)handleDateAndTimeSelect:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [handleDateAndTimeSelect] 处理日期时间选择请求，数据: %@", data);
+    
+    // 解析参数
+    NSString *title = data[@"title"] ?: @"选择日期时间";
+    NSString *minDateTime = data[@"minDate"];
+    NSString *maxDateTime = data[@"maxDate"];
+    NSString *current = data[@"current"];
+    
+    // 日期时间格式化器
+    NSDateFormatter *dateTimeFormatter = [[NSDateFormatter alloc] init];
+    [dateTimeFormatter setDateFormat:@"yyyy-MM-dd HH:mm"];
+    
+    // 设置最小和最大日期时间
+    NSDate *minimumDate = nil;
+    NSDate *maximumDate = nil;
+    NSDate *currentDateTime = [NSDate date];
+    
+    if (minDateTime && minDateTime.length > 0) {
+        minimumDate = [dateTimeFormatter dateFromString:minDateTime];
+    }
+    if (maxDateTime && maxDateTime.length > 0) {
+        maximumDate = [dateTimeFormatter dateFromString:maxDateTime];
+    }
+    if (current && current.length > 0) {
+        NSDate *parsedDateTime = [dateTimeFormatter dateFromString:current];
+        if (parsedDateTime) {
+            currentDateTime = parsedDateTime;
+        }
+    }
+    
+    NSLog(@"在局🔧 [handleDateAndTimeSelect] 参数解析 - 标题:%@, 最小日期:%@, 最大日期:%@, 当前日期:%@", 
+          title, minimumDate, maximumDate, currentDateTime);
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[MOFSPickerManager shareManger] showDatePickerWithTitle:title
+                                                     cancelTitle:@"取消"
+                                                     commitTitle:@"确定"
+                                                       firstDate:currentDateTime
+                                                         minDate:minimumDate
+                                                         maxDate:maximumDate
+                                                  datePickerMode:UIDatePickerModeDateAndTime
+                                                             tag:1004
+                                                     commitBlock:^(NSDate *date) {
+            NSString *selectedDateTime = [dateTimeFormatter stringFromDate:date];
+            NSLog(@"在局✅ [handleDateAndTimeSelect] 用户选择日期时间: %@", selectedDateTime);
+            
+            // 分别获取日期和时间部分
+            NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+            [dateFormatter setDateFormat:@"yyyy-MM-dd"];
+            NSString *dateOnly = [dateFormatter stringFromDate:date];
+            
+            NSDateFormatter *timeFormatter = [[NSDateFormatter alloc] init];
+            [timeFormatter setDateFormat:@"HH:mm"];
+            NSString *timeOnly = [timeFormatter stringFromDate:date];
+            
+            NSDictionary *resultData = @{
+                @"datetime": selectedDateTime,
+                @"date": dateOnly,
+                @"time": timeOnly,
+                @"value": selectedDateTime
+            };
+            completion([self formatCallbackResponse:@"dateAndTimeSelect" data:resultData success:YES errorMessage:nil]);
+        } cancelBlock:^{
+            NSLog(@"在局🔧 [handleDateAndTimeSelect] 用户取消选择");
+            completion([self formatCallbackResponse:@"dateAndTimeSelect" data:@{} success:NO errorMessage:@"用户取消选择"]);
+        }];
+    });
+}
+
+// 其他功能
+- (void)handleClosePresentWindow:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self dismissViewControllerAnimated:YES completion:nil];
+    });
+    completion([self formatCallbackResponse:@"closePresentWindow" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleChangeMessageNum:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    // 实现消息数量改变
+    completion([self formatCallbackResponse:@"changeMessageNum" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleNoticeMessageSetNumber:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    // 实现通知消息数量设置
+    completion([self formatCallbackResponse:@"noticemsg_setNumber" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleReloadOtherPages:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    // 实现重新加载其他页面
+    completion([self formatCallbackResponse:@"reloadOtherPages" data:@{} success:YES errorMessage:nil]);
+}
+
+- (void)handleStopPullDownRefresh:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
+    NSLog(@"在局🔧 [stopPullDownRefresh] 开始处理停止下拉刷新");
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 先立即回调成功，避免JavaScript端等待超时
+        completion([self formatCallbackResponse:@"stopPullDownRefresh" data:@{} success:YES errorMessage:nil]);
+        
+        // 1. 停止原生MJRefresh下拉刷新控件
+        @try {
+            if (self.webView && [self.webView respondsToSelector:@selector(scrollView)]) {
+                UIScrollView *scrollView = [self.webView performSelector:@selector(scrollView)];
+                if (scrollView && [scrollView respondsToSelector:@selector(mj_header)]) {
+                    id mj_header = [scrollView valueForKey:@"mj_header"];
+                    if (mj_header) {
+                        NSNumber *isRefreshing = [mj_header valueForKey:@"isRefreshing"];
+                        if (isRefreshing && [isRefreshing boolValue]) {
+                            [mj_header performSelector:@selector(endRefreshing) withObject:nil];
+                            NSLog(@"在局✅ [stopPullDownRefresh] 原生MJRefresh控件已停止");
+                        } else {
+                            NSLog(@"在局ℹ️ [stopPullDownRefresh] 原生MJRefresh控件未在刷新状态");
+                        }
+                    }
+                }
+            }
+        } @catch (NSException *exception) {
+            NSLog(@"在局⚠️ [stopPullDownRefresh] 停止原生控件异常: %@", exception.reason);
+        }
+        
+        // 2. 处理JavaScript端的下拉刷新元素
+        if (self.webView) {
+            // 使用最简化的方案：直接调用WebView的evaluateJavaScript
+            NSString *simpleJS = @"(function(){try{var e=document.querySelectorAll('.pull-refresh,.pulltorefresh,.loading,.refresh-indicator');for(var i=0;i<e.length;i++)e[i].style.display='none';document.body.scrollTop=0;document.documentElement.scrollTop=0;window.app&&(window.app.isRefreshing=false);return 'success'}catch(t){return 'error:'+t.message}})()";
+            
+            [(WKWebView *)self.webView evaluateJavaScript:simpleJS completionHandler:^(id result, NSError *error) {
+                if (error) {
+                    NSLog(@"在局⚠️ [stopPullDownRefresh] JavaScript处理失败: %@", error.localizedDescription);
+                } else {
+                    NSLog(@"在局✅ [stopPullDownRefresh] JavaScript处理成功: %@", result);
+                }
+            }];
+        } else {
+            NSLog(@"在局⚠️ [stopPullDownRefresh] WebView为nil");
+        }
+    });
+}
+
+// 辅助方法：创建成功图标
+- (UIImage *)createSuccessIcon {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(20, 20), NO, 0.0);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    
+    // 绘制绿色圆形背景
+    CGContextSetFillColorWithColor(context, [UIColor colorWithRed:0.0 green:0.8 blue:0.0 alpha:1.0].CGColor);
+    CGContextFillEllipseInRect(context, CGRectMake(0, 0, 20, 20));
+    
+    // 绘制白色对勾
+    CGContextSetStrokeColorWithColor(context, [UIColor whiteColor].CGColor);
+    CGContextSetLineWidth(context, 2.0);
+    CGContextMoveToPoint(context, 5, 10);
+    CGContextAddLineToPoint(context, 8, 13);
+    CGContextAddLineToPoint(context, 15, 6);
+    CGContextStrokePath(context);
+    
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
+
+// 辅助方法：创建错误图标
+- (UIImage *)createErrorIcon {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(20, 20), NO, 0.0);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    
+    // 绘制红色圆形背景
+    CGContextSetFillColorWithColor(context, [UIColor colorWithRed:1.0 green:0.2 blue:0.2 alpha:1.0].CGColor);
+    CGContextFillEllipseInRect(context, CGRectMake(0, 0, 20, 20));
+    
+    // 绘制白色X
+    CGContextSetStrokeColorWithColor(context, [UIColor whiteColor].CGColor);
+    CGContextSetLineWidth(context, 2.0);
+    CGContextMoveToPoint(context, 6, 6);
+    CGContextAddLineToPoint(context, 14, 14);
+    CGContextMoveToPoint(context, 14, 6);
+    CGContextAddLineToPoint(context, 6, 14);
+    CGContextStrokePath(context);
+    
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
+
+// 辅助方法：检查是否是iPhone X系列
+- (BOOL)isIPhoneX {
+    // 确保在主线程访问UI API
+    if (![NSThread isMainThread]) {
+        __block BOOL result = NO;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            result = [self isIPhoneX];
+        });
+        return result;
+    }
+    
+    if (@available(iOS 11.0, *)) {
+        UIWindow *window = [UIApplication sharedApplication].delegate.window;
+        if (window.safeAreaInsets.bottom > 0) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+// 🔧 新增方法：处理手势返回后的tab栏显示控制
+- (void)handleTabBarVisibilityAfterPopGesture {
+    NSLog(@"在局🔧 [handleTabBarVisibilityAfterPopGesture] 开始处理手势返回后的tab栏显示控制");
+    
+    // 确保在主线程执行
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self handleTabBarVisibilityAfterPopGesture];
+        });
+        return;
+    }
+    
+    // 检查导航控制器是否存在
+    if (!self.navigationController) {
+        NSLog(@"在局⚠️ [handleTabBarVisibilityAfterPopGesture] navigationController不存在");
+        return;
+    }
+    
+    // 获取当前导航栈中的视图控制器
+    NSArray *currentViewControllers = self.navigationController.viewControllers;
+    NSLog(@"在局🔍 [handleTabBarVisibilityAfterPopGesture] 当前导航栈数量: %ld", (long)currentViewControllers.count);
+    
+    // 检查是否回到了根视图控制器（首页）
+    BOOL isBackToRootViewController = (currentViewControllers.count <= 1);
+    
+    if (isBackToRootViewController) {
+        NSLog(@"在局✅ [handleTabBarVisibilityAfterPopGesture] 检测到回到首页，显示tab栏");
+        
+        // 检查tabBarController是否存在
+        if (self.tabBarController) {
+            // 显示tab栏
+            if (self.tabBarController.tabBar.hidden) {
+                NSLog(@"在局🔧 [handleTabBarVisibilityAfterPopGesture] tab栏当前隐藏，正在显示");
+                [UIView animateWithDuration:0.3 animations:^{
+                    self.tabBarController.tabBar.hidden = NO;
+                    self.tabBarController.tabBar.transform = CGAffineTransformIdentity;
+                }];
+            } else {
+                NSLog(@"在局ℹ️ [handleTabBarVisibilityAfterPopGesture] tab栏已经显示");
+            }
+            
+            // 确保根视图控制器的tabbar属性正确设置
+            if (currentViewControllers.count > 0) {
+                UIViewController *rootVC = currentViewControllers.firstObject;
+                if ([rootVC respondsToSelector:@selector(setHidesBottomBarWhenPushed:)]) {
+                    [rootVC setValue:@NO forKey:@"hidesBottomBarWhenPushed"];
+                    NSLog(@"在局🔧 [handleTabBarVisibilityAfterPopGesture] 已重置根视图控制器的hidesBottomBarWhenPushed为NO");
+                }
+            }
+        } else {
+            NSLog(@"在局⚠️ [handleTabBarVisibilityAfterPopGesture] tabBarController不存在");
+        }
+    } else {
+        NSLog(@"在局ℹ️ [handleTabBarVisibilityAfterPopGesture] 未回到首页（导航栈数量: %ld），保持tab栏隐藏状态", (long)currentViewControllers.count);
+        
+        // 确保tab栏保持隐藏状态
+        if (self.tabBarController && !self.tabBarController.tabBar.hidden) {
+            NSLog(@"在局🔧 [handleTabBarVisibilityAfterPopGesture] tab栏当前显示，正在隐藏");
+            [UIView animateWithDuration:0.3 animations:^{
+                self.tabBarController.tabBar.hidden = YES;
+            }];
+        }
+    }
+    
+    NSLog(@"在局✅ [handleTabBarVisibilityAfterPopGesture] tab栏显示控制处理完成");
 }
 
 

@@ -8,7 +8,6 @@
 
 //测试环境宏定义 测试时为1 正式为0
 #define kIsDebug 0
-//TODO_RELEASE 把银联支付环境改为正式环境
 //银联支付的环境 "00"代表正式环境，"01"代表测试环境
 #define kMode_Development @"00"
 
@@ -24,7 +23,7 @@
 // 如果需要在Release版本中也输出某些重要日志，使用ZJLogAlways
 #define ZJLogAlways(...) NSLog(__VA_ARGS__)
 
-//TODO 内外网设置
+//内外网设置
 #if kIsDebug==1
 
 #define Domain @"https://zaiju.com"

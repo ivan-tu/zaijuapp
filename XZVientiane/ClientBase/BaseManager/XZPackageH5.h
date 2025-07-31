@@ -7,7 +7,6 @@
 //
 
 #import <Foundation/Foundation.h>
-//TODO 修改appleid   响见：1128668754
 typedef void(^CLDownloadAppsourceBlock)(id aResponseObject, NSError* anError);
 
 @interface XZPackageH5 : NSObject 

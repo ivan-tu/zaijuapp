@@ -90,6 +90,10 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 @property (assign, nonatomic) BOOL isBridgeReady;                     // JavaScript桥接是否就绪
 @property (assign, nonatomic) BOOL isLoadingInProgress;               // 是否正在执行loadHTMLString操作（防重复）
 
+// 交互式转场恢复状态管理
+@property (assign, nonatomic) BOOL isRestoreInProgress;               // 是否正在执行恢复操作
+@property (strong, nonatomic) NSDate *lastRestoreTime;                // 上次恢复操作时间
+
 // 基础方法
 - (void)addWebView;
 - (void)loadWebBridge;

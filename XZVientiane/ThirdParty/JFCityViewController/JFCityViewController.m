@@ -195,7 +195,9 @@ JFCityHeaderViewDelegate>
     if (indexPath.section < _HeaderSectionTotal) {
         self.cell = [tableView dequeueReusableCellWithIdentifier:@"cityCell" forIndexPath:indexPath];
         if (indexPath.section == _HeaderSectionTotal - 2) {
-            _cell.cityNameArray = @[self.locationTitle];
+            // 防止locationTitle为nil导致崩溃
+            NSString *locationTitle = self.locationTitle ?: @"";
+            _cell.cityNameArray = @[locationTitle];
         }
         if (indexPath.section == _HeaderSectionTotal - 1) {
             _cell.cityNameArray = self.hotCityArray;
