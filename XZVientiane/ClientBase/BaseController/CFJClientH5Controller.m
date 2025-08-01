@@ -780,8 +780,8 @@
                         self.webView.navigationDelegate = nil;
                     }
                     
-                    // 🔧 新增功能：手势返回时的tab栏显示控制
-                    [self handleTabBarVisibilityAfterPopGesture];
+                    // 🔧 修复：移除手动控制TabBar的调用，让系统自动处理
+                    // [self handleTabBarVisibilityAfterPopGesture];
                 } else {
                     // 转场被取消，确保WebView状态正常
                     if (self.webView) {

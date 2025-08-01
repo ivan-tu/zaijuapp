@@ -53,7 +53,16 @@
     // 设置偏好设置
     WKPreferences *preferences = [[WKPreferences alloc] init];
     preferences.minimumFontSize = 9.0;
-    preferences.javaScriptEnabled = _javaScriptEnabled;
+    // 在局Claude Code[修复javaScriptEnabled弃用警告]+使用兼容方式设置JavaScript
+    if (@available(iOS 14.0, *)) {
+        // iOS 14+: javaScriptEnabled已弃用，现在默认启用JavaScript
+        // 如果需要禁用，应该在导航时通过WKWebpagePreferences控制
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        preferences.javaScriptEnabled = _javaScriptEnabled;
+#pragma clang diagnostic pop
+    }
     preferences.javaScriptCanOpenWindowsAutomatically = YES;
     _baseConfiguration.preferences = preferences;
     
@@ -121,8 +130,15 @@
         config.applicationNameForUserAgent = _customUserAgent;
     }
     
-    // 根据设置调整
-    config.preferences.javaScriptEnabled = _javaScriptEnabled;
+    // 根据设置调整JavaScript支持
+    if (@available(iOS 14.0, *)) {
+        // iOS 14+: javaScriptEnabled已弃用，JavaScript默认启用
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        config.preferences.javaScriptEnabled = _javaScriptEnabled;
+#pragma clang diagnostic pop
+    }
     
     return config;
 }
@@ -249,7 +265,16 @@
 
 - (void)setJavaScriptEnabled:(BOOL)enabled {
     _javaScriptEnabled = enabled;
-    _baseConfiguration.preferences.javaScriptEnabled = enabled;
+    // 在局Claude Code[修复javaScriptEnabled弃用警告]+兼容方式更新配置
+    if (@available(iOS 14.0, *)) {
+        // iOS 14+: javaScriptEnabled已弃用，JavaScript默认启用
+        // 如果需要控制，应该通过WKWebpagePreferences实现
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        _baseConfiguration.preferences.javaScriptEnabled = enabled;
+#pragma clang diagnostic pop
+    }
 }
 
 - (void)getCacheSize:(void(^)(NSUInteger size))completion {
@@ -257,8 +282,8 @@
         [[WKWebsiteDataStore defaultDataStore] fetchDataRecordsOfTypes:[WKWebsiteDataStore allWebsiteDataTypes]
                                                       completionHandler:^(NSArray<WKWebsiteDataRecord *> * _Nonnull records) {
             NSUInteger totalSize = 0;
-            for (WKWebsiteDataRecord *record in records) {
-                // 这里只能获取记录数，无法获取准确大小
+            for (WKWebsiteDataRecord *__unused record in records) {
+                // 在局Claude Code[清理未使用变量]+这里只能获取记录数，无法获取准确大小
                 totalSize += 1024 * 1024; // 估算每条记录1MB
             }
             

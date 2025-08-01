@@ -22,6 +22,8 @@ DEF_SINGLETON(ClientSettingModel)
     if (self = [super init]) {
         NSString *plistPath = [[NSBundle mainBundle] pathForResource:@"ClientSetting" ofType:@"plist"];
         self.settingDic = [[NSMutableDictionary alloc] initWithContentsOfFile:plistPath];
+        NSLog(@"在局Claude Code[配置加载]+ClientSetting.plist路径: %@", plistPath);
+        NSLog(@"在局Claude Code[配置加载]+加载的配置内容: %@", self.settingDic);
     }
     return self;
 }
@@ -52,22 +54,24 @@ DEF_SINGLETON(ClientSettingModel)
     NSString *domain = nil;
     if ([[self isDebug] intValue] == 1) {
         domain = [self.settingDic objectForKey:@"Domain"];
-        NSLog(@"在局ClientSettingModel - domain (debug): %@", domain);
     } else {
         domain = [self.settingDic objectForKey:@"formalDomain"];
-        NSLog(@"在局ClientSettingModel - domain (formal): %@", domain);
     }
     return domain;
 }
 
 //响站请求id
 - (NSString *)appId {
+    NSString *appId = nil;
     if ([[self isDebug] intValue] == 1) {
-        return [self.settingDic objectForKey:@"AppId"];
+        appId = [self.settingDic objectForKey:@"AppId"];
+        NSLog(@"在局Claude Code[配置读取]+调试模式AppId: %@", appId);
     }
     else {
-        return [self.settingDic objectForKey:@"formalAppId"];
+        appId = [self.settingDic objectForKey:@"formalAppId"];
+        NSLog(@"在局Claude Code[配置读取]+正式模式AppId: %@", appId);
     }
+    return appId;
 }
 //app配置参数id
 - (NSString *)appSeparateId {
@@ -79,12 +83,16 @@ DEF_SINGLETON(ClientSettingModel)
     }
 }
 - (NSString *)appSecret {
+    NSString *appSecret = nil;
     if ([[self isDebug] intValue] == 1) {
-        return [self.settingDic objectForKey:@"AppSecret"];
+        appSecret = [self.settingDic objectForKey:@"AppSecret"];
+        NSLog(@"在局Claude Code[配置读取]+调试模式AppSecret: %@", appSecret);
     }
     else {
-        return [self.settingDic objectForKey:@"formalAppSecret"];
+        appSecret = [self.settingDic objectForKey:@"formalAppSecret"];
+        NSLog(@"在局Claude Code[配置读取]+正式模式AppSecret: %@", appSecret);
     }
+    return appSecret;
 }
 
 - (NSString *)appH5Version {

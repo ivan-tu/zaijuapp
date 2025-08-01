@@ -67,7 +67,15 @@
 
 - (void)initializeDeviceProperties {
     // 判断是否为iPad
-    _isIPad = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad);
+    // 在局Claude Code[修复UI_USER_INTERFACE_IDIOM弃用警告]+使用现代方式获取设备类型
+    if (@available(iOS 13.0, *)) {
+        _isIPad = ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad);
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        _isIPad = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad);
+#pragma clang diagnostic pop
+    }
     
     // 判断是否为iPhone X系列（有刘海的机型）
     _isIPhoneXSeries = NO;
@@ -97,7 +105,10 @@
         }
     } else {
         // iOS 13以下使用传统方式
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         _statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
+#pragma clang diagnostic pop
         if (_statusBarHeight <= 0) {
             _statusBarHeight = _isIPhoneXSeries ? 44.0 : 20.0;
         }

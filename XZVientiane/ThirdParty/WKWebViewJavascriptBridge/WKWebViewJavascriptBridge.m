@@ -123,12 +123,18 @@
 }
 
 - (void)webView:(WKWebView *)webView didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential *))completionHandler {
-    if (webView != _webView) { return; }
+    if (webView != _webView) { 
+        NSLog(@"在局Claude Code[认证处理]+收到非当前WebView的认证挑战，使用默认处理");
+        completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+        return; 
+    }
 
     __strong typeof(_webViewDelegate) strongDelegate = _webViewDelegate;
     if (strongDelegate && [strongDelegate respondsToSelector:@selector(webView:didReceiveAuthenticationChallenge:completionHandler:)]) {
+        NSLog(@"在局Claude Code[认证处理]+委托处理认证挑战");
         [strongDelegate webView:webView didReceiveAuthenticationChallenge:challenge completionHandler:completionHandler];
     } else {
+        NSLog(@"在局Claude Code[认证处理]+使用默认认证处理");
         completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
     }
 }

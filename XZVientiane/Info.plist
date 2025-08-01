@@ -126,7 +126,7 @@
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
-		<false/>
+		<true/>
 		<key>NSExceptionDomains</key>
 		<dict>
 			<key>localhost</key>
@@ -148,6 +148,23 @@
 				<key>NSIncludesSubdomains</key>
 				<true/>
 			</dict>
+			<key>amap.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+			<key>restios.amap.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>dualstack-arestapi.amap.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
 		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
@@ -166,6 +183,15 @@
 	<string>需要访问相册来保存您在聊天过程中拍摄的图片和视频，以便您查看和分享。如不允许，拍摄的内容将无法保存到相册。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>"在局"需要访问您的相册来：1.选择照片设置个人头像和圈子封面；2.分享生活照片到社区动态；3.发送图片给好友进行交流。我们仅访问您主动选择的照片，充分保护您的隐私。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>"在局"需要访问本地网络来发现附近的设备和提供更好的服务体验。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+		<string>_https._tcp</string>
+	</array>
+	<key>UIRequiresPersistentWiFi</key>
+	<true/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>iconfont.ttf</string>

@@ -1163,6 +1163,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             
             // 5. 关键修复：如果页面之前已经加载完成或有有效内容，直接触发接口刷新而不是重新加载整个页面
             if (self.webView && (wasPageLoaded || hasValidContent)) {
+                NSLog(@"在局Claude Code[网络恢复]+页面已加载，只刷新数据不重新加载页面");
                 
                 // 触发JavaScript的网络恢复和数据刷新
                 NSString *refreshScript = @"(function() {"
@@ -1454,10 +1455,11 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 
 - (void)domainOperate {
+    NSLog(@"在局Claude Code[domainOperate]+开始执行domainOperate, pinUrl: %@", self.pinUrl);
     
     // 强化防重复逻辑 - 如果WebView已有有效内容，不要重复加载
     if ([self hasValidWebViewContent]) {
-        
+        NSLog(@"在局Claude Code[domainOperate]+WebView已有有效内容，只触发pageShow");
         // 如果已有内容，只触发pageShow事件
         if (self.webView) {
             NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageShow" data:nil];
@@ -1469,6 +1471,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 防止频繁调用（与loadHTMLContent共享时间检查），但如果WebView未创建则允许执行
     NSDate *now = [NSDate date];
     if (lastLoadTime && [now timeIntervalSinceDate:lastLoadTime] < 2.0 && self.webView != nil) {
+        NSLog(@"在局Claude Code[domainOperate]+防频繁调用拦截，距离上次加载时间: %.2f秒", 
+              [now timeIntervalSinceDate:lastLoadTime]);
         return;
     }
     
@@ -3049,7 +3053,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-   
+    NSLog(@"在局Claude Code[WebView导航失败]+导航失败: %@, 错误码: %ld, 错误域: %@", 
+          error.localizedDescription, (long)error.code, error.domain);
     
     // 隐藏loading指示器
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -3062,6 +3067,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+    NSLog(@"在局Claude Code[WebView预加载失败]+预加载失败: %@, 错误码: %ld, 错误域: %@, URL: %@", 
+          error.localizedDescription, (long)error.code, error.domain, error.userInfo[NSURLErrorFailingURLErrorKey]);
     
     // 隐藏loading指示器
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -3102,6 +3109,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
     NSURL *url = navigationAction.request.URL;
     NSString *scheme = url.scheme.lowercaseString;
+    
+    NSLog(@"在局Claude Code[WebView导航请求]+URL: %@, 类型: %ld", 
+          url.absoluteString, (long)navigationAction.navigationType);
     
     // 关键：允许WebViewJavascriptBridge的wvjbscheme://连接
     if ([scheme isEqualToString:@"wvjbscheme"]) {
@@ -4694,27 +4704,34 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
  */
 - (BOOL)hasValidWebViewContent {
     if (!self.webView) {
+        NSLog(@"在局Claude Code[WebView内容检查]+WebView不存在");
         return NO;
     }
     
     // 如果页面已经标记为存在且已经收到pageReady，认为有效
     if (self.isExist && self.isLoading) {
+        NSLog(@"在局Claude Code[WebView内容检查]+页面已存在且已加载: isExist=%@, isLoading=%@", 
+              self.isExist ? @"YES" : @"NO", self.isLoading ? @"YES" : @"NO");
         return YES;
     }
     
     // 对于tab页面，如果WebView存在且已经接收过pageReady事件（isExist为YES），就认为有效
     // 即使isLoading可能被重置，isExist会保持页面的历史状态
     if (self.isTabbarShow && self.isExist) {
+        NSLog(@"在局Claude Code[WebView内容检查]+Tab页面已存在: isTabbarShow=%@, isExist=%@", 
+              self.isTabbarShow ? @"YES" : @"NO", self.isExist ? @"YES" : @"NO");
         return YES;
     }
     
     // 检查URL - 只有当URL完全无效时才返回NO
     NSURL *currentURL = self.webView.URL;
     if (!currentURL) {
+        NSLog(@"在局Claude Code[WebView内容检查]+WebView URL为空");
         return NO;
     }
     
     NSString *urlString = currentURL.absoluteString;
+    NSLog(@"在局Claude Code[WebView内容检查]+当前URL: %@", urlString);
     
     // 只有当URL是about:blank或者空的时候才认为无效
     if ([urlString isEqualToString:@"about:blank"] || urlString.length == 0) {

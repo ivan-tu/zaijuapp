@@ -79,12 +79,22 @@
                       finalFrameForToVC:(CGRect)finalFrame
                    initialFrameForFromVC:(CGRect)initialFrame {
     
-    [containerView addSubview:toVC.view];
-    toVC.view.frame = finalFrame;
+    // 🔧 修复：检查是否需要特殊处理
+    UIView *viewToAnimate = toVC.view;
+    BOOL shouldSkipAnimation = NO;
+    
+    // 检查fromVC是否是Tab页面的根视图控制器
+    if (fromVC.tabBarController && !fromVC.hidesBottomBarWhenPushed && toVC.hidesBottomBarWhenPushed) {
+        // 从Tab根页面push到子页面，使用标准处理
+        shouldSkipAnimation = NO;
+    }
+    
+    [containerView addSubview:viewToAnimate];
+    viewToAnimate.frame = finalFrame;
     
     CGRect startFrame = finalFrame;
     startFrame.origin.x = CGRectGetMaxX(containerView.bounds);
-    toVC.view.frame = startFrame;
+    viewToAnimate.frame = startFrame;
     
     // 添加阴影效果
     [self addShadowToView:toVC.view];
@@ -124,17 +134,45 @@
                    finalFrameForToVC:(CGRect)finalFrame
                 initialFrameForFromVC:(CGRect)initialFrame {
     
+    NSLog(@"在局Claude Code[转场动画]+开始返回动画 fromVC: %@, toVC: %@", 
+          NSStringFromClass([fromVC class]), NSStringFromClass([toVC class]));
     
-    // 确保toVC.view已经被添加到视图层次结构中
-    if (toVC.view.superview != containerView) {
-        [containerView insertSubview:toVC.view belowSubview:fromVC.view];
-    } else {
+    // 🔧 新增：打印更多上下文信息
+    if ([fromVC respondsToSelector:@selector(hidesBottomBarWhenPushed)]) {
+        NSLog(@"在局Claude Code[转场动画]+fromVC.hidesBottomBarWhenPushed: %@", 
+              fromVC.hidesBottomBarWhenPushed ? @"YES" : @"NO");
+    }
+    if ([toVC respondsToSelector:@selector(hidesBottomBarWhenPushed)]) {
+        NSLog(@"在局Claude Code[转场动画]+toVC.hidesBottomBarWhenPushed: %@", 
+              toVC.hidesBottomBarWhenPushed ? @"YES" : @"NO");
     }
     
-    CGRect backgroundInitialFrame = finalFrame;
-    backgroundInitialFrame.origin.x = -CGRectGetWidth(containerView.bounds) * self.backgroundOffsetRatio;
-    toVC.view.frame = backgroundInitialFrame;
-    toVC.view.alpha = 0.9;
+    // 🔧 关键修复：检查视图层级并避免操作TabBarController
+    // 对于返回到Tab根页面的情况，特殊处理
+    BOOL isReturningToTabRoot = (toVC.tabBarController && !toVC.hidesBottomBarWhenPushed);
+    
+    if (isReturningToTabRoot) {
+        NSLog(@"在局Claude Code[转场修复]+检测到返回Tab根页面，特殊处理避免TabBar错位");
+        
+        // 对于Tab根页面，不要将其view添加到containerView
+        // 因为它已经在TabBarController的视图层级中了
+        // 我们只需要确保它可见
+        toVC.view.hidden = NO;
+        toVC.view.alpha = 1.0;
+        
+        // 不执行任何frame动画，保持原有位置
+    } else {
+        // 普通页面的处理
+        if (toVC.view.superview != containerView) {
+            [containerView insertSubview:toVC.view belowSubview:fromVC.view];
+        }
+        
+        CGRect backgroundInitialFrame = finalFrame;
+        backgroundInitialFrame.origin.x = -CGRectGetWidth(containerView.bounds) * self.backgroundOffsetRatio;
+        toVC.view.frame = backgroundInitialFrame;
+        toVC.view.alpha = 0.9;
+    }
+    
     
     [self addShadowToView:fromVC.view];
     
@@ -150,8 +188,15 @@
         exitFrame.origin.x = CGRectGetMaxX(containerView.bounds);
         fromVC.view.frame = exitFrame;
         
-        toVC.view.frame = finalFrame;
-        toVC.view.alpha = 1.0;
+        // 🔧 修复：根据是否返回Tab根页面使用不同的动画策略
+        if (isReturningToTabRoot) {
+            // Tab根页面已经在正确位置，只需要确保可见
+            toVC.view.alpha = 1.0;
+        } else {
+            // 普通页面执行滑动动画
+            toVC.view.frame = finalFrame;
+            toVC.view.alpha = 1.0;
+        }
     };
     
     // 定义完成块
@@ -162,8 +207,18 @@
         
         if ([transitionContext transitionWasCancelled]) {
             fromVC.view.frame = initialFrame;
-            toVC.view.frame = backgroundInitialFrame;
-            toVC.view.alpha = 0.9;
+            // 🔧 修复：转场取消时的处理
+            if (isReturningToTabRoot) {
+                // Tab根页面保持原样
+                toVC.view.alpha = 1.0;
+                
+            } else {
+                // 普通页面恢复到初始状态
+                CGRect backgroundInitialFrame = finalFrame;
+                backgroundInitialFrame.origin.x = -CGRectGetWidth(containerView.bounds) * self.backgroundOffsetRatio;
+                toVC.view.frame = backgroundInitialFrame;
+                toVC.view.alpha = 0.9;
+            }
             
             // 如果转场被取消，确保fromVC的视图仍然在容器中
             if (fromVC.view.superview != containerView) {
@@ -175,6 +230,7 @@
                 NSLog(@"在局Claude Code[转场动画]+转场取消，恢复控制器状态: fromVC=%@, toVC=%@", 
                       NSStringFromClass([fromVC class]), NSStringFromClass([toVC class]));
                 
+                
                 // 发送通知让导航控制器处理WebView状态恢复
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"InteractiveTransitionCancelled" 
                                                                     object:nil 
@@ -182,29 +238,32 @@
                                                                            @"fromViewController": fromVC}];
             });
         } else {
-            toVC.view.frame = finalFrame;
-            toVC.view.alpha = 1.0;
+            // 🔧 修复：转场成功时确保视图状态正确
+            if (isReturningToTabRoot) {
+                // Tab根页面确保完全可见
+                toVC.view.alpha = 1.0;
+                toVC.view.hidden = NO;
+            } else {
+                toVC.view.frame = finalFrame;
+                toVC.view.alpha = 1.0;
+            }
             
             // 转场成功完成，确保fromVC的视图被正确移除
             // 这是关键：必须在动画完成后移除fromVC的视图
             [fromVC.view removeFromSuperview];
             
-            // 🔧 关键修复：只有返回到首页（根视图控制器）时才显示TabBar
-            if (toVC.tabBarController && !toVC.hidesBottomBarWhenPushed) {
-                // 检查是否真的是首页（导航栈根控制器）
-                BOOL isRootViewController = (toVC.navigationController && 
-                                           toVC.navigationController.viewControllers.count == 1 &&
-                                           toVC.navigationController.viewControllers.firstObject == toVC);
+            
+            // 只打印调试信息，不进行任何实际操作
+            if (toVC.tabBarController) {
+                NSLog(@"在局Claude Code[TabBar状态]+转场完成 fromVC: %@ (hidesBottom: %@) -> toVC: %@ (hidesBottom: %@)", 
+                      NSStringFromClass([fromVC class]), 
+                      fromVC.hidesBottomBarWhenPushed ? @"YES" : @"NO",
+                      NSStringFromClass([toVC class]), 
+                      toVC.hidesBottomBarWhenPushed ? @"YES" : @"NO");
                 
-                if (isRootViewController) {
-                    toVC.tabBarController.tabBar.hidden = NO;
-                    
-                    // 确保TabBar的frame正确
-                    CGRect tabBarFrame = toVC.tabBarController.tabBar.frame;
-                    tabBarFrame.origin.y = CGRectGetHeight(toVC.tabBarController.view.bounds) - CGRectGetHeight(tabBarFrame);
-                    toVC.tabBarController.tabBar.frame = tabBarFrame;
-                } else {
-                }
+                NSLog(@"在局Claude Code[TabBar状态]+TabBar当前状态: hidden=%@, frame=%@", 
+                      toVC.tabBarController.tabBar.hidden ? @"YES" : @"NO",
+                      NSStringFromCGRect(toVC.tabBarController.tabBar.frame));
             }
         }
         
@@ -228,9 +287,24 @@
                 if (toVC.view.superview && toVC.navigationController) {
                     [toVC.navigationController.view bringSubviewToFront:toVC.navigationController.navigationBar];
                     
-                    // 如果有TabBar，确保它在最前面
-                    if (toVC.tabBarController && !toVC.hidesBottomBarWhenPushed) {
-                        [toVC.tabBarController.view bringSubviewToFront:toVC.tabBarController.tabBar];
+                    // 🔧 关键修复：确保TabBar完全恢复（针对手势返回到Tab根页面的情况）
+                    if (!toVC.hidesBottomBarWhenPushed && toVC.tabBarController) {
+                        UITabBar *tabBar = toVC.tabBarController.tabBar;
+                        tabBar.userInteractionEnabled = YES;
+                        tabBar.alpha = 1.0;
+                        tabBar.hidden = NO;
+                        
+                        // 确保TabBar在最上层
+                        if (tabBar.superview) {
+                            [tabBar.superview bringSubviewToFront:tabBar];
+                        }
+                        
+                        // 恢复所有子视图的交互
+                        for (UIView *subview in tabBar.subviews) {
+                            subview.userInteractionEnabled = YES;
+                        }
+                        
+                        NSLog(@"在局Claude Code[TabBar恢复]+延迟检查，确保TabBar可交互");
                     }
                 }
             });
@@ -423,10 +497,17 @@
     // 在push前禁用交互式手势，防止冲突
     self.interactivePopGestureRecognizer.enabled = NO;
     
-    // 如果新页面需要隐藏TabBar，在push前就设置
+    // 🔧 关键修复：如果新页面需要隐藏TabBar，在push前将其移出屏幕
     if (viewController.hidesBottomBarWhenPushed && self.tabBarController) {
-        // 注意：不要在这里直接设置hidden，让系统的hidesBottomBarWhenPushed机制处理
-        // 只是记录日志以便调试
+        UITabBar *tabBar = self.tabBarController.tabBar;
+        CGRect oldFrame = tabBar.frame;
+        CGRect tabBarFrame = tabBar.frame;
+        tabBarFrame.origin.y = [UIScreen mainScreen].bounds.size.height;
+        tabBar.frame = tabBarFrame;
+        NSLog(@"在局Claude Code[TabBar位置修改]+Push前将TabBar移出屏幕");
+        NSLog(@"在局Claude Code[TabBar位置修改]+原始frame: %@", NSStringFromCGRect(oldFrame));
+        NSLog(@"在局Claude Code[TabBar位置修改]+新的frame: %@", NSStringFromCGRect(tabBar.frame));
+        NSLog(@"在局Claude Code[TabBar位置修改]+屏幕高度: %.0f", [UIScreen mainScreen].bounds.size.height);
     }
     
     [super pushViewController:viewController animated:animated];
@@ -481,6 +562,8 @@
        didShowViewController:(UIViewController *)viewController 
                     animated:(BOOL)animated {
     
+    // 🔧 关键修复：先保存交互式转场状态，用于后续判断
+    BOOL wasInteractiveTransition = self.isInteractiveTransition || self.interactiveTransitionStarted;
     
     // 重置交互式转场状态
     self.isInteractiveTransition = NO;
@@ -491,14 +574,82 @@
     // 注意：我们使用自定义手势，所以保持系统手势禁用
     self.interactivePopGestureRecognizer.enabled = NO;
     
+    // 🔧 关键修复：在导航完成后手动控制TabBar显示状态和位置
+    // 使用self.topViewController来获取当前真正显示的视图控制器
+    UIViewController *currentVC = self.topViewController;
+    if (self.tabBarController && currentVC) {
+        UITabBar *tabBar = self.tabBarController.tabBar;
+        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+        CGFloat tabBarHeight = tabBar.frame.size.height;
+        
+        if (currentVC.hidesBottomBarWhenPushed) {
+            // 当前页面需要隐藏TabBar - 移出屏幕
+            CGRect oldFrame = tabBar.frame;
+            CGRect tabBarFrame = tabBar.frame;
+            tabBarFrame.origin.y = screenHeight;
+            tabBar.frame = tabBarFrame;
+            NSLog(@"在局Claude Code[TabBar位置修改]+导航完成，将TabBar移出屏幕 (currentVC: %@)", NSStringFromClass([currentVC class]));
+            NSLog(@"在局Claude Code[TabBar位置修改]+原始frame: %@", NSStringFromCGRect(oldFrame));
+            NSLog(@"在局Claude Code[TabBar位置修改]+新的frame: %@", NSStringFromCGRect(tabBar.frame));
+        } else {
+            // 当前页面需要显示TabBar - 恢复到正确位置
+            NSLog(@"在局Claude Code[TabBar恢复]+导航完成，准备恢复TabBar (currentVC: %@)", NSStringFromClass([currentVC class]));
+            
+            // 恢复所有属性
+            tabBar.alpha = 1.0;
+            tabBar.hidden = NO;
+            tabBar.userInteractionEnabled = YES;
+            
+            // 恢复frame
+            CGRect oldFrame = tabBar.frame;
+            CGRect tabBarFrame = tabBar.frame;
+            tabBarFrame.origin.y = screenHeight - tabBarHeight;
+            
+            NSLog(@"在局Claude Code[TabBar恢复]+原始frame: %@", NSStringFromCGRect(oldFrame));
+            NSLog(@"在局Claude Code[TabBar恢复]+目标frame: %@", NSStringFromCGRect(tabBarFrame));
+            
+            // 使用动画平滑过渡
+            [UIView animateWithDuration:0.25 animations:^{
+                tabBar.frame = tabBarFrame;
+                tabBar.alpha = 1.0;
+            } completion:^(BOOL finished) {
+                // 🔧 关键修复：确保TabBar完全恢复交互能力
+                tabBar.userInteractionEnabled = YES;
+                // 恢复到父视图的正常层级
+                if (tabBar.superview) {
+                    [tabBar.superview bringSubviewToFront:tabBar];
+                }
+                NSLog(@"在局Claude Code[TabBar恢复]+动画完成，最终frame: %@, alpha: %.2f, userInteractionEnabled: %@", 
+                      NSStringFromCGRect(tabBar.frame), tabBar.alpha, 
+                      tabBar.userInteractionEnabled ? @"YES" : @"NO");
+                
+                // 确保TabBar的所有子视图也可以交互
+                for (UIView *subview in tabBar.subviews) {
+                    subview.userInteractionEnabled = YES;
+                }
+            }];
+        }
+    }
+    
     // 确保TabBar的显示状态正确
     [self configureTabBarVisibilityForViewController:viewController];
     
-    // 关键修复：检查并恢复WebView控制器状态
-    // 但需要区分Tab切换和真正的导航转场
+    // 根本问题已在转场动画中修复，不再需要额外的TabBar位置检查
+    
+    // 🔧 优化：避免重复触发pageShow导致首页空白
+    // 只在必要时处理WebView状态
+    static NSTimeInterval lastWebViewHandleTime = 0;
+    NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
+    
+    // 如果距离上次处理不到0.5秒，跳过处理
+    if (currentTime - lastWebViewHandleTime < 0.5) {
+        NSLog(@"在局Claude Code[WebView处理]+跳过重复处理，避免首页空白");
+        return;
+    }
+    
+    // 检查是否需要处理WebView状态
     BOOL isTabSwitch = NO;
     if (viewController.tabBarController) {
-        // 检查是否是Tab切换导致的controller显示
         UIViewController *selectedVC = viewController.tabBarController.selectedViewController;
         if (selectedVC == self || 
             (selectedVC == viewController.navigationController && 
@@ -507,15 +658,30 @@
         }
     }
     
-    if ([viewController respondsToSelector:@selector(webView)] && [viewController respondsToSelector:@selector(pinUrl)]) {
+    // 对于手势返回到Tab根页面，不触发domainOperate
+    BOOL isInteractivePopToTabRoot = wasInteractiveTransition && 
+                                      !viewController.hidesBottomBarWhenPushed && 
+                                      viewController.tabBarController;
+    
+    // 添加调试日志
+    NSLog(@"在局Claude Code[WebView状态检查]+wasInteractive: %@, isTabSwitch: %@, isInteractivePopToTabRoot: %@, viewController: %@", 
+          wasInteractiveTransition ? @"YES" : @"NO",
+          isTabSwitch ? @"YES" : @"NO",
+          isInteractivePopToTabRoot ? @"YES" : @"NO",
+          NSStringFromClass([viewController class]));
+    
+    if ([viewController respondsToSelector:@selector(webView)] && 
+        [viewController respondsToSelector:@selector(pinUrl)] &&
+        !isTabSwitch && 
+        !isInteractivePopToTabRoot) {
         
-        // 只有在非Tab切换的情况下才执行恢复逻辑
-        if (!isTabSwitch) {
-        
+        NSLog(@"在局Claude Code[WebView状态检查]+将要处理WebView状态");
+        lastWebViewHandleTime = currentTime;
         dispatch_async(dispatch_get_main_queue(), ^{
             [self handleWebViewStateForViewController:viewController];
         });
-        } // 结束 !isTabSwitch 条件判断
+    } else {
+        NSLog(@"在局Claude Code[WebView状态检查]+跳过WebView处理");
     }
     
     // 清理可能残留的视图
@@ -666,32 +832,57 @@
 
 /**
  * 配置TabBar显示状态（统一方法）
+ * 🔧 修复：不再手动设置TabBar的hidden属性，让系统自动处理
  */
 - (void)configureTabBarVisibilityForViewController:(UIViewController *)viewController {
     if (!viewController.tabBarController) {
         return;
     }
     
-    BOOL shouldHideTabBar = [self shouldHideTabBarForViewController:viewController];
-    viewController.tabBarController.tabBar.hidden = shouldHideTabBar;
+    // 只打印调试信息，不进行实际操作
+    NSLog(@"在局Claude Code[TabBar配置]+viewController: %@, hidesBottomBarWhenPushed: %@", 
+          NSStringFromClass([viewController class]), 
+          viewController.hidesBottomBarWhenPushed ? @"YES" : @"NO");
     
-    if (!shouldHideTabBar) {
-        [self adjustTabBarFrameForViewController:viewController];
-    }
+    // 移除手动设置TabBar hidden的逻辑
+    // iOS系统会自动处理
 }
 
 /**
  * 判断是否应该隐藏TabBar
  */
 - (BOOL)shouldHideTabBarForViewController:(UIViewController *)viewController {
-    BOOL shouldHideTabBar = viewController.hidesBottomBarWhenPushed;
-    
-    // 如果是导航控制器的根视图控制器，应该显示TabBar
-    if (self.viewControllers.count == 1) {
-        shouldHideTabBar = NO;
+    // 首先检查控制器本身的设置
+    if (viewController.hidesBottomBarWhenPushed) {
+        return YES; // 如果控制器明确要求隐藏，则隐藏
     }
     
-    return shouldHideTabBar;
+    // 检查是否有TabBarController
+    if (!viewController.tabBarController) {
+        return YES; // 没有TabBarController，隐藏
+    }
+    
+    // 判断是否是TabBarController的直接子控制器的根视图
+    BOOL isTabRootViewController = NO;
+    NSArray *tabViewControllers = viewController.tabBarController.viewControllers;
+    
+    for (UIViewController *tabVC in tabViewControllers) {
+        if ([tabVC isKindOfClass:[UINavigationController class]]) {
+            UINavigationController *navVC = (UINavigationController *)tabVC;
+            // 检查viewController是否是某个tab的导航控制器的根视图控制器
+            if (navVC == self && navVC.viewControllers.count == 1 && navVC.viewControllers.firstObject == viewController) {
+                isTabRootViewController = YES;
+                break;
+            }
+        } else if (tabVC == viewController) {
+            // 直接是tab的视图控制器（非导航控制器包装）
+            isTabRootViewController = YES;
+            break;
+        }
+    }
+    
+    // 只有是Tab的根视图控制器时才显示TabBar（返回NO表示不隐藏）
+    return !isTabRootViewController;
 }
 
 /**
@@ -735,6 +926,45 @@
             } else {
             }
             
+            // 🔧 关键修复：在手势开始时，检查是否需要临时移动TabBar
+            UIViewController *currentVC = self.topViewController;
+            UIViewController *toVC = nil;
+            if (self.viewControllers.count >= 2) {
+                toVC = [self.viewControllers objectAtIndex:self.viewControllers.count - 2];
+            }
+            
+            // 如果是从隐藏TabBar的页面返回到显示TabBar的页面，需要特殊处理
+            if (currentVC.hidesBottomBarWhenPushed && toVC && !toVC.hidesBottomBarWhenPushed && self.tabBarController) {
+                UITabBar *tabBar = self.tabBarController.tabBar;
+                
+                NSLog(@"在局Claude Code[TabBar隐藏]+手势开始，准备隐藏TabBar");
+                NSLog(@"在局Claude Code[TabBar隐藏]+原始状态 - hidden: %@, alpha: %.2f, frame: %@", 
+                      tabBar.hidden ? @"YES" : @"NO", tabBar.alpha, NSStringFromCGRect(tabBar.frame));
+                
+                // 保存原始状态，用于恢复
+                objc_setAssociatedObject(tabBar, @"originalAlpha", @(tabBar.alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                objc_setAssociatedObject(tabBar, @"originalHidden", @(tabBar.hidden), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                
+                // 使用多重方案确保TabBar被隐藏
+                tabBar.alpha = 0.0;
+                tabBar.hidden = YES;
+                
+                // 移出屏幕
+                CGFloat screenHeight = CGRectGetHeight([UIScreen mainScreen].bounds);
+                CGRect tabBarFrame = tabBar.frame;
+                tabBarFrame.origin.y = screenHeight + 100;
+                tabBar.frame = tabBarFrame;
+                
+                // 调整层级
+                [tabBar.superview sendSubviewToBack:tabBar];
+                
+                // 暂时禁用交互
+                tabBar.userInteractionEnabled = NO;
+                
+                NSLog(@"在局Claude Code[TabBar隐藏]+处理后状态 - hidden: %@, alpha: %.2f, frame: %@", 
+                      tabBar.hidden ? @"YES" : @"NO", tabBar.alpha, NSStringFromCGRect(tabBar.frame));
+            }
+            
             // 原生导航栈返回
             self.isInteractiveTransition = YES;
             self.interactiveTransition = [[UIPercentDrivenInteractiveTransition alloc] init];
@@ -754,6 +984,7 @@
                 self.isInteractiveTransition = NO;
                 self.interactiveTransition = nil;
                 self.interactiveTransitionStarted = NO;
+                
             } else {
                 // 设置转场已开始标志
                 self.interactiveTransitionStarted = YES;
@@ -807,6 +1038,39 @@
                     CGFloat cancelSpeed = MIN(2.0, MAX(0.8, 1.2)); // 限制在0.8-2.0倍速之间
                     self.interactiveTransition.completionSpeed = cancelSpeed;
                     [self.interactiveTransition cancelInteractiveTransition];
+                    
+                    // 🔧 关键修复：手势取消时，确保TabBar位置正确
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        UIViewController *currentVC = self.topViewController;
+                        if (currentVC && self.tabBarController) {
+                            UITabBar *tabBar = self.tabBarController.tabBar;
+                            CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+                            CGFloat tabBarHeight = tabBar.frame.size.height;
+                            CGRect tabBarFrame = tabBar.frame;
+                            
+                            if (currentVC.hidesBottomBarWhenPushed) {
+                                // 当前页面需要隐藏TabBar - 确保完全隐藏
+                                tabBar.alpha = 0.0;
+                                tabBar.hidden = YES;
+                                tabBarFrame.origin.y = screenHeight + 100;
+                                tabBar.frame = tabBarFrame;
+                                tabBar.userInteractionEnabled = NO;
+                                NSLog(@"在局Claude Code[TabBar手势取消]+保持TabBar隐藏");
+                                NSLog(@"在局Claude Code[TabBar手势取消]+frame: %@, hidden: %@, alpha: %.2f", 
+                                      NSStringFromCGRect(tabBar.frame), tabBar.hidden ? @"YES" : @"NO", tabBar.alpha);
+                            } else {
+                                // 当前页面需要显示TabBar - 完全恢复
+                                tabBar.alpha = 1.0;
+                                tabBar.hidden = NO;
+                                tabBarFrame.origin.y = screenHeight - tabBarHeight;
+                                tabBar.frame = tabBarFrame;
+                                tabBar.userInteractionEnabled = YES;
+                                NSLog(@"在局Claude Code[TabBar手势取消]+恢复TabBar显示");
+                                NSLog(@"在局Claude Code[TabBar手势取消]+frame: %@, hidden: %@, alpha: %.2f", 
+                                      NSStringFromCGRect(tabBar.frame), tabBar.hidden ? @"YES" : @"NO", tabBar.alpha);
+                            }
+                        }
+                    });
                 }
             } else {
             }

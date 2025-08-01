@@ -161,6 +161,41 @@
 }
 
 
+// 基础网络测试方法
+- (void)testBasicNetworkConnectivity {
+    NSLog(@"在局Claude Code[基础网络测试]+开始测试");
+    
+    // 测试1：使用原生URLSession
+    NSURL *testURL = [NSURL URLWithString:@"https://www.apple.com"];
+    NSURLSession *session = [NSURLSession sharedSession];
+    NSURLSessionDataTask *task = [session dataTaskWithURL:testURL 
+                                         completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (error) {
+            NSLog(@"在局Claude Code[基础网络测试]+URLSession失败: %@", error);
+            NSLog(@"在局Claude Code[基础网络测试]+错误详情: %@", error.userInfo);
+        } else {
+            NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+            NSLog(@"在局Claude Code[基础网络测试]+URLSession成功，状态码: %ld", (long)httpResponse.statusCode);
+        }
+    }];
+    [task resume];
+    
+    // 测试2：测试应用域名
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSURL *appURL = [NSURL URLWithString:@"https://zaiju.com"];
+        NSURLSessionDataTask *appTask = [session dataTaskWithURL:appURL 
+                                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+            if (error) {
+                NSLog(@"在局Claude Code[基础网络测试]+应用域名失败: %@", error);
+            } else {
+                NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+                NSLog(@"在局Claude Code[基础网络测试]+应用域名成功，状态码: %ld", (long)httpResponse.statusCode);
+            }
+        }];
+        [appTask resume];
+    });
+}
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // 应用启动开始
     
@@ -873,6 +908,7 @@
 // 检查网络权限（iOS 9.0+）
 - (void)checkNetworkPermissionWithApplication:(UIApplication *)application launchOptions:(NSDictionary *)launchOptions {
     WEAK_SELF;
+    NSLog(@"在局Claude Code[网络权限]+开始检查网络权限, 时间: %@", [NSDate date]);
     
     // 创建信号量确保权限检查完成后再继续
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
@@ -882,6 +918,7 @@
         CTCellularData *cellularData = [[CTCellularData alloc] init];
         cellularData.cellularDataRestrictionDidUpdateNotifier = ^(CTCellularDataRestrictedState state) {
             STRONG_SELF;
+            NSLog(@"在局Claude Code[网络权限]+收到网络权限回调, 状态: %ld, 时间: %@", (long)state, [NSDate date]);
             
             // 标记已收到回调
             if (!hasReceivedCallback) {
@@ -945,6 +982,9 @@
     BOOL wasRestricted = self.networkRestricted;
     self.networkRestricted = NO;
     
+    // 添加基础网络测试
+    [self testBasicNetworkConnectivity];
+    
     [self delayedInitialization:application launchOptions:launchOptions delay:0.3];
     
     // 从受限状态恢复时的特殊处理
@@ -983,16 +1023,19 @@
 
 // 网络恢复后的处理
 - (void)handleNetworkRecovery {
-    if (!self.isLoadingViewRemoved) {
-        [self removeGlobalLoadingViewWithReason:@"网络权限从受限恢复"];
-    }
-    
-    [self triggerFirstTabLoadIfNeeded];
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"NetworkPermissionRestored" object:nil];
-    
-    // 延迟触发首页重新加载
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self triggerHomePageReload];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSLog(@"在局Claude Code[网络恢复]+开始处理网络恢复");
+        if (!self.isLoadingViewRemoved) {
+            [self removeGlobalLoadingViewWithReason:@"网络权限从受限恢复"];
+        }
+        
+        [self triggerFirstTabLoadIfNeeded];
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"NetworkPermissionRestored" object:nil];
+        
+        // 延迟触发首页重新加载
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self triggerHomePageReload];
+        });
     });
 }
 
@@ -1014,14 +1057,18 @@
                                   launchOptions:(NSDictionary *)launchOptions
                                       semaphore:(dispatch_semaphore_t)semaphore {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSLog(@"在局Claude Code[网络权限]+开始等待网络权限回调, 超时时间: 2秒");
         dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC));
         long result = dispatch_semaphore_wait(semaphore, timeout);
         
         if (result != 0) {
+            NSLog(@"在局Claude Code[网络权限]+等待超时, 假设网络权限已开启, 时间: %@", [NSDate date]);
             // 超时处理，假设网络权限已开启
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
             });
+        } else {
+            NSLog(@"在局Claude Code[网络权限]+收到网络权限回调信号, 时间: %@", [NSDate date]);
         }
     });
 }

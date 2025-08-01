@@ -10,7 +10,27 @@
 #import "YBPopupMenuPath.h"
 #define YBScreenWidth [UIScreen mainScreen].bounds.size.width
 #define YBScreenHeight [UIScreen mainScreen].bounds.size.height
-#define YBMainWindow  [UIApplication sharedApplication].keyWindow
+// 在局Claude Code[修复keyWindow弃用警告]+获取主窗口的现代方式
+static UIWindow *YBGetMainWindow(void) {
+    if (@available(iOS 13.0, *)) {
+        NSSet<UIScene *> *connectedScenes = [UIApplication sharedApplication].connectedScenes;
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                for (UIWindow *window in windowScene.windows) {
+                    if (window.isKeyWindow) {
+                        return window;
+                    }
+                }
+            }
+        }
+        UIWindowScene *windowScene = (UIWindowScene *)connectedScenes.anyObject;
+        return windowScene.windows.firstObject;
+    } else {
+        return [UIApplication sharedApplication].keyWindow;
+    }
+}
+#define YBMainWindow YBGetMainWindow()
 #define YB_SAFE_BLOCK(BlockName, ...) ({ !BlockName ? nil : BlockName(__VA_ARGS__); })
 
 #pragma mark - /////////////
