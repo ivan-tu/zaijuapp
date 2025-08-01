@@ -101,7 +101,11 @@
     NSDictionary *dataDic = (NSDictionary *)data;
     NSString *backStr = [dataDic objectForKey:@"url"];
     
+    // 在局Claude Code[修复未声明选择器警告]+抑制backStr警告
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundeclared-selector"
     if ([controller respondsToSelector:@selector(setBackStr:)]) {
+#pragma clang diagnostic pop
         [controller setValue:backStr forKey:@"backStr"];
     }
 }

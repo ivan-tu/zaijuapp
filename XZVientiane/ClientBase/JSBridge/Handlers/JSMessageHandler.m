@@ -132,7 +132,11 @@
 
 - (void)handleDialogBridge:(id)data controller:(UIViewController *)controller {
     // 将数据传给上个页面
+    // 在局Claude Code[修复未声明选择器警告]+抑制nextPageDataBlock警告
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundeclared-selector"
     if ([controller respondsToSelector:@selector(nextPageDataBlock)]) {
+#pragma clang diagnostic pop
         void (^nextPageDataBlock)(NSDictionary *) = [controller valueForKey:@"nextPageDataBlock"];
         if (nextPageDataBlock) {
             nextPageDataBlock(data);

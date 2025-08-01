@@ -443,6 +443,22 @@
 
 // 执行页面重载策略
 - (void)executePageReloadStrategies {
+    NSLog(@"在局Claude Code[页面恢复策略]+开始执行页面恢复");
+    
+    // 策略0: 强制显示内容
+    [self safelyEvaluateJavaScript:@"(function(){"
+        "document.body.style.display = 'block';"
+        "document.body.style.visibility = 'visible';"
+        "document.body.style.opacity = '1';"
+        "var containers = document.querySelectorAll('.main, #main, .container, #container, .app, #app');"
+        "for (var i = 0; i < containers.length; i++) {"
+            "containers[i].style.display = 'block';"
+            "containers[i].style.visibility = 'visible';"
+            "containers[i].style.opacity = '1';"
+        "}"
+        "return 'content_made_visible';"
+    "})()" completionHandler:nil];
+    
     // 策略1: 尝试重新加载页面数据
     [self safelyEvaluateJavaScript:@"(function(){"
         "if (typeof app !== 'undefined' && typeof app.reloadOtherPages === 'function') {"
@@ -462,6 +478,13 @@
     // 策略3: 模拟用户滚动交互
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self safelyEvaluateJavaScript:@"window.scrollTo(0, 1); window.scrollTo(0, 0); 'scroll_triggered'" completionHandler:nil];
+    });
+    
+    // 策略4: 触发pageShow事件
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageShow" data:nil];
+        [self objcCallJs:callJsDic];
+        NSLog(@"在局Claude Code[页面恢复策略]+触发pageShow事件");
     });
 }
 

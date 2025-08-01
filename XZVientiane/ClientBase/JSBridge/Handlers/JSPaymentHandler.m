@@ -13,6 +13,17 @@
 
 @implementation JSPaymentHandler
 
+// 在局Claude Code[修复未声明选择器警告]+辅助方法获取回调
+- (JSActionCallbackBlock)getCallbackFromController:(UIViewController *)controller {
+    if ([controller conformsToProtocol:@protocol(JSPaymentCallbackSupport)]) {
+        id<JSPaymentCallbackSupport> paymentController = (id<JSPaymentCallbackSupport>)controller;
+        if ([paymentController respondsToSelector:@selector(webviewBackCallBack)]) {
+            return paymentController.webviewBackCallBack;
+        }
+    }
+    return nil;
+}
+
 - (NSArray<NSString *> *)supportedActions {
     return @[@"weixinPay", @"aliPay"];
 }
@@ -23,8 +34,12 @@
           callback:(JSActionCallbackBlock)callback {
     
     // 保存回调
-    if ([controller respondsToSelector:@selector(setWebviewBackCallBack:)]) {
-        [controller performSelector:@selector(setWebviewBackCallBack:) withObject:callback];
+    // 在局Claude Code[修复未声明选择器警告]+使用协议检查
+    if ([controller conformsToProtocol:@protocol(JSPaymentCallbackSupport)]) {
+        id<JSPaymentCallbackSupport> paymentController = (id<JSPaymentCallbackSupport>)controller;
+        if ([paymentController respondsToSelector:@selector(setWebviewBackCallBack:)]) {
+            paymentController.webviewBackCallBack = callback;
+        }
     }
     
     if ([action isEqualToString:@"weixinPay"]) {
@@ -44,7 +59,6 @@
     if (!messageDic || ![messageDic isKindOfClass:[NSDictionary class]]) {
         // 如果没有data字段，则直接使用jsDic作为支付参数
         messageDic = jsDic;
-    } else {
     }
     
     
@@ -52,27 +66,23 @@
         // 检查微信是否可用
         if (![WXApi isWXAppInstalled]) {
             // 获取回调并执行错误回调
-            if ([controller respondsToSelector:@selector(webviewBackCallBack)]) {
-                JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
-                if (callback) {
-                    callback(@{
-                        @"success": @"false",
-                        @"errorMessage": @"请先安装微信应用"
-                    });
-                }
+            JSActionCallbackBlock callback = [self getCallbackFromController:controller];
+            if (callback) {
+                callback(@{
+                    @"success": @"false",
+                    @"errorMessage": @"请先安装微信应用"
+                });
             }
             return;
         }
         if (![WXApi isWXAppSupportApi]) {
             // 获取回调并执行错误回调
-            if ([controller respondsToSelector:@selector(webviewBackCallBack)]) {
-                JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
-                if (callback) {
-                    callback(@{
-                        @"success": @"false",
-                        @"errorMessage": @"微信版本过低，请升级微信"
-                    });
-                }
+            JSActionCallbackBlock callback = [self getCallbackFromController:controller];
+            if (callback) {
+                callback(@{
+                    @"success": @"false",
+                    @"errorMessage": @"微信版本过低，请升级微信"
+                });
             }
             return;
         }
@@ -101,14 +111,12 @@
         
         // 验证必要参数
         if (!request.partnerId || !request.prepayId || !request.package || !request.nonceStr || request.timeStamp == 0) {
-            if ([controller respondsToSelector:@selector(webviewBackCallBack)]) {
-                JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
-                if (callback) {
-                    callback(@{
-                        @"success": @"false",
-                        @"errorMessage": @"支付参数不完整"
-                    });
-                }
+            JSActionCallbackBlock callback = [self getCallbackFromController:controller];
+            if (callback) {
+                callback(@{
+                    @"success": @"false",
+                    @"errorMessage": @"支付参数不完整"
+                });
             }
             return;
         }
@@ -125,8 +133,8 @@
         
         // 发送支付请求
         [WXApi sendReq:request completion:^(BOOL success) {
-            if (!success && [controller respondsToSelector:@selector(webviewBackCallBack)]) {
-                JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
+            if (!success) {
+                JSActionCallbackBlock callback = [self getCallbackFromController:controller];
                 if (callback) {
                     callback(@{
                         @"success": @"false",
@@ -136,14 +144,12 @@
             }
         }];
     } else {
-        if ([controller respondsToSelector:@selector(webviewBackCallBack)]) {
-            JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
-            if (callback) {
-                callback(@{
-                    @"success": @"false",
-                    @"errorMessage": @"支付参数格式错误"
-                });
-            }
+        JSActionCallbackBlock callback = [self getCallbackFromController:controller];
+        if (callback) {
+            callback(@{
+                @"success": @"false",
+                @"errorMessage": @"支付参数格式错误"
+            });
         }
     }
 }

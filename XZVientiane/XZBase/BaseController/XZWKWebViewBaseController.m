@@ -60,7 +60,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     NSString *_lastFailedUrl; // 上次失败的URL（非static）
 }
 
-@property (nonatomic, strong) WKWebViewJavascriptBridge *bridge;  // 使用WebViewJavascriptBridge
+// 在局Claude Code[修复空指针传递警告]+支持nullable属性
+@property (nonatomic, strong, nullable) WKWebViewJavascriptBridge *bridge;  // 使用WebViewJavascriptBridge
 @property (nonatomic, strong) UIActivityIndicatorView *activityIndicatorView; // 加载指示器
 @property (nonatomic, strong) UIProgressView *progressView; // 进度条
 @property (nonatomic, strong) NSString *currentTempFileName; // 当前临时文件名
@@ -1698,7 +1699,10 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         // 直接数据模式
         
         if (self.pagetitle) {
+            NSLog(@"在局Claude Code[performHTMLLoading]+调用getnavigationBarTitleText，标题: %@", self.pagetitle);
             [self getnavigationBarTitleText:self.pagetitle];
+        } else {
+            NSLog(@"在局Claude Code[performHTMLLoading]+pagetitle为空，未设置标题");
         }
         
         NSString *allHtmlStr = [self.htmlStr stringByReplacingOccurrencesOfString:@"{{body}}" withString:self.pinDataStr];
@@ -3001,6 +3005,12 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         // [self.activityIndicatorView stopAnimating]; // 已禁用loading指示器
     });
     
+    // 页面加载完成后，再次尝试设置标题
+    if (self.pagetitle && self.pagetitle.length > 0) {
+        NSLog(@"在局Claude Code[didFinishNavigation]+页面加载完成，设置标题: %@", self.pagetitle);
+        [self getnavigationBarTitleText:self.pagetitle];
+    }
+    
     
     // 延迟处理JavaScript桥接初始化，确保页面完全加载
     [self scheduleJavaScriptTask:^{
@@ -3191,8 +3201,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         // 更新标题
         NSString *title = [change objectForKey:NSKeyValueChangeNewKey];
         if (title && title.length > 0) {
-            // 可以更新导航栏标题
-            // self.navigationItem.title = title;
+            // 更新导航栏标题
+            self.navigationItem.title = title;
+            NSLog(@"在局Claude Code[内页标题自动更新]+从WebView获取标题: %@", title);
         }
     } else {
         [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
@@ -3958,14 +3969,12 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     [self.webView setNeedsLayout];
     [self.webView layoutIfNeeded];
     
-    // 🔧 新增：强制重新渲染通过移除和重新添加WebView
-    UIView *webViewSuperview = self.webView.superview;
-    CGRect webViewFrame = self.webView.frame;
-    [self.webView removeFromSuperview];
-    [webViewSuperview addSubview:self.webView];
-    self.webView.frame = webViewFrame;
+    // 🔧 修复：确保WebView在正确的层级
+    if (self.webView.superview) {
+        [self.webView.superview bringSubviewToFront:self.webView];
+    }
     
-    // 🔧 修复：恢复下拉刷新控件（因为WebView被重新添加）
+    // 🔧 修复：确保下拉刷新控件存在
     if (self.webView.scrollView && !self.webView.scrollView.mj_header) {
         [self setupRefreshControl];
     }

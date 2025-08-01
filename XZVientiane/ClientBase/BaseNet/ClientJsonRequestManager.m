@@ -276,9 +276,7 @@
         }
     } failure:^(NSURLSessionDataTask *task, NSError *error) {
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)task.response;
-        NSLog(@"在局Claude Code[POSTRPC失败]+URL: %@, HTTP状态码: %ld, 错误码: %ld, 错误域: %@, 错误描述: %@", 
-              URLString, (long)httpResponse.statusCode, (long)error.code, error.domain, error.localizedDescription);
-        NSLog(@"在局Claude Code[POSTRPC失败]+错误详情: %@", error.userInfo);
+        NSLog(@"POSTRPC请求失败: %@, HTTP状态码: %ld, 错误: %@", URLString, (long)httpResponse.statusCode, error.localizedDescription);
         if(block){
             block (nil,error);
         }
@@ -287,7 +285,7 @@
 
 - (void)POST:(NSString *)URLString parameters:(id)parameters block:(ClientCompletionBlock)block
 {
-    // 在局Claude Code修复：直接调用带headers参数的POST方法，避免重复处理
+    // 直接调用带headers参数的POST方法，避免重复处理
     [self POST:URLString parameters:parameters headers:nil block:block];
 }
 
@@ -295,19 +293,16 @@
 //检查appToken，如果过期，同步请求Token
 - (void)checkAppToken {
     NSString *appTkn = [[NSUserDefaults standardUserDefaults] objectForKey:User_Token_String];
-    NSLog(@"在局Claude Code[Token检查]+当前Token: %@", appTkn);
     [[ClientJsonRequestManager sharedClient].requestSerializer setValue:appTkn forHTTPHeaderField:@"AUTHORIZATION"];
     
     NSDate *expireDate = [[NSUserDefaults standardUserDefaults] objectForKey:@"User_Token_Expire_Time"];
-    NSLog(@"在局Claude Code[Token检查]+Token过期时间: %@, 当前时间: %@", expireDate, [NSDate date]);
     
     if ([expireDate compare:[NSDate date]] != NSOrderedDescending) {
-        NSLog(@"在局Claude Code[Token检查]+Token已过期，开始刷新");
+        NSLog(@"Token已过期，开始刷新");
         // 获取原始的AppId和AppSecret
         NSString *appId = [ClientSettingModel sharedInstance].appId;
         NSString *appSecret = [ClientSettingModel sharedInstance].appSecret;
         
-        NSLog(@"在局Claude Code[Token刷新]+AppId: %@, AppSecret: %@", appId, appSecret);
         
         // 使用GET请求方式，与原项目保持一致
         NSString *urlString = [NSString stringWithFormat:@"%@/oauth/getAccessToken?appId=%@&appSecret=%@", 
@@ -315,57 +310,51 @@
                                                          appId,
                                                          appSecret];
         
-        NSLog(@"在局Claude Code[Token刷新]+GET请求URL: %@", urlString);
         
         // 使用异步请求避免阻塞主线程
         NSURL *url = [NSURL URLWithString:urlString];
         NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
             NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
-            NSLog(@"在局Claude Code[Token刷新响应]+状态码: %ld", (long)httpResponse.statusCode);
             
             if (error) {
-                NSLog(@"在局Claude Code[Token刷新失败]+错误: %@", error.localizedDescription);
+                NSLog(@"Token刷新失败: %@", error.localizedDescription);
                 return;
             }
             
             if (data && !error) {
                 NSString *resultString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-                NSLog(@"在局Claude Code[Token刷新响应]+原始数据: %@", resultString);
                 
                 if (resultString) {
                     NSError *parseError = nil;
                     NSDictionary *result = [NSJSONSerialization JSONObjectWithData:[resultString dataUsingEncoding:NSUTF8StringEncoding] options:NSJSONReadingAllowFragments error:&parseError];
                     if (parseError) {
-                        NSLog(@"在局Claude Code[Token刷新错误]+JSON解析失败: %@", parseError);
+                        NSLog(@"Token刷新JSON解析失败: %@", parseError);
                         return;
                     }
                     
                     if (result) {
-                        NSLog(@"在局Claude Code[Token刷新]+解析结果: %@", result);
                         
                         // 检查是否有错误
                         NSNumber *code = result[@"code"];
                         if (code && [code integerValue] != 0) {
-                            NSLog(@"在局Claude Code[Token刷新失败]+错误码: %@, 错误信息: %@", code, result[@"errorMessage"]);
+                            NSLog(@"Token刷新失败 - 错误码: %@, 错误信息: %@", code, result[@"errorMessage"]);
                         }
                         
                         NSDictionary *dataDic = [result objectForKey:@"data"];
-                        NSLog(@"在局Claude Code[Token刷新]+data内容: %@", dataDic);
                         
                         NSString *appTkn = [dataDic objectForKey:@"access_token"];
                         if(appTkn) {
-                            NSLog(@"在局Claude Code[Token刷新成功]+新Token: %@", appTkn);
+                            NSLog(@"Token刷新成功");
                             dispatch_async(dispatch_get_main_queue(), ^{
                                 [[ClientJsonRequestManager sharedClient].requestSerializer setValue:appTkn forHTTPHeaderField:@"AUTHORIZATION"];
                                 NSInteger intervalTime = [[dataDic objectForKey:@"expire"] integerValue];
                                 NSDate *expireDate = [NSDate dateWithTimeIntervalSinceNow:intervalTime];
-                                NSLog(@"在局Claude Code[Token刷新]+新过期时间: %@", expireDate);
                                 [[NSUserDefaults standardUserDefaults] setObject:expireDate forKey:@"User_Token_Expire_Time"];
                                 [[NSUserDefaults standardUserDefaults] setObject:appTkn forKey:User_Token_String];
                                 [[NSUserDefaults standardUserDefaults] synchronize];
                             });
                         } else {
-                            NSLog(@"在局Claude Code[Token刷新错误]+响应中没有access_token");
+                            NSLog(@"Token刷新错误: 响应中没有access_token");
                         }
                     }
                 }

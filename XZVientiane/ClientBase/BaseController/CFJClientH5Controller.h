@@ -7,9 +7,12 @@
 //
 
 #import "XZWKWebViewBaseController.h"
+#import "../JSBridge/Handlers/JSPaymentHandler.h"
+
 typedef void(^CallBackToNative)(id aResponseObject,NSString *function);
 
-@interface CFJClientH5Controller : XZWKWebViewBaseController
+// 在局Claude Code[修复未声明选择器警告]+实现支付回调协议
+@interface CFJClientH5Controller : XZWKWebViewBaseController <JSPaymentCallbackSupport>
 
 @property (nonatomic, assign) BOOL imVC;//判断是不是从聊天模块过来的，是的话不要显示messageBtn
 @property (nonatomic, assign) BOOL isCheck;//是否需要检查版本更新和初始化定位
@@ -23,7 +26,8 @@ typedef void(^CallBackToNative)(id aResponseObject,NSString *function);
 @property (nonatomic, strong) NSDictionary *navDic;
 
 // 兼容性属性 - 用于JavaScript回调
-@property (nonatomic, copy) XZWebViewJSCallbackBlock webviewBackCallBack;
+// 在局Claude Code[修复空指针传递警告]+支持nullable属性
+@property (nonatomic, copy, nullable) XZWebViewJSCallbackBlock webviewBackCallBack;
 
 // 导航栏按钮标识属性
 @property (assign, nonatomic) BOOL leftMessage;
@@ -36,6 +40,13 @@ typedef void(^CallBackToNative)(id aResponseObject,NSString *function);
 - (void)resetAllTabsToInitialState;
 - (void)performWechatDirectLogin;
 - (void)shareContent:(NSDictionary *)dic presentedVC:(UIViewController *)vc;
+// 在局Claude Code[修复未声明选择器警告]+声明登录状态检测方法
+- (void)detectAndHandleLoginStateChange:(void(^)(NSDictionary*))completion;
+
+// 导航栏控制方法
+// 在局Claude Code[修复未声明选择器警告]+声明导航栏方法
+- (void)hideNavatinBar;
+- (void)showNavatinBar;
 
 // 文件处理方法
 - (void)pushTZImagePickerControllerWithDic:(NSDictionary *)dataDic;

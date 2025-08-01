@@ -304,7 +304,90 @@
                             subview.userInteractionEnabled = YES;
                         }
                         
-                        NSLog(@"在局Claude Code[TabBar恢复]+延迟检查，确保TabBar可交互");
+                        // 🔧 关键修复：确保内容视图显示正确
+                        if ([toVC respondsToSelector:@selector(webView)]) {
+                            UIView *webView = [toVC valueForKey:@"webView"];
+                            if (webView) {
+                                webView.hidden = NO;
+                                webView.alpha = 1.0;
+                                webView.userInteractionEnabled = YES;
+                                // 确保WebView在正确的位置
+                                [toVC.view bringSubviewToFront:webView];
+                                NSLog(@"在局Claude Code[视图恢复]+确保WebView显示正常");
+                                
+                                // 🔧 新增：执行页面恢复策略
+                                if ([toVC respondsToSelector:@selector(executePageReloadStrategies)]) {
+                                    SEL reloadSel = NSSelectorFromString(@"executePageReloadStrategies");
+                                    NSMethodSignature *signature = [toVC methodSignatureForSelector:reloadSel];
+                                    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
+                                    [invocation setTarget:toVC];
+                                    [invocation setSelector:reloadSel];
+                                    [invocation invoke];
+                                    NSLog(@"在局Claude Code[页面恢复]+执行页面重载策略");
+                                }
+                                
+                                // 🔧 关键修复：对于手势返回到Tab根页面，强制刷新内容
+                                if (!toVC.hidesBottomBarWhenPushed && toVC.tabBarController) {
+                                    // 强制触发一次视图布局
+                                    [toVC.view setNeedsLayout];
+                                    [toVC.view layoutIfNeeded];
+                                    
+                                    // 如果是WKWebView，强制重新渲染
+                                    if ([webView isKindOfClass:NSClassFromString(@"WKWebView")]) {
+                                        // 触发JavaScript强制重绘
+                                        SEL evalJSSel = NSSelectorFromString(@"evaluateJavaScript:completionHandler:");
+                                        if ([webView respondsToSelector:evalJSSel]) {
+                                            NSString *jsCode = @"document.body.style.display='none';document.body.offsetHeight;document.body.style.display='block';";
+                                            NSMethodSignature *sig = [webView methodSignatureForSelector:evalJSSel];
+                                            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+                                            [inv setTarget:webView];
+                                            [inv setSelector:evalJSSel];
+                                            [inv setArgument:&jsCode atIndex:2];
+                                            void (^completionHandler)(id, NSError *) = nil;
+                                            [inv setArgument:&completionHandler atIndex:3];
+                                            [inv invoke];
+                                            NSLog(@"在局Claude Code[强制重绘]+触发WebView重新渲染");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 确保toVC的视图完全可见
+                        toVC.view.hidden = NO;
+                        toVC.view.alpha = 1.0;
+                        
+                        // 刷新视图层级
+                        [toVC.view setNeedsLayout];
+                        [toVC.view layoutIfNeeded];
+                        
+                        NSLog(@"在局Claude Code[TabBar恢复]+延迟检查，确保TabBar和内容视图正常");
+                        
+                        // 🔧 关键修复：对于手势返回到Tab根页面，通知页面已经显示
+                        if (!toVC.hidesBottomBarWhenPushed && toVC.tabBarController && success) {
+                            // 延迟发送通知，确保视图完全恢复
+                            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                                // 发送页面显示通知
+                                [[NSNotificationCenter defaultCenter] postNotificationName:@"showTabviewController" object:toVC];
+                                NSLog(@"在局Claude Code[Tab激活]+发送showTabviewController通知");
+                                
+                                // 确保页面恢复策略执行
+                                if ([toVC respondsToSelector:@selector(executePageReloadStrategies)]) {
+                                    SEL reloadSel = NSSelectorFromString(@"executePageReloadStrategies");
+                                    NSMethodSignature *signature = [toVC methodSignatureForSelector:reloadSel];
+                                    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
+                                    [invocation setTarget:toVC];
+                                    [invocation setSelector:reloadSel];
+                                    [invocation invoke];
+                                }
+                                
+                                // 手动触发一次viewDidAppear
+                                if ([toVC respondsToSelector:@selector(viewDidAppear:)]) {
+                                    [toVC viewDidAppear:YES];
+                                    NSLog(@"在局Claude Code[Tab激活]+手动触发viewDidAppear");
+                                }
+                            });
+                        }
                     }
                 }
             });
@@ -648,8 +731,10 @@
     }
     
     // 检查是否需要处理WebView状态
+    // 🔧 关键修复：只有在Tab切换时才跳过处理，手势返回不算Tab切换
     BOOL isTabSwitch = NO;
-    if (viewController.tabBarController) {
+    // Tab切换的判断条件：不是动画导航且是根视图控制器
+    if (!animated && viewController.tabBarController) {
         UIViewController *selectedVC = viewController.tabBarController.selectedViewController;
         if (selectedVC == self || 
             (selectedVC == viewController.navigationController && 
@@ -955,8 +1040,8 @@
                 tabBarFrame.origin.y = screenHeight + 100;
                 tabBar.frame = tabBarFrame;
                 
-                // 调整层级
-                [tabBar.superview sendSubviewToBack:tabBar];
+                // 🔧 移除层级调整，避免破坏视图结构
+                // [tabBar.superview sendSubviewToBack:tabBar];
                 
                 // 暂时禁用交互
                 tabBar.userInteractionEnabled = NO;

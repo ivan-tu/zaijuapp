@@ -33,7 +33,7 @@
     NSString *url = dataDic[@"url"];
     NSString *method = dataDic[@"method"];
     
-    // 在局Claude Code修复：如果前端没有指定method，默认使用POST
+    // 如果前端没有指定method，默认使用POST
     if (!method || method.length == 0) {
         method = @"POST";
     }

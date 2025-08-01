@@ -27,7 +27,8 @@ typedef NS_ENUM(NSInteger, GDpushTypeCompat) {
 };
 
 // JavaScript回调块类型定义
-typedef void(^XZWebViewJSCallbackBlock)(id result);
+// 在局Claude Code[修复空指针传递警告]+支持nullable参数
+typedef void(^XZWebViewJSCallbackBlock)(id _Nullable result);
 typedef void(^NextPageDataBlock)(NSDictionary *dic);
 
 // 枚举值已在GDpushTypeCompat中定义，无需额外的extern声明
@@ -35,8 +36,9 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 @interface XZWKWebViewBaseController : XZViewController
 
 // WebView相关属性
-@property (strong, nonatomic) WKWebView *webView;
-@property (strong, nonatomic) WKUserContentController *userContentController;
+// 在局Claude Code[修复空指针传递警告]+支持nullable属性
+@property (strong, nonatomic, nullable) WKWebView *webView;
+@property (strong, nonatomic, nullable) WKUserContentController *userContentController;
 
 // 页面数据属性
 @property (strong, nonatomic) NSString *pinUrl;
@@ -107,8 +109,8 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 - (void)jsCallObjc:(NSDictionary *)jsData completion:(void(^)(id result))completion;
 - (void)jsCallObjc:(NSDictionary *)jsData jsCallBack:(WVJBResponseCallback)jsCallBack;
 - (void)objcCallJs:(NSDictionary *)dic;
-- (void)handleJavaScriptCall:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion;
-- (void)callJavaScript:(NSString *)script completion:(XZWebViewJSCallbackBlock)completion;
+- (void)handleJavaScriptCall:(NSDictionary *)data completion:(nullable XZWebViewJSCallbackBlock)completion;
+- (void)callJavaScript:(NSString *)script completion:(nullable XZWebViewJSCallbackBlock)completion;
 - (void)safelyEvaluateJavaScript:(NSString *)javaScriptString completion:(void (^)(id result, NSError *error))completionHandler;
 
 // 网络监控方法

@@ -105,6 +105,12 @@
                 appH5VC.pinDataStr = templateStr;  // 使用正确的属性名
                 appH5VC.pagetitle = title;
                 
+                // 立即设置导航栏标题
+                if (title && title.length > 0 && ![title isEqualToString:@"(null)"]) {
+                    appH5VC.navigationItem.title = title;
+                    NSLog(@"在局Claude Code[导航时设置标题]+navigateTo设置标题: %@", title);
+                }
+                
                 [controller.navigationController pushViewController:appH5VC animated:YES];
                 
                 __weak typeof(cfController) weakController = cfController;

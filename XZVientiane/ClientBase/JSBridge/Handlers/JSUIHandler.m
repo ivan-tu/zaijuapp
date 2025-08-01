@@ -215,7 +215,11 @@
                 if ([webView respondsToSelector:@selector(scrollView)]) {
                     UIScrollView *scrollView = [webView performSelector:@selector(scrollView)];
                     
+                    // 在局Claude Code[修复未声明选择器警告]+抑制MJRefresh相关警告
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundeclared-selector"
                     if ([scrollView respondsToSelector:@selector(mj_header)]) {
+#pragma clang diagnostic pop
                         id mj_header = [scrollView valueForKey:@"mj_header"];
                         if (mj_header) {
                             NSNumber *isRefreshing = [mj_header valueForKey:@"isRefreshing"];
