@@ -18,6 +18,7 @@
 
 @property (nonatomic, assign) NSInteger selectedIndex_province;
 @property (nonatomic, assign) NSInteger selectedIndex_city;
+@property (nonatomic, assign) NSInteger selectedIndex_district;
 
 @property (nonatomic, assign) BOOL isGettingData;
 @property (nonatomic, strong) void (^getDataCompleteBlock)(void);
@@ -73,10 +74,17 @@
         case 0:
             self.selectedIndex_province = row;
             self.selectedIndex_city = 0;
+            self.selectedIndex_district = 0;
             [self reloadComponent:1];
+            [self reloadComponent:2];
             break;
         case 1:
             self.selectedIndex_city = row;
+            self.selectedIndex_district = 0;
+            [self reloadComponent:2];
+            break;
+        case 2:
+            self.selectedIndex_district = row;
             break;
         default:
             break;
@@ -128,8 +136,18 @@
                     address = [NSString stringWithFormat:@"%@",addressModel.name];
                     zipcode = [NSString stringWithFormat:@"%@",addressModel.zipcode];
                 } else {
+                    DistrictModel *districtModel;
+                    if (cityModel.list.count > 0) {
+                        districtModel = cityModel.list[weakSelf.selectedIndex_district];
+                    }
+                    
+                    if (!districtModel) {
                         address = [NSString stringWithFormat:@"%@-%@",addressModel.name,cityModel.name];
                         zipcode = [NSString stringWithFormat:@"%@-%@",addressModel.zipcode,cityModel.zipcode];
+                    } else {
+                        address = [NSString stringWithFormat:@"%@-%@-%@",addressModel.name,cityModel.name,districtModel.name];
+                        zipcode = [NSString stringWithFormat:@"%@-%@-%@",addressModel.zipcode,cityModel.zipcode,districtModel.zipcode];
+                    }
                 }
                 
                 
@@ -291,7 +309,7 @@
 #pragma mark - UIPickerViewDelegate,UIPickerViewDataSource
 
 - (NSInteger)numberOfComponentsInPickerView:(UIPickerView *)pickerView {
-    return 2;
+    return 3;
 }
 
 - (NSInteger)pickerView:(UIPickerView *)pickerView numberOfRowsInComponent:(NSInteger)component {
@@ -343,11 +361,20 @@
         case 0:
             self.selectedIndex_province = row;
             self.selectedIndex_city = 0;
+            self.selectedIndex_district = 0;
             [pickerView reloadComponent:1];
+            [pickerView reloadComponent:2];
             [pickerView selectRow:0 inComponent:1 animated:NO];
+            [pickerView selectRow:0 inComponent:2 animated:NO];
             break;
         case 1:
             self.selectedIndex_city = row;
+            self.selectedIndex_district = 0;
+            [pickerView reloadComponent:2];
+            [pickerView selectRow:0 inComponent:2 animated:NO];
+            break;
+        case 2:
+            self.selectedIndex_district = row;
             break;
         default:
             break;

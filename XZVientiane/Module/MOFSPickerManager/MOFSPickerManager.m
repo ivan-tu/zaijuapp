@@ -329,7 +329,7 @@
     }];
     //cfj修改 如果没有数据,默认从第一个开始
     if (zipcode == nil || [zipcode  isEqual: @""]) {
-        zipcode = @"2-2";
+        zipcode = @"2-2-3";
     }
     
     [self searchCFJIndexByZipCode:zipcode block:^(NSString *address) {
