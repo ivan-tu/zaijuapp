@@ -3,7 +3,7 @@
 ## 文件信息
 - **文件路径**: XZVientiane/ClientBase/BaseController/CFJClientH5Controller.h/.m
 - **作用**: 具体的H5页面控制器，实现所有JavaScript与Native的交互功能
-- **文件大小**: 4353行（需要重构）
+- **重构状态**: ✅ 已完成JSBridge模块化重构（2025年）
 - **创建时间**: 2016年
 
 ## 类继承关系
@@ -14,6 +14,18 @@ UIViewController
                     └── CFJClientH5Controller
 ```
 
+## 重大架构变更（2025年）
+
+### JSBridge模块化重构
+- **旧架构**: jsCallObjc方法包含500+行代码，50+个if-else分支
+- **新架构**: 使用JSActionHandlerManager智能路由，handleJavaScriptCall方法仅47行
+- **改进效果**: 代码可维护性大幅提升，功能模块化，易于扩展
+
+### 新增组件
+- **JSActionHandlerManager**: 统一管理所有JS处理器
+- **各类JSHandler**: 分模块处理不同功能（UI、定位、媒体、网络等）
+- **统一管理器**: iOS版本、错误码、WebView性能等统一管理
+
 ## 属性说明
 
 ### 公开属性
@@ -23,400 +35,266 @@ UIViewController
 | canShare | NSString* | 是否可以分享 |
 | showRedpacket | NSString* | 是否显示红包 |
 | uid | NSString* | 用户ID |
+| urlString | NSString* | 页面URL |
 
-### 私有属性（部分重要）
+### 重要私有属性
 | 属性名 | 类型 | 说明 |
 |-------|------|------|
+| jsHandlerManager | JSActionHandlerManager* | JSBridge管理器（新增） |
 | locationManager | AMapLocationManager* | 高德定位管理器 |
 | jsCallPayCallback | WVJBResponseCallback | 支付回调 |
 | jsWeiXinLoginCallback | WVJBResponseCallback | 微信登录回调 |
 | jsAppleLoginCallback | WVJBResponseCallback | Apple登录回调 |
-| getLocationCallBack | WVJBResponseCallback | 定位回调 |
-| nextPageData | NSDictionary* | 下一页数据 |
-| locationInfo | CLLocation* | 位置信息 |
 
-## 核心方法分类
+## 核心方法说明
 
-### 1. JavaScript桥接处理（核心方法）
+### 1. JavaScript桥接处理（新架构）
 
-#### jsCallObjc:jsCallBack:
+#### handleJavaScriptCall:callback: （替代原jsCallObjc）
 ```objc
-- (void)jsCallObjc:(id)jsData jsCallBack:(WVJBResponseCallback)jsCallBack
+- (void)handleJavaScriptCall:(id)jsData callback:(WVJBResponseCallback)callback
 ```
-**作用**: 处理所有JavaScript调用Native的请求
+**作用**: 处理所有JavaScript调用Native的请求（智能路由版本）
 **参数**:
 - jsData: JS传递的数据字典
-- jsCallBack: 回调函数
-**实现逻辑**: 根据action字段分发到不同的处理方法（超过50个分支）
+- callback: 回调函数
 
-**主要action分类**:
-- **页面导航**: navigateTo, navigateBack, redirectTo
-- **UI交互**: showToast, showLoading, showModal, setNavigationBarTitle
-- **支付功能**: payWeiXin, payAlipay
-- **登录功能**: loginWeixin, loginApple, logout
-- **分享功能**: shareToWeiXin
-- **定位功能**: getLocation, startLocationUpdate, stopLocationUpdate
-- **图片功能**: selectImage, uploadImage, saveImageToPhotosAlbum
-- **扫码功能**: scanCode
-- **网络请求**: request
-- **存储功能**: setStorage, getStorage, removeStorage
-- **系统功能**: makePhoneCall, setClipboardData, getSystemInfo
-
-### 2. 页面导航相关
-
-#### handleNavigateTo:callback:
+**实现逻辑（简化后）**:
 ```objc
-- (void)handleNavigateTo:(NSDictionary *)params callback:(WVJBResponseCallback)callback
+- (void)handleJavaScriptCall:(id)jsData callback:(WVJBResponseCallback)callback {
+    NSDictionary *jsDic = (NSDictionary *)jsData;
+    NSString *action = jsDic[@"action"];
+    NSDictionary *data = jsDic[@"data"] ?: jsDic;
+    
+    // 添加调试日志
+    ZJLog(@"在局Claude Code[JS调用Native] action: %@", action);
+    
+    // 使用JSActionHandlerManager进行智能路由
+    BOOL handled = [self.jsHandlerManager handleAction:action data:data callback:callback];
+    
+    if (!handled) {
+        // 处理特殊的非标准action
+        if ([self handleSpecialAction:action data:data callback:callback]) {
+            return;
+        }
+        
+        // 未知action
+        NSDictionary *error = @{
+            @"code": @(XZErrorCodeUnknownAction),
+            @"msg": [NSString stringWithFormat:@"未知的action: %@", action]
+        };
+        if (callback) {
+            callback(error);
+        }
+    }
+}
 ```
-**作用**: 跳转到新页面
+
+### 2. JSBridge初始化
+
+#### setupJavaScriptBridge
+```objc
+- (void)setupJavaScriptBridge
+```
+**作用**: 初始化JavaScript桥接和处理器
 **实现**:
-1. 解析URL参数
-2. 创建新的CFJClientH5Controller实例
-3. 使用pushViewController跳转
+1. 创建WKWebViewJavascriptBridge实例
+2. 初始化JSActionHandlerManager
+3. 注册统一消息处理器
+4. 注册特殊处理器
 
-#### handleNavigateBack:callback:
+### 3. 特殊Action处理
+
+#### handleSpecialAction:data:callback:
 ```objc
-- (void)handleNavigateBack:(NSDictionary *)params callback:(WVJBResponseCallback)callback
+- (BOOL)handleSpecialAction:(NSString *)action data:(NSDictionary *)data callback:(WVJBResponseCallback)callback
 ```
-**作用**: 返回上一页或指定页数
-**参数**: delta - 返回的页面数
+**作用**: 处理不符合标准格式的特殊action
+**说明**: 用于兼容旧版本或特殊情况的action
 
-#### handleRedirectTo:callback:
+### 4. 页面生命周期
+
+#### viewDidLoad
+- 设置导航栏样式
+- 配置页面基础属性
+- 注册通知观察者
+
+#### viewWillAppear:
+- 更新导航栏显示
+- 通知JS页面即将显示
+- 检测登录状态变化
+
+#### viewDidAppear:
+- 首次创建WebView（延迟创建优化）
+- 加载页面内容
+- 处理iOS 18兼容性
+
+#### viewWillDisappear:
+- 通知JS页面即将隐藏
+- 保存页面状态
+
+#### dealloc
+- 移除通知观察者
+- 清理WebView资源
+- 释放管理器
+
+## JSHandler模块功能分布
+
+### JSUIHandler - UI相关功能
+- showToast、showLoading、hideLoading
+- showModal、showActionSheet
+- setNavigationBarTitle、setNavigationBarColor
+- showNavigationBar、hideNavigationBar
+
+### JSNavigationHandler - 导航功能
+- navigateTo、redirectTo、navigateBack
+- reLaunch、switchTab
+
+### JSLocationHandler - 定位功能
+- getLocation、openLocation、chooseLocation
+- startLocationUpdate、stopLocationUpdate
+
+### JSMediaHandler - 媒体功能
+- chooseImage、previewImage、saveImageToPhotosAlbum
+- chooseVideo、saveVideoToPhotosAlbum
+- getImageInfo、compressImage
+
+### JSNetworkHandler - 网络请求
+- request、uploadFile、downloadFile
+- getNetworkType
+
+### JSPaymentHandler - 支付功能
+- requestPayment（支持微信、支付宝）
+- getPaymentStatus
+
+### JSShareHandler - 分享功能
+- shareToTimeline、shareToSession
+- shareToQQ、shareToWeibo
+
+### JSUserHandler - 用户功能
+- login、logout
+- getUserInfo、updateUserInfo
+- checkSession
+
+### JSSystemHandler - 系统功能
+- makePhoneCall、scanCode
+- setClipboardData、getClipboardData
+- openSetting、getSystemInfo、vibrate
+
+### JSFileHandler - 文件操作
+- saveFile、getSavedFileList
+- getSavedFileInfo、removeSavedFile
+- openDocument
+
+### JSPageLifecycleHandler - 页面生命周期
+- onPageShow、onPageHide
+- onPageUnload、onPageReady
+
+## 第三方SDK集成
+
+### 微信SDK
+- 登录：通过JSUserHandler处理
+- 支付：通过JSPaymentHandler处理
+- 分享：通过JSShareHandler处理
+
+### 支付宝SDK
+- 支付功能集成在JSPaymentHandler中
+
+### 高德地图SDK
+- 定位功能集成在JSLocationHandler中
+
+### 友盟SDK
+- 统计和推送功能
+
+## 错误处理机制
+
+### 统一错误码（XZErrorCodeManager）
 ```objc
-- (void)handleRedirectTo:(NSDictionary *)params callback:(WVJBResponseCallback)callback
+typedef NS_ENUM(NSInteger, XZErrorCode) {
+    XZErrorCodeSuccess = 0,              // 成功
+    XZErrorCodeInvalidParameter = -1,    // 参数错误
+    XZErrorCodeNetworkError = -2,        // 网络错误
+    XZErrorCodeUnknownAction = -3,       // 未知action
+    XZErrorCodePermissionDenied = -4,    // 权限拒绝
+    // ... 更多错误码
+};
 ```
-**作用**: 重定向当前页面
-**实现**: 更新URL并重新加载
 
-### 3. 支付功能
-
-#### 微信支付
+### 错误回调格式
 ```objc
-// 处理微信支付请求
-if ([function isEqualToString:@"payWeiXin"]) {
-    self.jsCallPayCallback = jsCallBack;
-    
-    // 1. 检查微信是否安装
-    if (![WXApi isWXAppInstalled]) {
-        [self showToast:@"请先安装微信"];
-        jsCallBack(@{@"code": @(-1), @"msg": @"请先安装微信"});
-        return;
-    }
-    
-    // 2. 获取支付参数
-    NSString *orderId = [dataDic objectForKey:@"orderId"];
-    
-    // 3. 向服务器请求支付参数
-    [self requestWeixinPayParams:orderId completion:^(NSDictionary *payParams) {
-        // 4. 构建支付请求
-        PayReq *request = [[PayReq alloc] init];
-        // ... 设置参数
-        
-        // 5. 发起支付
-        [WXApi sendReq:request completion:nil];
-    }];
+@{
+    @"code": @(errorCode),
+    @"msg": @"错误描述",
+    @"data": @{} // 可选的额外数据
 }
 ```
 
-#### 支付宝支付
-```objc
-else if ([function isEqualToString:@"payAlipay"]) {
-    self.jsCallPayCallback = jsCallBack;
-    
-    // 1. 获取订单信息
-    NSString *orderId = [dataDic objectForKey:@"orderId"];
-    
-    // 2. 请求支付串
-    [self requestAlipayOrderString:orderId completion:^(NSString *orderString) {
-        // 3. 调起支付
-        [[AlipaySDK defaultService] payOrder:orderString 
-            fromScheme:@"XZVientianeAlipay" 
-            callback:^(NSDictionary *resultDic) {
-                // 4. 处理支付结果
-                [self handleAlipayResult:resultDic];
-        }];
-    }];
-}
-```
+## 性能优化措施
 
-### 4. 登录功能
-
-#### 微信登录
-```objc
-else if ([function isEqualToString:@"loginWeixin"]) {
-    ZJLog(@"接收到微信登录请求");
-    
-    if ([WXApi isWXAppInstalled]) {
-        SendAuthReq *req = [[SendAuthReq alloc] init];
-        req.scope = @"snsapi_userinfo";
-        req.state = @"hi3zaiju";
-        
-        self.jsWeiXinLoginCallback = jsCallBack;
-        [WXApi sendReq:req completion:nil];
-    } else {
-        [self showToast:@"请先安装微信"];
-        jsCallBack(@{@"msg": @"请先安装微信", @"code": @(-1)});
-    }
-}
-```
-
-#### Apple登录（iOS 13+）
-```objc
-else if ([function isEqualToString:@"loginApple"]) {
-    if (@available(iOS 13.0, *)) {
-        ASAuthorizationAppleIDProvider *provider = [[ASAuthorizationAppleIDProvider alloc] init];
-        ASAuthorizationAppleIDRequest *request = [provider createRequest];
-        request.requestedScopes = @[ASAuthorizationScopeFullName, ASAuthorizationScopeEmail];
-        
-        ASAuthorizationController *controller = [[ASAuthorizationController alloc] 
-            initWithAuthorizationRequests:@[request]];
-        controller.delegate = self;
-        controller.presentationContextProvider = self;
-        
-        self.jsAppleLoginCallback = jsCallBack;
-        [controller performRequests];
-    } else {
-        jsCallBack(@{@"msg": @"系统版本不支持", @"code": @(-1)});
-    }
-}
-```
-
-### 5. 定位功能
-
-#### 获取单次定位
-```objc
-else if ([function isEqualToString:@"getLocation"]) {
-    self.getLocationCallBack = jsCallBack;
-    
-    // 1. 检查权限
-    CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
-    if (status == kCLAuthorizationStatusDenied) {
-        [self showLocationPermissionAlert];
-        return;
-    }
-    
-    // 2. 初始化定位管理器
-    if (!self.locationManager) {
-        self.locationManager = [[AMapLocationManager alloc] init];
-        self.locationManager.desiredAccuracy = kCLLocationAccuracyBest;
-    }
-    
-    // 3. 发起定位
-    [self.locationManager requestLocationWithReGeocode:YES 
-        completionBlock:^(CLLocation *location, AMapLocationReGeocode *regeocode, NSError *error) {
-            if (location) {
-                // 返回定位结果
-                NSDictionary *result = @{
-                    @"latitude": @(location.coordinate.latitude),
-                    @"longitude": @(location.coordinate.longitude),
-                    @"accuracy": @(location.horizontalAccuracy),
-                    @"address": regeocode.formattedAddress ?: @""
-                };
-                jsCallBack(result);
-            }
-    }];
-}
-```
-
-### 6. 图片处理
-
-#### 选择图片
-```objc
-else if ([function isEqualToString:@"selectImage"]) {
-    NSInteger count = [[dataDic objectForKey:@"count"] integerValue] ?: 9;
-    NSString *sourceType = [dataDic objectForKey:@"sourceType"] ?: @"all";
-    
-    // 根据sourceType显示不同选项
-    if ([sourceType isEqualToString:@"camera"]) {
-        [self openCamera:jsCallBack];
-    } else if ([sourceType isEqualToString:@"album"]) {
-        [self openAlbum:count callback:jsCallBack];
-    } else {
-        [self showImageSourceActionSheet:count callback:jsCallBack];
-    }
-}
-```
-
-#### 上传图片到七牛
-```objc
-else if ([function isEqualToString:@"uploadImage"]) {
-    NSString *filePath = [dataDic objectForKey:@"filePath"];
-    
-    // 1. 获取七牛token
-    [self getQiniuToken:^(NSString *token) {
-        // 2. 读取图片
-        UIImage *image = [UIImage imageWithContentsOfFile:filePath];
-        NSData *imageData = [self compressImage:image];
-        
-        // 3. 上传
-        QNUploadManager *upManager = [[QNUploadManager alloc] init];
-        [upManager putData:imageData 
-                      key:[self generateFileName] 
-                    token:token 
-                 complete:^(QNResponseInfo *info, NSString *key, NSDictionary *resp) {
-            if (info.isOK) {
-                NSString *imageUrl = [NSString stringWithFormat:@"%@%@", QINIU_CDN_URL, key];
-                jsCallBack(@{@"code": @(0), @"url": imageUrl});
-            }
-        } option:nil];
-    }];
-}
-```
-
-### 7. 网络请求代理
-
-```objc
-else if ([function isEqualToString:@"request"]) {
-    NSString *url = [dataDic objectForKey:@"url"];
-    NSString *method = [dataDic objectForKey:@"method"] ?: @"GET";
-    NSDictionary *data = [dataDic objectForKey:@"data"];
-    NSDictionary *header = [dataDic objectForKey:@"header"];
-    
-    // 使用AFNetworking发送请求
-    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
-    
-    // 设置请求头
-    [header enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
-        [manager.requestSerializer setValue:obj forHTTPHeaderField:key];
-    }];
-    
-    // 添加token
-    NSString *token = [[NSUserDefaults standardUserDefaults] objectForKey:@"token"];
-    if (token) {
-        [manager.requestSerializer setValue:token forHTTPHeaderField:@"Authorization"];
-    }
-    
-    // 发送请求
-    if ([method isEqualToString:@"GET"]) {
-        [manager GET:url parameters:data headers:nil progress:nil 
-            success:^(NSURLSessionDataTask *task, id responseObject) {
-                jsCallBack(@{@"code": @(0), @"data": responseObject});
-            } 
-            failure:^(NSURLSessionDataTask *task, NSError *error) {
-                jsCallBack(@{@"code": @(-1), @"msg": error.localizedDescription});
-        }];
-    }
-}
-```
-
-### 8. 本地存储
-
-```objc
-// 设置存储
-else if ([function isEqualToString:@"setStorage"]) {
-    NSString *key = [dataDic objectForKey:@"key"];
-    id data = [dataDic objectForKey:@"data"];
-    
-    [[NSUserDefaults standardUserDefaults] setObject:data forKey:key];
-    [[NSUserDefaults standardUserDefaults] synchronize];
-    
-    jsCallBack(@{@"code": @(0)});
-}
-
-// 获取存储
-else if ([function isEqualToString:@"getStorage"]) {
-    NSString *key = [dataDic objectForKey:@"key"];
-    id data = [[NSUserDefaults standardUserDefaults] objectForKey:key];
-    
-    jsCallBack(@{@"code": @(0), @"data": data ?: [NSNull null]});
-}
-```
-
-### 9. 系统功能
-
-```objc
-// 拨打电话
-else if ([function isEqualToString:@"makePhoneCall"]) {
-    NSString *phoneNumber = [dataDic objectForKey:@"phoneNumber"];
-    NSString *telUrl = [NSString stringWithFormat:@"tel:%@", phoneNumber];
-    
-    if ([[UIApplication sharedApplication] canOpenURL:[NSURL URLWithString:telUrl]]) {
-        [[UIApplication sharedApplication] openURL:[NSURL URLWithString:telUrl] 
-            options:@{} 
-            completionHandler:^(BOOL success) {
-                jsCallBack(@{@"code": @(success ? 0 : -1)});
-        }];
-    }
-}
-
-// 复制到剪贴板
-else if ([function isEqualToString:@"setClipboardData"]) {
-    NSString *data = [dataDic objectForKey:@"data"];
-    [UIPasteboard generalPasteboard].string = data;
-    
-    [self showToast:@"复制成功"];
-    jsCallBack(@{@"code": @(0)});
-}
-```
-
-### 10. 辅助方法
-
-#### formatCallbackResponse:data:success:errorMessage:
-```objc
-- (NSDictionary *)formatCallbackResponse:(NSString *)apiType 
-                                    data:(id)data 
-                                 success:(BOOL)success 
-                            errorMessage:(NSString *)errorMessage
-```
-**作用**: 统一格式化回调响应
-**参数**:
-- apiType: API类型
-- data: 返回数据
-- success: 是否成功
-- errorMessage: 错误信息
-**返回**: 格式化的响应字典
-
-#### detectAndHandleLoginStateChange
-```objc
-- (void)detectAndHandleLoginStateChange
-```
-**作用**: 检测并处理登录状态变化
-**实现**:
-1. 获取iOS端登录状态
-2. 获取JS端登录状态
-3. 比较并同步状态
-
-#### showToast:
-```objc
-- (void)showToast:(NSString *)message
-```
-**作用**: 显示提示信息
-**实现**: 使用MBProgressHUD显示toast
+1. **延迟创建WebView**: 在viewDidAppear中创建，优化启动速度
+2. **模块化加载**: 各功能模块按需加载
+3. **统一管理器**: 减少重复代码和性能开销
+4. **缓存机制**: HTML模板和静态资源缓存
 
 ## 使用注意事项
 
-1. **文件过大**: 4000+行代码，急需拆分重构
-2. **内存管理**: 注意各种回调的释放
-3. **线程安全**: UI操作必须在主线程
-4. **权限处理**: 相机、相册、定位等需要权限
-5. **iOS版本兼容**: 注意不同iOS版本的API差异
+1. **线程安全**: 所有UI操作必须在主线程
+2. **内存管理**: 注意各种回调的及时释放
+3. **权限处理**: 相机、相册、定位等需要提前申请权限
+4. **iOS版本兼容**: 使用XZiOSVersionManager统一处理
+5. **日志规范**: 使用"在局Claude Code[模块名]"前缀
 
-## 已知问题
+## 已解决的问题
 
-1. jsCallObjc方法过于庞大（500+行）
-2. 存在内存泄漏风险（通知未移除、定时器未释放）
-3. 线程安全问题（UI操作未确保主线程）
-4. 错误处理不统一
-5. 日志过多影响性能
+1. ✅ **jsCallObjc方法过长**: 通过JSBridge模块化架构解决
+2. ✅ **代码重复**: 通过统一管理器解决
+3. ✅ **iOS版本检查混乱**: 通过XZiOSVersionManager解决
+4. ✅ **错误处理不统一**: 通过XZErrorCodeManager解决
 
-## 优化建议
+## 扩展指南
 
-1. **模块化拆分**:
-   - 将jsCallObjc拆分为多个处理器
-   - 使用策略模式或命令模式
-   - 每个功能模块独立文件
+### 添加新的JS功能
+1. 创建新的JSHandler子类
+2. 在JSActionHandlerManager中注册
+3. 实现具体的action处理方法
+4. 编写单元测试
 
-2. **统一管理**:
-   - 创建统一的权限管理器
-   - 统一的错误处理机制
-   - 统一的回调管理
+### 示例：创建自定义Handler
+```objc
+// 1. 创建Handler类
+@interface JSCustomHandler : JSActionHandler
+@end
 
-3. **性能优化**:
-   - 减少不必要的日志
-   - 优化图片处理流程
-   - 使用懒加载和缓存
+@implementation JSCustomHandler
 
-4. **代码规范**:
-   - 统一命名规范
-   - 添加详细注释
-   - 遵循单一职责原则
+- (NSDictionary<NSString *, NSString *> *)supportedActions {
+    return @{
+        @"customAction": @"handleCustomAction:callback:"
+    };
+}
+
+- (void)handleCustomAction:(NSDictionary *)params callback:(WVJBResponseCallback)callback {
+    // 实现具体功能
+    [self callbackSuccess:callback data:@{@"result": @"success"}];
+}
+
+@end
+
+// 2. 在JSActionHandlerManager中注册
+[self registerHandler:[[JSCustomHandler alloc] initWithWebViewController:webViewController]];
+```
+
+## 调试技巧
+
+1. **日志查看**: 搜索"在局Claude Code"查看相关日志
+2. **Safari调试**: 使用Safari开发者工具调试WebView
+3. **断点调试**: 在handleJavaScriptCall方法设置断点
+4. **性能分析**: 使用Instruments分析性能问题
+
+## 最佳实践
+
+1. **保持模块独立**: 每个Handler只处理自己的功能
+2. **统一错误处理**: 使用XZErrorCodeManager
+3. **及时清理资源**: 在dealloc中清理所有资源
+4. **遵循命名规范**: action命名使用驼峰式
+5. **添加必要注释**: 复杂逻辑添加详细注释
