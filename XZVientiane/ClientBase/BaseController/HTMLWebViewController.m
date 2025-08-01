@@ -60,7 +60,6 @@ static inline BOOL isIPhoneXSeries() {
 }
 
 - (void)viewDidLoad {
-    NSLog(@"在局🌐 [HTMLWebViewController] viewDidLoad开始 - URL: %@", self.webViewDomain);
     [super viewDidLoad];
     self.webView.backgroundColor = [UIColor whiteColor];
     self.view.backgroundColor = [UIColor whiteColor];
@@ -69,7 +68,6 @@ static inline BOOL isIPhoneXSeries() {
     [self addNotif];
     self.navBar.closeBarButton.hidden = YES;
     [self.navBar.closeBarButton addTarget:self action:@selector(backToLast:) forControlEvents:(UIControlEventTouchUpInside)];
-    NSLog(@"在局🌐 [HTMLWebViewController] viewDidLoad完成");
 }
 -(void)creatProgressView{
     //进度条
@@ -83,24 +81,18 @@ static inline BOOL isIPhoneXSeries() {
     self.progresslayer = layer;
 }
 - (void)viewWillAppear:(BOOL)animated {
-    NSLog(@"在局🌐 [HTMLWebViewController] viewWillAppear开始 - animated: %d", animated);
     [super viewWillAppear:animated];
-    NSLog(@"在局🌐 [HTMLWebViewController] 准备隐藏导航栏");
     self.navigationController.navigationBarHidden = YES;
     //友盟页面统计
     NSString* cName = [NSString stringWithFormat:@"%@",self.navBar.titleLable.text, nil];
     [MobClick beginLogPageView:cName];
-    NSLog(@"在局🌐 [HTMLWebViewController] viewWillAppear完成");
 }
 
 - (void)viewDidAppear:(BOOL)animated {
-    NSLog(@"在局🌐 [HTMLWebViewController] viewDidAppear开始 - animated: %d", animated);
     [super viewDidAppear:animated];
-    NSLog(@"在局🌐 [HTMLWebViewController] viewDidAppear完成 - URL: %@", self.webViewDomain);
     
     // 确保加载WebView内容
     if (!self.webView.URL && self.webViewDomain) {
-        NSLog(@"在局🌐 [HTMLWebViewController] WebView未加载，开始加载URL");
         NSURL *url = [NSURL URLWithString:self.webViewDomain];
         NSURLRequest *request = [NSURLRequest requestWithURL:url];
         [self.webView loadRequest:request];
@@ -108,12 +100,10 @@ static inline BOOL isIPhoneXSeries() {
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
-    NSLog(@"在局🌐 [HTMLWebViewController] viewWillDisappear开始");
     [super viewWillDisappear:animated]; // 修复: 应该调用viewWillDisappear而不是viewWillAppear
     //友盟页面统计
     NSString* cName = [NSString stringWithFormat:@"%@",self.navBar.titleLable.text, nil];
     [MobClick endLogPageView:cName];
-    NSLog(@"在局🌐 [HTMLWebViewController] viewWillDisappear完成");
 }
 
 - (void)addWebView {

@@ -178,7 +178,6 @@
 		[[NSFileManager defaultManager] removeItemAtPath:fullPathToFile error:nil];
 	}
 
-	NSLog(@"在局save image%@ At path %@",self,fullPathToFile);
 
 	if (![imageData writeToFile:fullPathToFile atomically:NO]) {
 		return nil;
@@ -210,10 +209,12 @@
     NSError *thumbnailImageGenerationError = nil;
     thumbnailImageRef = [assetImageGenerator copyCGImageAtTime:CMTimeMake(thumbnailImageTime, 60) actualTime:NULL error:&thumbnailImageGenerationError];
 
-    if (!thumbnailImageRef)
-    NSLog(@"在局thumbnailImageGenerationError %@", thumbnailImageGenerationError);
-
-    UIImage *thumbnailImage = thumbnailImageRef ? [[UIImage alloc] initWithCGImage:thumbnailImageRef] : nil;
+    if (!thumbnailImageRef) {
+        return nil;
+    }
+    
+    UIImage *thumbnailImage = [[UIImage alloc] initWithCGImage:thumbnailImageRef];
+    CGImageRelease(thumbnailImageRef); // 释放CGImageRef内存
     return thumbnailImage;
 }
 

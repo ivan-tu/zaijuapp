@@ -9,7 +9,5 @@
 #import <UIKit/UIKit.h>
 
 @interface UIButton (EnlargeTouchArea)
-- (void)setEnlargeEdgeWithTop:(CGFloat) top right:(CGFloat) right bottom:(CGFloat) bottom left:(CGFloat) left;
-
-- (void)setEnlargeEdge:(CGFloat) size;  
+@property(nonatomic, assign) UIEdgeInsets hitTestEdgeInsets;
 @end

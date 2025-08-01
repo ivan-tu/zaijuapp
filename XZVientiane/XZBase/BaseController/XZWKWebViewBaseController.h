@@ -42,10 +42,6 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 @property (strong, nonatomic) NSString *pinUrl;
 @property (strong, nonatomic) NSString *pinDataStr;
 @property (strong, nonatomic) NSString *pagetitle;
-@property (strong, nonatomic) NSString *webViewDomain;
-@property (strong, nonatomic) NSString *templateStr;
-@property (strong, nonatomic) NSString *nextPageData;
-@property (strong, nonatomic) NSString *replaceUrl;
 @property (copy, nonatomic) NextPageDataBlock nextPageDataBlock;
 
 // 组件相关属性
@@ -58,15 +54,12 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 @property (strong, nonatomic, readonly) NSDictionary *ComponentDic;
 
 // 状态属性
-@property (assign, nonatomic) BOOL isCreat;
 @property (assign, nonatomic) BOOL isWebViewLoading;
 @property (assign, nonatomic) BOOL isLoading;
 @property (assign, nonatomic) int lastSelectedIndex;
 @property (assign, nonatomic) GDpushType pushType;
 
 // 导航和页面状态属性
-@property (strong, nonatomic) NSDictionary *navDic;
-@property (assign, nonatomic) BOOL isCheck;
 @property (assign, nonatomic) BOOL isTabbarShow;
 @property (assign, nonatomic) BOOL isExist;
 
@@ -81,7 +74,6 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 
 // HTML模板相关属性
 @property (strong, nonatomic) NSString *htmlStr;
-@property (strong, nonatomic) NSString *appsourceBasePath;
 
 // 性能优化相关属性
 @property (strong, nonatomic) NSOperationQueue *webViewLoadingQueue;  // WebView加载操作队列
@@ -96,7 +88,7 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 
 // 基础方法
 - (void)addWebView;
-- (void)loadWebBridge;
+- (void)setupUnifiedJavaScriptBridge;                  // 统一的JavaScript桥接设置方法
 - (void)domainOperate;
 - (void)loadHTMLContent;
 - (void)retryHTMLLoading;
@@ -105,7 +97,6 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 + (void)preloadHTMLTemplates;                           // 预加载HTML模板
 - (void)preCreateWebViewIfNeeded;                       // 预创建WebView
 - (void)optimizedLoadHTMLContent;                       // 优化的HTML加载方法
-- (void)setupOptimizedJavaScriptBridge;                 // 优化的JavaScript桥接设置
 - (BOOL)isReadyForJavaScriptExecution;                  // 简化的JavaScript执行状态检查
 - (void)fallbackToOriginalLoadMethod;                   // 回退到原有加载方法
 - (void)loadHTMLContentWithoutOptimization;             // 不使用优化的HTML加载方法

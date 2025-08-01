@@ -108,7 +108,6 @@
                        callback:completion];
         });
     } else {
-        NSLog(@"在局⚠️ [JSActionHandlerManager] 未找到处理器: %@", action);
         if (completion) {
             completion(@{
                 @"success": @"false",

@@ -317,17 +317,6 @@
 
 #pragma mark - User Agent
 
-//- (void)setCustomUserAgent:(NSString *)userAgent {
-//    if (@available(iOS 9.0, *)) {
-//        self.customUserAgent = userAgent;
-//    } else {
-//        // 对于iOS 9以下版本的兼容处理
-//        // 注意：应用最低支持iOS 15.0，此代码分支不会执行
-//        // 保留代码仅作为历史参考
-//        // [self setValue:userAgent forKey:@"applicationNameForUserAgent"];
-//        NSLog(@"在局⚠️ 当前iOS版本低于9.0，无法设置自定义UserAgent");
-//    }
-//}
 
 #pragma mark - Utility Methods
 
@@ -339,7 +328,6 @@
                                                        options:NSJSONWritingPrettyPrinted 
                                                          error:&error];
     if (error) {
-        NSLog(@"在局JSON serialization error: %@", error.localizedDescription);
         return @"{}";
     }
     
@@ -355,7 +343,6 @@
                                                 options:NSJSONReadingMutableContainers 
                                                   error:&error];
     if (error) {
-        NSLog(@"在局JSON deserialization error: %@", error.localizedDescription);
         return nil;
     }
     

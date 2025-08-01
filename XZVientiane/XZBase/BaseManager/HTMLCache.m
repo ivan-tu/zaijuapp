@@ -136,9 +136,6 @@
     [[NSUserDefaults standardUserDefaults]synchronize];
 }
 - (void)cacheHtml:(NSString *)htmlStr key:(NSString *)urlStr {
-    NSLog(@"在局开始缓存 HTML");
-    NSLog(@"在局URL: %@", urlStr);
-    NSLog(@"在局HTML 内容长度: %lu", (unsigned long)htmlStr.length);
     
     //获取缓存策略
     NSRange startRange = [htmlStr rangeOfString:@"<!--<appset>{"];
@@ -146,28 +143,22 @@
     NSString *JsonString = nil;
     if (startRange.location != NSNotFound && endRange.location != NSNotFound) {
         JsonString = [htmlStr substringWithRange:NSMakeRange(startRange.location + startRange.length - 1, endRange.location - startRange.location - startRange.length + 2)];
-        NSLog(@"在局缓存配置: %@", JsonString);
     }
     
     NSDictionary *jsonDic = nil;
     if (JsonString) {
         jsonDic = [NSJSONSerialization JSONObjectWithData:[JsonString dataUsingEncoding:NSUTF8StringEncoding] options:NSJSONReadingAllowFragments error:nil];
-        NSLog(@"在局解析后的配置: %@", jsonDic);
     }
     
     if (!jsonDic) {
-        NSLog(@"在局未找到缓存配置");
         return;
     }
     
     NSString *cacheMethod = [jsonDic objectForKey:@"cache"];
-    NSLog(@"在局缓存策略: %@", cacheMethod);
     
     if ([cacheMethod isEqualToString:@"no-cache"]) {
-        NSLog(@"在局不缓存内容");
         return;
     } else {
-        NSLog(@"在局永久缓存内容");
         [[HTMLCache sharedCache] permanentCacheString:htmlStr forKey:urlStr];
     }
 }

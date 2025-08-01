@@ -81,6 +81,65 @@
     }];
 }
 
+- (void)GET:(NSString *)URLString parameters:(id)parameters headers:(NSDictionary *)headers block:(ClientCompletionBlock)block {
+    if ([self cachedDataWithKey:[NSString urlWithParam:parameters andHead:URLString] block:block]) {
+        return;
+    }
+    [self checkAppToken];
+    
+    NSLog(@"在局Claude Code[网络请求]+GET请求: %@, 参数: %@, Headers: %@", URLString, parameters, headers);
+    
+    [self GET:URLString parameters:parameters headers:headers progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
+        if (!responseObject || ![responseObject isKindOfClass:[NSDictionary class]]) {
+            if (block) {
+                block(nil, [NSError errorWithDomain:@"没有返回数据或数据格式错误" code:10000 userInfo:nil]);
+            }
+            return ;
+        }
+        NSNumber *codenumber = [responseObject objectForKey:@"code"];
+        NSAssert(codenumber.integerValue == 0, @"请求失败");
+        [[EGOCache globalCache] setObject:responseObject forKey:[NSString urlWithParam:parameters andHead:URLString]];
+        if (block) {
+            block(responseObject, nil);
+        }
+    } failure:^(NSURLSessionDataTask *task, NSError *error) {
+        NSLog(@"在局Claude Code[网络请求]+GET请求失败: %@, 错误: %@", URLString, error.localizedDescription);
+        if(block){
+            block (nil,error);
+        }
+    }];
+}
+
+- (void)POST:(NSString *)URLString parameters:(id)parameters headers:(NSDictionary *)headers block:(ClientCompletionBlock)block {
+    if ([self cachedDataWithKey:[NSString urlWithParam:parameters andHead:URLString] block:block]) {
+        return;
+    }
+    [self checkAppToken];
+    
+    NSLog(@"在局Claude Code[网络请求]+POST请求: %@, 参数: %@, Headers: %@", URLString, parameters, headers);
+    
+    [self POST:URLString parameters:parameters headers:headers progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
+        NSLog(@"在局%@",[responseObject objectForKey:@"errorMessage"]);
+        if (!responseObject || ![responseObject isKindOfClass:[NSDictionary class]]) {
+            if (block) {
+                block(nil, [NSError errorWithDomain:@"没有返回数据或数据格式错误" code:10000 userInfo:nil]);
+            }
+            return ;
+        }
+        NSNumber *codenumber = [responseObject objectForKey:@"code"];
+        NSAssert(codenumber.integerValue == 0, @"请求失败");
+        [[EGOCache globalCache] setObject:responseObject forKey:[NSString urlWithParam:parameters andHead:URLString]];
+        if (block) {
+            block(responseObject, nil);
+        }
+    } failure:^(NSURLSessionDataTask *task, NSError *error) {
+        NSLog(@"在局Claude Code[网络请求]+POST请求失败: %@, 错误: %@", URLString, error.localizedDescription);
+        if(block){
+            block (nil,error);
+        }
+    }];
+}
+
 - (void)POSTRPC:(NSString *)URLString parameters:(id)parameters block:(ClientCompletionBlock)block
 {
     if ([self cachedDataWithKey:[NSString urlWithParam:parameters andHead:URLString] block:block]) {

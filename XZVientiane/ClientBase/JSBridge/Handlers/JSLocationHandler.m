@@ -25,7 +25,6 @@
 @implementation JSLocationHandler
 
 - (void)dealloc {
-    NSLog(@"在局🗑️ [JSLocationHandler] 释放定位处理器");
     
     // 清理高德定位管理器
     if (self.locationManager) {
@@ -88,7 +87,6 @@
          [[defaults objectForKey:@"currentLng"] doubleValue] != 0) && 
         cachedCity && ![cachedCity isEqualToString:@"请选择"] && ![cachedCity isEqualToString:@"定位失败"]) {
         
-        NSLog(@"在局✅ [JSLocationHandler] 使用缓存定位信息");
         NSDictionary *localDic = @{
             @"lat": [defaults objectForKey:@"currentLat"] ?: @(0),
             @"lng": [defaults objectForKey:@"currentLng"] ?: @(0),
@@ -108,14 +106,12 @@
     
     if (authStatus == kCLAuthorizationStatusNotDetermined) {
         // 权限未确定，需要先请求权限
-        NSLog(@"在局⚠️ [JSLocationHandler] 定位权限未确定，需要请求权限");
         [self requestLocationPermissionWithCallback:callback];
         return;
     }
     
     if ([self isLocationServiceOpen]) {
         // 开始定位
-        NSLog(@"在局🔍 [JSLocationHandler] 开始进行定位请求");
         [self startLocationWithCallback:callback];
     } else {
         // 定位权限被拒绝
@@ -124,7 +120,6 @@
 }
 
 - (void)requestLocationPermissionWithCallback:(JSActionCallbackBlock)callback {
-    NSLog(@"在局🔍 [权限请求] 开始请求定位权限");
     
     // 创建权限请求管理器
     self.permissionLocationManager = [[CLLocationManager alloc] init];
@@ -139,7 +134,6 @@
     // 设置超时处理，防止用户不响应权限请求
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(30.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (self.locationCallback && [CLLocationManager authorizationStatus] == kCLAuthorizationStatusNotDetermined) {
-            NSLog(@"在局⏰ [权限请求] 权限请求超时，用户未响应");
             NSDictionary *errorDic = @{
                 @"lat": @(0),
                 @"lng": @(0),
@@ -157,7 +151,6 @@
 }
 
 - (void)startLocationWithCallback:(JSActionCallbackBlock)callback {
-    NSLog(@"在局🔍 [定位开始] 初始化高德定位管理器");
     
     // 确保在主线程执行
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -214,7 +207,6 @@
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     
     if (error) {
-        NSLog(@"在局❌ [定位错误] 错误码:%ld, 描述:%@", (long)error.code, error.localizedDescription);
         
         // 提供具体的错误处理
         NSString *errorMessage = @"定位失败，请重试";
@@ -224,7 +216,6 @@
             case AMapLocationErrorCanceled:
                 errorMessage = @"定位被取消，请重新尝试";
                 cityName = @"定位被取消";
-                NSLog(@"在局⚠️ [定位错误] 定位被取消，可能是权限问题或用户操作");
                 break;
             case AMapLocationErrorLocateFailed:
                 errorMessage = @"定位服务暂时不可用，请检查网络连接";
@@ -255,7 +246,6 @@
         if (error.code == AMapLocationErrorCanceled) {
             CLAuthorizationStatus authStatus = [CLLocationManager authorizationStatus];
             if (authStatus == kCLAuthorizationStatusNotDetermined) {
-                NSLog(@"在局🔄 [定位错误] 检测到权限未确定，重新请求权限");
                 [self requestLocationPermissionWithCallback:self.locationCallback];
                 return;
             }
@@ -322,9 +312,6 @@
     }
     
     [defaults synchronize];
-    
-    NSLog(@"在局✅ [JSLocationHandler] 定位成功 - 纬度:%.6f, 经度:%.6f, 城市:%@", 
-          coordinate.latitude, coordinate.longitude, [defaults objectForKey:@"currentCity"]);
     
     // 返回结果
     NSDictionary *localDic = @{
@@ -427,7 +414,6 @@
 #pragma mark - CLLocationManagerDelegate
 
 - (void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status {
-    NSLog(@"在局🔍 [权限回调] 定位权限状态变更: %d", status);
     
     // 只处理权限管理器的回调
     if (manager != self.permissionLocationManager) {
@@ -437,7 +423,6 @@
     switch (status) {
         case kCLAuthorizationStatusAuthorizedWhenInUse:
         case kCLAuthorizationStatusAuthorizedAlways:
-            NSLog(@"在局✅ [权限回调] 定位权限已授权，开始定位");
             if (self.locationCallback) {
                 [self startLocationWithCallback:self.locationCallback];
             }
@@ -445,7 +430,6 @@
             
         case kCLAuthorizationStatusDenied:
         case kCLAuthorizationStatusRestricted:
-            NSLog(@"在局❌ [权限回调] 定位权限被拒绝");
             if (self.locationCallback) {
                 [self handleLocationPermissionDenied:self.locationCallback];
                 self.locationCallback = nil;
@@ -453,7 +437,6 @@
             break;
             
         case kCLAuthorizationStatusNotDetermined:
-            NSLog(@"在局⚠️ [权限回调] 定位权限仍未确定");
             // 继续等待用户决定
             break;
             
@@ -492,32 +475,25 @@
 - (BOOL)isLocationServiceOpen {
     // 检查定位服务是否可用
     if (![CLLocationManager locationServicesEnabled]) {
-        NSLog(@"在局⚠️ [定位权限] 系统定位服务未开启");
         return NO;
     }
     
     CLAuthorizationStatus authStatus = [CLLocationManager authorizationStatus];
-    NSLog(@"在局🔍 [定位权限] 当前权限状态: %d", authStatus);
     
     switch (authStatus) {
         case kCLAuthorizationStatusDenied:
         case kCLAuthorizationStatusRestricted:
-            NSLog(@"在局❌ [定位权限] 权限被拒绝或受限");
             return NO;
         case kCLAuthorizationStatusNotDetermined:
-            NSLog(@"在局⚠️ [定位权限] 权限未确定，需要请求权限");
             return NO;
         case kCLAuthorizationStatusAuthorizedWhenInUse:
         case kCLAuthorizationStatusAuthorizedAlways:
-            NSLog(@"在局✅ [定位权限] 权限已授予");
             
             // iOS 14+ 检查精确定位权限
             if (@available(iOS 14.0, *)) {
                 CLAccuracyAuthorization accuracyAuth = [CLLocationManager new].accuracyAuthorization;
                 if (accuracyAuth == CLAccuracyAuthorizationReducedAccuracy) {
-                    NSLog(@"在局⚠️ [定位权限] iOS 14+ 精确定位权限受限，将使用模糊定位");
                 } else {
-                    NSLog(@"在局✅ [定位权限] iOS 14+ 精确定位权限已授予");
                 }
             }
             

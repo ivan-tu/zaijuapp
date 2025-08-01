@@ -8,7 +8,7 @@
 
 #import "UIBarButtonItem+DCBarButtonItem.h"
 #import "UIButton+HQCustomIcon.h"
-#import "UIButton+EnlargeTouchArea.h"
+#import "../UIButton/UIButton+EnlargeTouchArea.h"
 #import "XZIcomoonDefine.h"
 @implementation UIBarButtonItem (DCBarButtonItem)
 

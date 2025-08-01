@@ -16,7 +16,11 @@ typedef void(^ClientCompletionBlock)(id aResponseObject, NSError* anError);
 
 - (void)GET:(NSString *)URLString parameters:(id)parameters block:(ClientCompletionBlock)block;
 
+- (void)GET:(NSString *)URLString parameters:(id)parameters headers:(NSDictionary *)headers block:(ClientCompletionBlock)block;
+
 - (void)POST:(NSString *)URLString parameters:(id)parameters block:(ClientCompletionBlock)block;
+
+- (void)POST:(NSString *)URLString parameters:(id)parameters headers:(NSDictionary *)headers block:(ClientCompletionBlock)block;
 
 - (void)POSTRPC:(NSString *)URLString parameters:(id)parameters block:(ClientCompletionBlock)block;
 

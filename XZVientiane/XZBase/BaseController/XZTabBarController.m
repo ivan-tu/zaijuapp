@@ -75,14 +75,11 @@
     //首页加载完成后移除LoadingView
     [[NSNotificationCenter defaultCenter] addObserverForName:@"showTabviewController" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
-        NSLog(@"在局 🎯 [XZTabBarController] 收到showTabviewController通知");
         
         // 检查网络权限状态，但无论如何都要移除LoadingView
         AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
         if (appDelegate.networkRestricted) {
-            NSLog(@"在局 🎯 [XZTabBarController] 网络权限受限，但首页内容已准备好，移除LoadingView");
         } else {
-            NSLog(@"在局 🎯 [XZTabBarController] 网络正常，发送showTabviewController通知");
         }
         
         // 立即移除LoadingView，因为首页内容已经准备就绪
@@ -101,7 +98,6 @@
     [UIApplication sharedApplication].statusBarStyle = UIStatusBarStyleDefault;
     // 移除初始隐藏，让TabBar立即显示
     // self.view.hidden = YES;  // 注释掉，不再隐藏
-    NSLog(@"在局 🎯 [XZTabBarController] viewDidLoad - TabBar将立即显示");
     
     // 添加应用生命周期通知监听
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(appWillResignActive:) name:UIApplicationWillResignActiveNotification object:nil];
@@ -149,14 +145,12 @@
             // 只为第一个tab创建ViewController，其他的延迟创建
             UIViewController *rootVC = nil;
             if (index == 0) {
-                NSLog(@"在局🏠 [XZTabBarController] 创建首页控制器");
                 CFJClientH5Controller *homeVC = [[CFJClientH5Controller alloc] init];
                 if ([[dic objectForKey:@"isCheck"] isEqualToString:@"1"]) {
                     homeVC.isCheck = YES;
                 }
                 homeVC.isTabbarShow = YES;
                 homeVC.pinUrl = [dic objectForKey:@"url"];
-                NSLog(@"在局🏠 [XZTabBarController] 首页URL: %@", homeVC.pinUrl);
                 rootVC = homeVC;
             } else {
                 // 创建一个轻量级的占位ViewController
@@ -168,10 +162,8 @@
                 rootVC = placeholderVC;
             }
             
-            NSLog(@"在局🏠 [XZTabBarController] 创建XZNavigationController - index: %ld", (long)index);
             XZNavigationController *nav = [[XZNavigationController alloc] initWithRootViewController:rootVC];
             nav.navigationBar.translucent = NO;
-            NSLog(@"在局🏠 [XZTabBarController] navigationBar: %@, hidden: %@", nav.navigationBar, nav.navigationBarHidden ? @"YES" : @"NO");
             
             // 设置TabBarItem的图标和标题
             UIImage *image = [UIImage imageNamed:[dic objectForKey:@"icon"]];
@@ -195,60 +187,13 @@
         self.tabBar.barTintColor = [UIColor colorWithHexString:tabbarBgColor];
         self.viewControllers = tabbarItems;
         
-        // 第一个tab会在viewDidLoad时自动加载，但需要确保触发
+        // 确保第一个tab正确加载
         if (tabbarItems.count > 0) {
-            // 确保第一个tab的视图控制器被创建
-            dispatch_async(dispatch_get_main_queue(), ^{
-                UINavigationController *firstNav = tabbarItems[0];
-                if (firstNav.viewControllers.count > 0) {
-                    CFJClientH5Controller *firstVC = (CFJClientH5Controller *)firstNav.viewControllers[0];
-                    // 触发视图加载
-                    [firstVC view];
-                    
-                    // 修复真机权限授予后首页空白问题 - 延迟检查并主动触发加载
-                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                        if (!firstVC.isWebViewLoading && !firstVC.isLoading && firstVC.pinUrl) {
-                            // 添加节流机制，防止重复调用
-                            static NSDate *lastTabTriggerTime = nil;
-                            NSDate *now = [NSDate date];
-                            if (!lastTabTriggerTime || [now timeIntervalSinceDate:lastTabTriggerTime] > 3.0) {
-                                [firstVC domainOperate];
-                                lastTabTriggerTime = now;
-                            }
-                        }
-                    });
-                }
-            });
+            [self ensureFirstTabLoaded:tabbarItems];
         }
         
-        // 延迟移除LoadingView，给页面加载一些时间
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            // 检查网络权限状态
-            AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
-            if (appDelegate.networkRestricted) {
-                return;
-            }
-            
-            // 移除LoadingView - 搜索所有可能的窗口
-            UIView *loadingView = [[UIApplication sharedApplication].keyWindow viewWithTag:2001];
-            if (!loadingView) {
-                // 从AppDelegate的window中查找
-                UIWindow *mainWindow = [UIApplication sharedApplication].delegate.window;
-                loadingView = [mainWindow viewWithTag:2001];
-            }
-            if (!loadingView) {
-                // 从当前视图中查找
-                loadingView = [self.view viewWithTag:2001];
-            }
-            
-            if (loadingView) {
-                [UIView animateWithDuration:0.3 animations:^{
-                    loadingView.alpha = 0.0;
-                } completion:^(BOOL finished) {
-                    [loadingView removeFromSuperview];
-                }];
-            }
-        });
+        // 延迟移除LoadingView
+        [self scheduleLoadingViewRemoval];
     }];
 }
 #pragma mark - <UITabBarControllerDelegate>
@@ -293,8 +238,6 @@
     static NSInteger lastSelectedIndex = -1;
     BOOL isRepeatClick = (lastSelectedIndex == currentIndex);
     
-    NSLog(@"在局🔄 [TabBar代理] 当前tab: %ld, 上次tab: %ld, 是否重复: %@", 
-          (long)currentIndex, (long)lastSelectedIndex, isRepeatClick ? @"是" : @"否");
     
     if ([viewController isKindOfClass:[UINavigationController class]]) {
         UINavigationController *nav = (UINavigationController *)viewController;
@@ -309,11 +252,9 @@
         if (isRepeatClick) {
             UIApplicationState state = [[UIApplication sharedApplication] applicationState];
             if (state == UIApplicationStateActive) {
-                NSLog(@"在局🔄 [TabBar代理] 检测到重复点击，发送刷新通知");
                 [self sendRefreshNotification];
             }
         } else {
-            NSLog(@"在局ℹ️ [TabBar代理] Tab切换，不发送刷新通知");
         }
         
         // 更新最后选中的索引
@@ -442,52 +383,55 @@
     [NSObject cancelPreviousPerformRequestsWithTarget:self];
 }
 
+#pragma mark - 在局Claude Code[LoadingView管理优化]+LoadingView统一管理
+
+/**
+ * 统一的LoadingView查找方法
+ */
 - (UIView *)findLoadingViewInAllWindows {
-    NSLog(@"在局 🔍 [XZTabBarController] 开始在所有窗口中查找LoadingView");
+    // 按优先级顺序查找LoadingView
+    NSArray *searchMethods = @[
+        ^UIView *{ return [[UIApplication sharedApplication].keyWindow viewWithTag:2001]; },
+        ^UIView *{ return [[UIApplication sharedApplication].delegate.window viewWithTag:2001]; },
+        ^UIView *{ return [self.view viewWithTag:2001]; },
+        ^UIView *{ return [self searchInAllWindows]; },
+        ^UIView *{ return [self recursiveSearchInKeyWindow]; }
+    ];
     
-    // 1. 首先在keyWindow中查找
-    UIView *loadingView = [[UIApplication sharedApplication].keyWindow viewWithTag:2001];
-    if (loadingView) {
-        NSLog(@"在局 ✅ [XZTabBarController] 在keyWindow中找到LoadingView");
-        return loadingView;
-    }
-    
-    // 2. 在delegate的window中查找
-    UIWindow *mainWindow = [UIApplication sharedApplication].delegate.window;
-    loadingView = [mainWindow viewWithTag:2001];
-    if (loadingView) {
-        NSLog(@"在局 ✅ [XZTabBarController] 在delegate.window中找到LoadingView");
-        return loadingView;
-    }
-    
-    // 3. 在所有window中查找
-    NSArray *windows = [UIApplication sharedApplication].windows;
-    for (UIWindow *window in windows) {
-        loadingView = [window viewWithTag:2001];
+    for (UIView *(^searchMethod)(void) in searchMethods) {
+        UIView *loadingView = searchMethod();
         if (loadingView) {
-            NSLog(@"在局 ✅ [XZTabBarController] 在window %@ 中找到LoadingView", window);
             return loadingView;
         }
     }
     
-    // 4. 在当前TabBarController的视图层级中查找
-    loadingView = [self.view viewWithTag:2001];
-    if (loadingView) {
-        NSLog(@"在局 ✅ [XZTabBarController] 在TabBarController.view中找到LoadingView");
-        return loadingView;
-    }
-    
-    // 5. 递归查找所有子视图
-    loadingView = [self recursiveFindViewWithTag:2001 inView:[UIApplication sharedApplication].keyWindow];
-    if (loadingView) {
-        NSLog(@"在局 ✅ [XZTabBarController] 通过递归查找找到LoadingView");
-        return loadingView;
-    }
-    
-    NSLog(@"在局 ❌ [XZTabBarController] 在所有位置都未找到LoadingView");
     return nil;
 }
 
+/**
+ * 在所有window中搜索
+ */
+- (UIView *)searchInAllWindows {
+    NSArray *windows = [UIApplication sharedApplication].windows;
+    for (UIWindow *window in windows) {
+        UIView *loadingView = [window viewWithTag:2001];
+        if (loadingView) {
+            return loadingView;
+        }
+    }
+    return nil;
+}
+
+/**
+ * 在keyWindow中递归搜索
+ */
+- (UIView *)recursiveSearchInKeyWindow {
+    return [self recursiveFindViewWithTag:2001 inView:[UIApplication sharedApplication].keyWindow];
+}
+
+/**
+ * 递归查找指定tag的视图
+ */
 - (UIView *)recursiveFindViewWithTag:(NSInteger)tag inView:(UIView *)parentView {
     if (!parentView) return nil;
     
@@ -505,6 +449,95 @@
     }
     
     return nil;
+}
+
+/**
+ * 带动画移除LoadingView
+ */
+- (void)removeLoadingViewWithAnimation {
+    UIView *loadingView = [self findLoadingViewInAllWindows];
+    if (loadingView) {
+        [UIView animateWithDuration:0.3 animations:^{
+            loadingView.alpha = 0.0;
+        } completion:^(BOOL finished) {
+            [loadingView removeFromSuperview];
+        }];
+    }
+}
+
+#pragma mark - 在局Claude Code[TabBar加载优化]+TabBar初始化优化
+
+/**
+ * 确保第一个tab正确加载
+ */
+- (void)ensureFirstTabLoaded:(NSArray *)tabbarItems {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UINavigationController *firstNav = tabbarItems[0];
+        if (firstNav.viewControllers.count > 0) {
+            CFJClientH5Controller *firstVC = (CFJClientH5Controller *)firstNav.viewControllers[0];
+            
+            // 触发视图加载
+            [firstVC view];
+            
+            // 延迟检查并主动触发加载
+            [self triggerFirstTabLoadingIfNeeded:firstVC];
+        }
+    });
+}
+
+/**
+ * 如果需要，触发第一个tab的加载
+ */
+- (void)triggerFirstTabLoadingIfNeeded:(CFJClientH5Controller *)firstVC {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if ([self shouldTriggerFirstTabLoading:firstVC]) {
+            [self performFirstTabLoadingWithThrottle:firstVC];
+        }
+    });
+}
+
+/**
+ * 判断是否应该触发第一个tab的加载
+ */
+- (BOOL)shouldTriggerFirstTabLoading:(CFJClientH5Controller *)firstVC {
+    return !firstVC.isWebViewLoading && 
+           !firstVC.isLoading && 
+           firstVC.pinUrl && 
+           firstVC.pinUrl.length > 0;
+}
+
+/**
+ * 带节流机制的第一个tab加载
+ */
+- (void)performFirstTabLoadingWithThrottle:(CFJClientH5Controller *)firstVC {
+    static NSDate *lastTabTriggerTime = nil;
+    NSDate *now = [NSDate date];
+    
+    if (!lastTabTriggerTime || [now timeIntervalSinceDate:lastTabTriggerTime] > 3.0) {
+        [firstVC domainOperate];
+        lastTabTriggerTime = now;
+    }
+}
+
+/**
+ * 安排LoadingView移除
+ */
+- (void)scheduleLoadingViewRemoval {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self performLoadingViewRemovalIfAllowed];
+    });
+}
+
+/**
+ * 如果允许，执行LoadingView移除
+ */
+- (void)performLoadingViewRemovalIfAllowed {
+    AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
+    if (appDelegate.networkRestricted) {
+        return;
+    }
+    
+    [self removeLoadingViewWithAnimation];
 }
 
 - (void)dealloc {

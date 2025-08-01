@@ -36,27 +36,22 @@
     [self setupUI];
     [self setupConstraints];
     
-    NSLog(@"在局🧪 [测试页面] %@ 加载完成", self.pageIdentifier);
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    NSLog(@"在局🧪 [测试页面] %@ 即将显示", self.pageIdentifier);
 }
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
-    NSLog(@"在局🧪 [测试页面] %@ 已显示", self.pageIdentifier);
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    NSLog(@"在局🧪 [测试页面] %@ 即将消失", self.pageIdentifier);
 }
 
 - (void)viewDidDisappear:(BOOL)animated {
     [super viewDidDisappear:animated];
-    NSLog(@"在局🧪 [测试页面] %@ 已消失", self.pageIdentifier);
 }
 
 #pragma mark - UI Setup
@@ -214,7 +209,6 @@
         [self.logTextView scrollRangeToVisible:range];
     });
     
-    NSLog(@"在局🧪 [测试日志] %@", logMessage);
 }
 
 @end

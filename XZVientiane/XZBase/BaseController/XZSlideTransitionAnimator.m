@@ -134,10 +134,6 @@
                    finalFrameForToVC:(CGRect)finalFrame
                 initialFrameForFromVC:(CGRect)initialFrame {
     
-    NSLog(@"在局🚀 [退出动画] 开始 - fromVC:%@ toVC:%@", 
-          NSStringFromClass([fromVC class]), 
-          NSStringFromClass([toVC class]));
-    
     // 将背景页面插入到当前页面下方
     [containerView insertSubview:toVC.view belowSubview:fromVC.view];
     
@@ -155,7 +151,6 @@
     
     // 判断是否是交互式转场
     BOOL isInteractive = transitionContext.isInteractive;
-    NSLog(@"在局🎯 [退出动画] 交互式转场: %@", isInteractive ? @"YES" : @"NO");
     
     // 定义动画块
     void (^animationBlock)(void) = ^{
@@ -198,15 +193,11 @@
         [transitionContext completeTransition:!cancelled];
         
         // 添加日志以调试完成回调延迟问题
-        NSLog(@"在局✅ [退出动画] 动画完成 - finished:%@, cancelled:%@", 
-              finished ? @"YES" : @"NO", 
-              cancelled ? @"YES" : @"NO");
     };
     
     // 根据是否是交互式转场选择不同的动画方法
     if (isInteractive) {
         // 交互式转场使用标准动画，避免spring效果导致的完成回调延迟
-        NSLog(@"在局🎯 [退出动画] 使用标准动画（交互式转场）");
         [UIView animateWithDuration:duration
                               delay:0
                             options:UIViewAnimationOptionCurveLinear
@@ -214,7 +205,6 @@
                          completion:completionBlock];
     } else {
         // 非交互式转场可以使用spring动画
-        NSLog(@"在局🎯 [退出动画] 使用Spring动画（非交互式转场）");
         [UIView animateWithDuration:duration
                               delay:0
              usingSpringWithDamping:self.springDamping

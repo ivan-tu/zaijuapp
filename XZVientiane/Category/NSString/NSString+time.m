@@ -181,24 +181,12 @@
     if (!beginDateStr || [beginDateStr isEqualToString:@""] || !endDateStr || [endDateStr isEqualToString:@""]) {
         return NO;
     }
-    
-//    NSArray *beginTimeAry = [beginDateStr componentsSeparatedByString:@" "];
-//    NSString *beginTimeStr = [beginTimeAry lastObject];
-//    if (beginTimeStr.length > 5) {
-//        beginDateStr = [beginDateStr substringToIndex:beginDateStr.length - 3];
-//    }
-//    
-//    NSArray *endTimeAry = [beginDateStr componentsSeparatedByString:@" "];
-//    NSString *endTimeStr = [endTimeAry lastObject];
-//    if (endTimeStr.length > 5) {
-//        endDateStr = [endDateStr substringToIndex:endDateStr.length - 3];
-//    }
+	
     NSArray *timeArray1=[beginDateStr componentsSeparatedByString:@"."];
     beginDateStr=[timeArray1 objectAtIndex:0];
     NSArray *timeArray2=[endDateStr componentsSeparatedByString:@"."];
     endDateStr=[timeArray2 objectAtIndex:0];
     
-//    NSLog(@"在局beginDateStr：%@---endDateStr：%@",beginDateStr,endDateStr);
     NSDateFormatter *date=[[NSDateFormatter alloc] init];
     [date setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
     

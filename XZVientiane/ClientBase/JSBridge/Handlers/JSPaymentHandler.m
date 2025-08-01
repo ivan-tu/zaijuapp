@@ -38,24 +38,19 @@
 
 - (void)handleWeixinPay:(id)data controller:(UIViewController *)controller {
     NSDictionary *jsDic = (NSDictionary *)data;
-    NSLog(@"在局🔧 [JSPaymentHandler-微信支付] 开始处理微信支付请求，原始数据: %@", jsDic);
     
     // 兼容两种数据格式：嵌套在data字段中的 和 直接的支付参数
     NSDictionary *messageDic = [jsDic objectForKey:@"data"];
     if (!messageDic || ![messageDic isKindOfClass:[NSDictionary class]]) {
         // 如果没有data字段，则直接使用jsDic作为支付参数
         messageDic = jsDic;
-        NSLog(@"在局🔧 [JSPaymentHandler-微信支付] 使用直接参数格式");
     } else {
-        NSLog(@"在局🔧 [JSPaymentHandler-微信支付] 使用嵌套参数格式");
     }
     
-    NSLog(@"在局🔧 [JSPaymentHandler-微信支付] 处理的支付参数: %@", messageDic);
     
     if (messageDic && [messageDic isKindOfClass:[NSDictionary class]]) {
         // 检查微信是否可用
         if (![WXApi isWXAppInstalled]) {
-            NSLog(@"在局❌ [JSPaymentHandler-微信支付] 微信应用未安装");
             // 获取回调并执行错误回调
             if ([controller respondsToSelector:@selector(webviewBackCallBack)]) {
                 JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
@@ -69,7 +64,6 @@
             return;
         }
         if (![WXApi isWXAppSupportApi]) {
-            NSLog(@"在局❌ [JSPaymentHandler-微信支付] 微信版本过低，不支持支付");
             // 获取回调并执行错误回调
             if ([controller respondsToSelector:@selector(webviewBackCallBack)]) {
                 JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
@@ -104,12 +98,9 @@
             request.timeStamp = 0;
         }
         
-        NSLog(@"在局🔧 [JSPaymentHandler-微信支付] 支付参数设置 - partnerId:%@, prepayId:%@, package:%@, nonceStr:%@, timeStamp:%u", 
-              request.partnerId, request.prepayId, request.package, request.nonceStr, (unsigned int)request.timeStamp);
         
         // 验证必要参数
         if (!request.partnerId || !request.prepayId || !request.package || !request.nonceStr || request.timeStamp == 0) {
-            NSLog(@"在局❌ [JSPaymentHandler-微信支付] 支付参数不完整");
             if ([controller respondsToSelector:@selector(webviewBackCallBack)]) {
                 JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
                 if (callback) {
@@ -131,12 +122,9 @@
         NSString *sign = [stringSignTemp MD5];
         request.sign = [sign uppercaseString];
         
-        NSLog(@"在局🔧 [JSPaymentHandler-微信支付] 签名计算 - 原字符串: %@", stringA);
-        NSLog(@"在局🔧 [JSPaymentHandler-微信支付] 签名计算 - 最终签名: %@", request.sign);
         
         // 发送支付请求
         [WXApi sendReq:request completion:^(BOOL success) {
-            NSLog(@"在局🔧 [JSPaymentHandler-微信支付] 支付请求发送结果: %@", success ? @"成功" : @"失败");
             if (!success && [controller respondsToSelector:@selector(webviewBackCallBack)]) {
                 JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
                 if (callback) {
@@ -148,7 +136,6 @@
             }
         }];
     } else {
-        NSLog(@"在局❌ [JSPaymentHandler-微信支付] 支付参数格式错误");
         if ([controller respondsToSelector:@selector(webviewBackCallBack)]) {
             JSActionCallbackBlock callback = [controller performSelector:@selector(webviewBackCallBack)];
             if (callback) {

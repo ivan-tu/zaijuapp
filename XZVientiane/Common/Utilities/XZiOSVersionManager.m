@@ -44,8 +44,6 @@
         [self initializeDeviceProperties];
         [self initializeLayoutProperties];
         
-        NSLog(@"在局✅ [XZiOSVersionManager] 初始化完成 - iOS %.1f, iPhone X系列: %@", 
-              self.systemVersion, self.isIPhoneXSeries ? @"是" : @"否");
     }
     return self;
 }

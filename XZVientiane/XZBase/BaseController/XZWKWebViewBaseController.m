@@ -74,13 +74,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 @synthesize componentJsAndCs = _componentJsAndCs;
 @synthesize componentDic = _componentDic;
 @synthesize templateDic = _templateDic;
-@synthesize nextPageData = _nextPageData;
-@synthesize navDic = _navDic;
-@synthesize isCheck = _isCheck;
 @synthesize isTabbarShow = _isTabbarShow;
 @synthesize pushType = _pushType;
 @synthesize isExist = _isExist;
-@synthesize replaceUrl = _replaceUrl;
 @synthesize nextPageDataBlock = _nextPageDataBlock;
 
 #pragma mark - Life Cycle
@@ -92,7 +88,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 初始化属性
     self.isWebViewLoading = NO;
     self.isLoading = NO;
-    self.isCreat = NO;
     _isDisappearing = NO;
     _pendingJavaScriptOperations = [NSMutableArray array];
     _retryCount = 0;
@@ -162,7 +157,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)viewDidAppear:(BOOL)animated {
-    NSLog(@"在局🔍 [XZWKWebViewBaseController] viewDidAppear被调用 - self: %@, pinUrl: %@", self, self.pinUrl);
     [super viewDidAppear:animated];
     
     // 清除消失标志
@@ -190,7 +184,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
              [(UINavigationController *)selectedVC viewControllers].count == 1 &&
              ((UINavigationController *)selectedVC).topViewController == self)) {
             isTabSwitch = YES;
-            NSLog(@"在局📋 [viewDidAppear] 检测到Tab切换，跳过交互式转场检查");
         }
     }
     
@@ -212,32 +205,23 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                                         currentIndex < totalVCCount &&
                                         currentIndex > 0; // 不是根控制器
             
-            NSLog(@"在局🔍 [viewDidAppear] 转场检测: animated=%@, wasInteractive=%@, currentIndex=%ld, totalVC=%ld, isTabSwitch=%@", 
-                  animated ? @"YES" : @"NO", wasInteractive ? @"YES" : @"NO", 
-                  (long)currentIndex, (long)totalVCCount, isTabSwitch ? @"YES" : @"NO");
         } @catch (NSException *exception) {
-            NSLog(@"在局⚠️ [viewDidAppear] 无法检查交互式转场状态: %@", exception.reason);
             isFromInteractiveTransition = NO;
         }
     }
     
     if (isFromInteractiveTransition) {
-        NSLog(@"在局🔙 [viewDidAppear] 检测到从交互式转场返回，启动特殊恢复流程");
         
         // 立即重置交互式转场状态，防止后续误判
         @try {
             [self.navigationController setValue:@NO forKey:@"isInteractiveTransition"];
-            NSLog(@"在局🔧 [viewDidAppear] 已重置交互式转场状态");
         } @catch (NSException *exception) {
-            NSLog(@"在局⚠️ [viewDidAppear] 无法重置交互式转场状态: %@", exception.reason);
         }
         
         // 在恢复之前先检查是否有有效内容
         BOOL hasValidContent = [self hasValidWebViewContent];
-        NSLog(@"在局🔍 [交互式转场返回] 内容检查 - hasValidContent: %@", hasValidContent ? @"YES" : @"NO");
         
         if (hasValidContent) {
-            NSLog(@"在局✅ [交互式转场返回] 页面已有有效内容，仅执行状态恢复，不重新加载");
             // 只执行状态恢复，不重新加载页面
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 // 只恢复UI状态，确保WebView可见
@@ -246,11 +230,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     self.webView.alpha = 1.0;
                     [self.webView setNeedsLayout];
                     [self.webView layoutIfNeeded];
-                    NSLog(@"在局✅ [交互式转场返回] WebView状态恢复完成");
                 }
             });
         } else {
-            NSLog(@"在局🔄 [交互式转场返回] 页面无有效内容，执行完整恢复流程");
             // 特殊处理：从交互式转场返回时，需要特别恢复WebView状态
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 [self restoreWebViewStateAfterInteractiveTransition];
@@ -261,14 +243,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         BOOL hasValidContent = [self hasValidWebViewContent];
         BOOL isNavigationReturn = [self isNavigationReturnScenario];
         
-        NSLog(@"在局🔍 [显示优化] 页面显示检查 - hasValidContent: %@, isNavigationReturn: %@, isWebViewLoading: %@", 
-              hasValidContent ? @"YES" : @"NO", 
-              isNavigationReturn ? @"YES" : @"NO",
-              self.isWebViewLoading ? @"YES" : @"NO");
         
         // 1. 如果页面已有有效内容，无论什么场景都只触发pageShow，不重新加载
         if (hasValidContent) {
-            NSLog(@"在局✅ [显示优化] 页面已有有效内容，仅触发pageShow事件，避免重新加载");
             
             // 确保WebView可见性
             self.webView.hidden = NO;
@@ -283,11 +260,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         
         // 2. 如果是返回导航且WebView已初始化，尝试恢复而非重新加载
         if (isNavigationReturn && self.webView) {
-            NSLog(@"在局🔄 [返回优化] 检测到返回导航，尝试恢复页面状态");
             
             // 检查是否有最基本的页面结构
             if (self.webView.URL && ![self.webView.URL.absoluteString containsString:@"manifest/"]) {
-                NSLog(@"在局✅ [返回优化] WebView有基础内容，仅恢复状态");
                 self.webView.hidden = NO;
                 self.webView.alpha = 1.0;
                 self.webView.userInteractionEnabled = YES;
@@ -317,20 +292,17 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         }
         
         if (shouldLoad) {
-            NSLog(@"在局🔄 [显示优化] 需要加载页面，原因: %@", loadReason);
             
             // 防止过于频繁的加载
             static NSDate *lastLoadTime = nil;
             NSDate *now = [NSDate date];
             if (lastLoadTime && [now timeIntervalSinceDate:lastLoadTime] < 2.0) {
-                NSLog(@"在局⏳ [显示优化] 加载过于频繁，跳过此次加载");
                 return;
             }
             lastLoadTime = now;
             
             [self domainOperate];
         } else {
-            NSLog(@"在局✅ [显示优化] 页面状态正常，无需重新加载");
         }
     }
     
@@ -412,18 +384,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 #pragma mark - WebView Loading Logic
 
 - (void)setupAndLoadWebViewIfNeeded {
-    NSLog(@"在局🚀 [性能优化] setupAndLoadWebViewIfNeeded - 使用优化逻辑");
     
     // 检查网络状态 - 改为记录状态而不是直接返回，允许WebView创建和基本设置
     AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
     BOOL networkRestricted = appDelegate.networkRestricted;
     if (networkRestricted) {
-        NSLog(@"在局⚠️ [性能优化] 网络受限，但继续WebView设置，等待网络恢复后加载内容");
     }
 
     // 【性能优化】如果WebView已经预创建，直接使用
     if (self.isWebViewPreCreated && self.webView) {
-        NSLog(@"在局✅ [性能优化] 使用预创建的WebView");
         
         // 确保WebView已正确添加到视图层级
         if (!self.webView.superview) {
@@ -432,12 +401,11 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         
         // 确保桥接已设置
         if (!self.isBridgeReady) {
-            [self setupOptimizedJavaScriptBridge];
+            [self setupUnifiedJavaScriptBridge];
         }
         
         // 检查是否已有有效内容，避免重复加载
         if ([self hasValidWebViewContent]) {
-            NSLog(@"在局✅ [预创建WebView] 已有有效内容，跳过重复加载");
             return;
         }
         
@@ -448,7 +416,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             [self optimizedLoadHTMLContent];
         } else {
             // 等待domainOperate完成后会自动调用加载方法
-            NSLog(@"在局⏳ [性能优化] 等待HTML内容准备完成");
         }
         
         return;
@@ -456,7 +423,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 【性能优化】如果WebView未预创建，启动快速创建流程
     if (!self.webView && !self.isWebViewLoading) {
-        NSLog(@"在局🔧 [性能优化] WebView未预创建，启动快速创建流程");
         
         // 标记为正在加载，避免重复创建
         self.isWebViewLoading = YES;
@@ -471,7 +437,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             self.webView.backgroundColor = [UIColor whiteColor];
             
             // 🔧 关键修复：立即设置桥接，确保navigationDelegate不会为nil
-            [self setupOptimizedJavaScriptBridge];
+            [self setupUnifiedJavaScriptBridge];
             
             // 添加到视图层级
             [self addWebView];
@@ -480,7 +446,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             self.isWebViewLoading = NO;
             self.isWebViewPreCreated = YES;
             
-            NSLog(@"在局✅ [性能优化] 快速WebView创建完成");
             
             // 检查是否需要加载HTML内容
             if (self.htmlStr && self.htmlStr.length > 0) {
@@ -488,7 +453,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             } else if (self.pinDataStr && self.pinDataStr.length > 0) {
                 [self optimizedLoadHTMLContent];
             } else {
-                NSLog(@"在局⏳ [性能优化] 等待HTML内容准备完成");
             }
         });
     }
@@ -634,7 +598,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
             [self.webView removeObserver:self forKeyPath:@"title"];
         } @catch (NSException *exception) {
-            NSLog(@"在局⚠️ [WKWebView] 移除KVO观察者时发生异常: %@", exception.reason);
         }
         
         // 移除WebView
@@ -652,18 +615,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     
     // 清理UserContentController - 优化内存管理
-    NSLog(@"在局 🔧 [XZWKWebViewBaseController] 处理WKUserContentController内存泄漏风险");
     if (self.userContentController) {
         // 移除所有用户脚本
         [self.userContentController removeAllUserScripts];
-        NSLog(@"在局 ✅ [内存管理] 已移除所有用户脚本");
         
         // 注意：只有在添加了scriptMessageHandler时才需要移除
         // 当前代码未使用addScriptMessageHandler，所以注释掉以下行
         // [self.userContentController removeScriptMessageHandlerForName:@"consoleLog"];
         
         self.userContentController = nil;
-        NSLog(@"在局 ✅ [内存管理] WKUserContentController已清理");
     }
     
     if (self.webView) {
@@ -762,7 +722,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 - (void)appDidBecomeActive:(NSNotification *)notification {
     
     // 修复从外部App返回时的状态问题
-    NSLog(@"在局🔔 [appDidBecomeActive] App变为活跃状态，重置_isDisappearing标志");
     _isDisappearing = NO;
     
     // 检查是否需要重新启动定时器
@@ -919,9 +878,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     self.webView.scrollView.decelerationRate = UIScrollViewDecelerationRateNormal;
     
     // 添加下拉刷新支持
-    NSLog(@"在局🔄 [下拉刷新] 开始设置下拉刷新控件");
     [self setupRefreshControl];
-    NSLog(@"在局✅ [下拉刷新] 下拉刷新控件设置完成");
     
     // 设置用户代理
     [self setCustomUserAgent];
@@ -956,17 +913,14 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)setupRefreshControl {
-    NSLog(@"在局🔄 [下拉刷新] setupRefreshControl方法开始执行");
     
     // 配置下拉刷新控件
     __weak UIScrollView *scrollView = self.webView.scrollView;
     
     if (!scrollView) {
-        NSLog(@"在局❌ [下拉刷新] WebView的scrollView为空，无法设置下拉刷新");
         return;
     }
     
-    NSLog(@"在局🔄 [下拉刷新] 创建MJRefreshNormalHeader");
     MJRefreshNormalHeader *header = [MJRefreshNormalHeader headerWithRefreshingTarget:self refreshingAction:@selector(loadNewData)];
     header.lastUpdatedTimeLabel.hidden = YES;
     header.stateLabel.hidden = YES;
@@ -997,7 +951,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         header.arrowView.hidden = NO; // 确保箭头可见
         header.arrowView.tintColor = [UIColor grayColor]; // 设置箭头颜色
         
-        NSLog(@"在局🏹 [下拉刷新] 箭头图片设置结果: %@", arrowImage ? @"成功" : @"失败");
     }
     
     // 设置下拉刷新文本
@@ -1005,11 +958,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     [header setTitle:@"释放刷新" forState:MJRefreshStatePulling];
     [header setTitle:@"正在刷新..." forState:MJRefreshStateRefreshing];
     
-    NSLog(@"在局🔄 [下拉刷新] 设置mj_header到scrollView");
     // 添加下拉刷新控件
     scrollView.mj_header = header;
     
-    NSLog(@"在局✅ [下拉刷新] 下拉刷新控件设置完成，当前mj_header: %@", scrollView.mj_header);
 }
 
 
@@ -1064,13 +1015,10 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)loadNewData {
-    NSLog(@"在局🔄 [下拉刷新] loadNewData方法被触发");
     
     // 调用JavaScript的下拉刷新事件
-    NSLog(@"在局🔄 [下拉刷新] 准备调用JavaScript的pagePullDownRefresh");
     NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pagePullDownRefresh" data:nil];
     [self objcCallJs:callJsDic];
-    NSLog(@"在局✅ [下拉刷新] JavaScript下拉刷新事件已发送");
     
     // 如果没有网络，直接停止刷新
     if (NoReachable) {
@@ -1139,8 +1087,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         NSInteger currentSelectedIndex = self.tabBarController.selectedIndex;
         BOOL isRepeatClick = (self.lastSelectedIndex == currentSelectedIndex);
         
-        NSLog(@"在局🔄 [Tab通知] 当前tab: %ld, 上次tab: %d, 是否重复: %@", 
-              (long)currentSelectedIndex, self.lastSelectedIndex, isRepeatClick ? @"是" : @"否");
         
         // 更新记录的索引
         self.lastSelectedIndex = (int)currentSelectedIndex;
@@ -1160,9 +1106,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             // 开始刷新
             [self.webView.scrollView.mj_header beginRefreshing];
         } else {
-            NSLog(@"在局ℹ️ [Tab切换] 切换到tab %ld，不触发刷新（上次: %d，重复: %@，页面加载: %@）", 
-                  (long)currentSelectedIndex, self.lastSelectedIndex, isRepeatClick ? @"是" : @"否", 
-                  self.isWebViewLoading ? @"是" : @"否");
         }
     }];
     
@@ -1178,69 +1121,41 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             return;
         }
         
-        NSLog(@"在局🔄 [XZWKWebView] 收到RefreshOtherAllVCNotif通知，开始刷新页面");
         
         // 彻底刷新页面，让条件页面重新执行状态判断
         if ([AFNetworkReachabilityManager manager].networkReachabilityStatus != AFNetworkReachabilityStatusNotReachable) {
-            NSLog(@"在局🔄 [XZWKWebView] 使用domainOperate彻底刷新页面，重新执行状态判断");
             [self domainOperate];
         } else {
-            NSLog(@"在局⚠️ [XZWKWebView] 网络不可用，跳过页面刷新");
         }
     }];
-    
-    // 监听网络权限恢复通知 - 修复Release版本首页空白问题
-//    [[NSNotificationCenter defaultCenter] addObserverForName:@"NetworkPermissionRestored" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
-//        STRONG_SELF;
-//        if (!self) return;
-//        
-//        NSLog(@"在局🔥 [XZWKWebViewBaseController] 收到网络权限恢复通知");
-//        
-//        // 如果是首页且WebView已经创建但可能未完成加载，重新触发JavaScript初始化
-//        if (self.tabBarController.selectedIndex == 0 && self.webView) {
-//            NSLog(@"在局🔄 [XZWKWebViewBaseController] 网络权限恢复，强制重新执行JavaScript初始化");
-//            
-//            // 重新触发JavaScript桥接初始化和pageReady
-//            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-//                // 直接触发JavaScript桥接初始化
-//                [self performJavaScriptBridgeInitialization];
-//            });
-//        }
-//    }];
     // 监听网络权限恢复通知 - 修复Release版本首页空白问题
     [[NSNotificationCenter defaultCenter] addObserverForName:@"NetworkPermissionRestored" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         STRONG_SELF;
         if (!self) return;
 
-        NSLog(@"在局🔥 [XZWKWebViewBaseController] 收到网络权限恢复通知");
 
         // 增加防重复处理机制
         static NSDate *lastNetworkRecoveryTime = nil;
         NSDate *now = [NSDate date];
         if (lastNetworkRecoveryTime && [now timeIntervalSinceDate:lastNetworkRecoveryTime] < 5.0) {
-            NSLog(@"在局⚠️ [XZWKWebViewBaseController] 网络权限恢复通知过于频繁，跳过处理");
             return;
         }
         lastNetworkRecoveryTime = now;
 
         // 只对当前显示在窗口中的视图控制器进行操作，且必须是首页
         if (self.isViewLoaded && self.view.window && self.tabBarController.selectedIndex == 0) {
-            NSLog(@"在局🔄 [网络恢复] 首页处理开始");
             
             // 1. 重置节流阀，允许重新加载
             lastLoadTime = nil;
             
             // 2. 停止当前加载
             if (self.webView) {
-                NSLog(@"在局🛑 [网络恢复] 停止当前WebView加载");
                 [self.webView stopLoading];
             }
             
             // 3. 检查页面是否已加载完成（在重置状态之前）
             BOOL wasPageLoaded = self.isLoading;
             BOOL hasValidContent = [self hasValidWebViewContent];
-            NSLog(@"在局🔍 [网络恢复] 页面状态检查 - wasPageLoaded: %@, hasValidContent: %@", 
-                  wasPageLoaded ? @"YES" : @"NO", hasValidContent ? @"YES" : @"NO");
             
             // 4. 重置加载状态
             self.isWebViewLoading = NO;
@@ -1248,7 +1163,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             
             // 5. 关键修复：如果页面之前已经加载完成或有有效内容，直接触发接口刷新而不是重新加载整个页面
             if (self.webView && (wasPageLoaded || hasValidContent)) {
-                NSLog(@"在局🚀 [网络恢复] 页面已加载，直接触发接口刷新");
                 
                 // 触发JavaScript的网络恢复和数据刷新
                 NSString *refreshScript = @"(function() {"
@@ -1288,9 +1202,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 
                 [self safelyEvaluateJavaScript:refreshScript completionHandler:^(id result, NSError *error) {
                     if (error) {
-                        NSLog(@"在局❌ [网络恢复] JavaScript刷新失败: %@", error.localizedDescription);
                     } else {
-                        NSLog(@"在局✅ [网络恢复] JavaScript刷新结果: %@", result);
                     }
                 }];
                 
@@ -1302,15 +1214,12 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 dispatch_get_main_queue(), ^{
                 // 再次检查是否仍然是首页
                 if (self.tabBarController.selectedIndex == 0 && self.pinUrl) {
-                    NSLog(@"在局🚀 [网络恢复] 开始重新加载首页内容");
                     // 如果WebView不存在，会在setupAndLoadWebViewIfNeeded中创建
                     [self setupAndLoadWebViewIfNeeded];
                 } else {
-                    NSLog(@"在局ℹ️ [网络恢复] 不是首页或URL为空，跳过加载");
                 }
             });
         } else {
-            NSLog(@"在局ℹ️ [网络恢复] 视图不在前台或不是首页，跳过处理");
         }
     }];
     // 监听backToHome通知，用于tab切换
@@ -1320,7 +1229,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             return;
         }
         
-        NSLog(@"在局🏠 [XZWKWebView] 收到backToHome通知");
         
         // 如果当前页面是tab页面，确保正确刷新
         if (self.isTabbarShow && [self isShowingOnKeyWindow]) {
@@ -1336,12 +1244,10 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             if (state == UIApplicationStateActive) {
                 // 先检查是否已有有效内容，避免不必要的重新加载
                 if ([self hasValidWebViewContent]) {
-                    NSLog(@"在局✅ [backToHome] 页面已有有效内容，仅触发pageShow事件");
                     // 只触发pageShow事件，不重新加载
                     NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageShow" data:nil];
                     [self objcCallJs:callJsDic];
                 } else {
-                    NSLog(@"在局🔄 [backToHome] 页面无有效内容，需要加载");
                     // 使用performSelector延迟执行，可以被取消
                     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(domainOperate) object:nil];
                     [self performSelector:@selector(domainOperate) withObject:nil afterDelay:0.2];
@@ -1357,7 +1263,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         STRONG_SELF;
         if (!self) return;
 
-        NSLog(@"在局🔔 [XZWKWebView] 应用进入活跃状态");
 
         // 同样调用统一的加载方法。
         // 它内部的检查会防止在已加载的情况下重复执行。
@@ -1365,27 +1270,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }];
 }
 
-//- (void)setCustomUserAgent {
-//    // 检查应用状态 - 确保在主线程访问UIApplication
-//    __block UIApplicationState state;
-//    if ([NSThread isMainThread]) {
-//        state = [[UIApplication sharedApplication] applicationState];
-//    } else {
-//        dispatch_sync(dispatch_get_main_queue(), ^{
-//            state = [[UIApplication sharedApplication] applicationState];
-//        });
-//    }
-//    if (state != UIApplicationStateActive) {
-//        NSLog(@"在局[XZWKWebView] 应用不在前台，跳过UserAgent设置");
-//        return;
-//    }
-//    
-//    // 直接设置UserAgent，避免执行JavaScript
-//    NSString *customUserAgent = @"Mozilla/5.0 (iPhone; CPU iPhone OS 13_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Mobile/15E148 Safari/604.1 XZApp/1.0";
-//    dispatch_async(dispatch_get_main_queue(), ^{
-//        self.webView.customUserAgent = customUserAgent;
-//    });
-//}
 // 在 XZWKWebViewBaseController.m 中
 - (void)setCustomUserAgent {
     // 直接定义一个完整的UserAgent字符串，防止异步等待和死锁的问题
@@ -1395,11 +1279,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 确保在主线程执行
     if ([NSThread isMainThread]) {
         self.webView.customUserAgent = customUserAgent;
-        NSLog(@"✅ Custom UserAgent 已被直接设置");
     } else {
         dispatch_async(dispatch_get_main_queue(), ^{
             self.webView.customUserAgent = customUserAgent;
-            NSLog(@"✅ Custom UserAgent 已被直接设置 (dispatched to main)");
         });
     }
 }
@@ -1410,7 +1292,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     [self.view addSubview:self.webView];
     
     if (self.navigationController.viewControllers.count > 1) {
-        NSLog(@"在局🔧 [addWebView] 内页模式，设置全屏约束");
         [self.webView mas_makeConstraints:^(MASConstraintMaker *make) {
             // 内页模式使用标准优先级约束，确保布局正确
             make.left.equalTo(self.view);
@@ -1449,12 +1330,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 检查约束是否生效
     
     // 恢复下拉刷新控件（修复WebView重新创建后下拉刷新丢失的问题）
-    NSLog(@"在局🔄 [addWebView] 检查并恢复下拉刷新控件");
     if (self.webView.scrollView && !self.webView.scrollView.mj_header) {
-        NSLog(@"在局🔧 [addWebView] 下拉刷新控件缺失，重新设置");
         [self setupRefreshControl];
     } else if (self.webView.scrollView.mj_header) {
-        NSLog(@"在局✅ [addWebView] 下拉刷新控件已存在");
     }
     
     // 确保进度条位置正确且始终在最上层
@@ -1468,69 +1346,117 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     
     if (CGRectEqualToRect(self.webView.frame, CGRectZero)) {
-        NSLog(@"在局❌ [addWebView] WebView frame仍然是零，手动设置frame");
         // 如果约束没有生效，手动设置frame
         CGRect viewBounds = self.view.bounds;
         if (CGRectEqualToRect(viewBounds, CGRectZero)) {
             // 如果view的bounds也是0，使用默认尺寸
             CGSize screenSize = [UIScreen mainScreen].bounds.size;
             viewBounds = CGRectMake(0, 0, screenSize.width, screenSize.height);
-            NSLog(@"在局⚠️ [addWebView] view.bounds也是零，使用屏幕尺寸: %@", NSStringFromCGRect(viewBounds));
         }
         
         // 根据页面类型调整frame
         if (self.navigationController.viewControllers.count > 1) {
             // 内页模式：全屏显示
-            NSLog(@"在局🔧 [addWebView] 内页模式，设置全屏frame");
             self.webView.frame = viewBounds;
         } else {
             // 首页模式：需要考虑TabBar
             if (![[NSUserDefaults standardUserDefaults] boolForKey:@"NoTabBar"]) {
                 viewBounds.size.height -= 83; // TabBar高度
-                NSLog(@"在局🔧 [addWebView] 首页模式，预留TabBar空间");
             }
             self.webView.frame = viewBounds;
         }
         
-        NSLog(@"在局✅ [addWebView] 手动设置WebView frame完成: %@", NSStringFromCGRect(self.webView.frame));
     } else {
-        NSLog(@"在局✅ [addWebView] WebView约束生效，frame: %@", NSStringFromCGRect(self.webView.frame));
     }
 }
 
-- (void)loadWebBridge {
+// 统一的JavaScript桥接设置方法（合并原有的三个方法）
+- (void)setupUnifiedJavaScriptBridge {
+    // 基础检查
+    if (!self.webView || ![self.webView isKindOfClass:[WKWebView class]]) {
+        return;
+    }
     
-    // 使用成熟的WebViewJavascriptBridge库
-    // 在Release版本也启用日志，以确保桥接正常工作
+    if (self.bridge && self.isBridgeReady) {
+        return; // 桥接已就绪
+    }
+    
+    // 启用桥接日志
     [WKWebViewJavascriptBridge enableLogging];
     
-    // 使用统一的桥接设置方法
-    [self setupJavaScriptBridge];
+    // 清理旧的桥接实例
+    if (self.bridge) {
+        self.bridge = nil;
+    }
     
-    // 注册额外的处理器（如果需要）
-    WEAK_SELF;
+    // 创建新的桥接实例
+    self.bridge = [WKWebViewJavascriptBridge bridgeForWebView:self.webView];
+    if (!self.bridge) {
+        return;
+    }
     
-    // 注册用于调试的处理器
+    // 设置WebView代理
+    [self.bridge setWebViewDelegate:self];
+    
+    // 注册统一的处理器
+    [self registerUnifiedBridgeHandlers];
+    
+    // 标记桥接已就绪
+    self.isBridgeReady = YES;
+    
+    // JavaScript桥接已就绪，可以执行待处理的脚本
+    NSLog(@"在局Claude Code[JavaScript桥接]+桥接初始化完成，可以开始执行JavaScript调用");
+}
+
+// 注册统一的桥接处理器
+- (void)registerUnifiedBridgeHandlers {
+    __weak typeof(self) weakSelf = self;
+    
+    // 主要的xzBridge处理器
+    [self.bridge registerHandler:@"xzBridge" handler:^(id data, WVJBResponseCallback responseCallback) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf) {
+            [strongSelf jsCallObjc:data jsCallBack:responseCallback];
+        }
+    }];
+    
+    // pageReady处理器
+    [self.bridge registerHandler:@"pageReady" handler:^(id data, WVJBResponseCallback responseCallback) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf) {
+            NSDictionary *pageReadyData = @{
+                @"fn": @"pageReady",
+                @"params": data ?: @{}
+            };
+            [strongSelf jsCallObjc:pageReadyData jsCallBack:responseCallback];
+        }
+    }];
+    
+    // 桥接测试处理器
+    [self.bridge registerHandler:@"bridgeTest" handler:^(id data, WVJBResponseCallback responseCallback) {
+        if (responseCallback) {
+            responseCallback(@{
+                @"success": @YES,
+                @"message": @"桥接正常工作",
+                @"timestamp": @([[NSDate date] timeIntervalSince1970])
+            });
+        }
+    }];
+    
+    // 调试处理器
     [self.bridge registerHandler:@"debugLog" handler:^(id data, WVJBResponseCallback responseCallback) {
         if (responseCallback) {
             responseCallback(@{@"received": @YES});
         }
     }];
-    
 }
 
 
 
 - (void)domainOperate {
-    NSLog(@"在局🌐 domainOperate 被调用 - URL: %@", self.pinUrl);
-    NSLog(@"在局🌐 domainOperate - webView存在: %@", self.webView ? @"YES" : @"NO");
-    NSLog(@"在局🌐 domainOperate - isWebViewLoading: %@", self.isWebViewLoading ? @"YES" : @"NO");
-    NSLog(@"在局🌐 domainOperate - tabIndex: %ld", (long)self.tabBarController.selectedIndex);
-    NSLog(@"在局🌐 domainOperate - navigationController.viewControllers.count: %ld", (long)self.navigationController.viewControllers.count);
     
     // 强化防重复逻辑 - 如果WebView已有有效内容，不要重复加载
     if ([self hasValidWebViewContent]) {
-        NSLog(@"在局✅ domainOperate - WebView已有有效内容，避免重复加载");
         
         // 如果已有内容，只触发pageShow事件
         if (self.webView) {
@@ -1543,7 +1469,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 防止频繁调用（与loadHTMLContent共享时间检查），但如果WebView未创建则允许执行
     NSDate *now = [NSDate date];
     if (lastLoadTime && [now timeIntervalSinceDate:lastLoadTime] < 2.0 && self.webView != nil) {
-        NSLog(@"在局⚠️ domainOperate 调用过于频繁，跳过（间隔: %.2f秒）", [now timeIntervalSinceDate:lastLoadTime]);
         return;
     }
     
@@ -1561,9 +1486,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 BOOL containsAppDomain = [self.pinUrl containsString:appDomain];
                 isExternalURL = !containsAppDomain;
                 
-                NSLog(@"在局🔍 [domainOperate] 网络URL检查 - URL: %@", self.pinUrl);
-                NSLog(@"在局🔍 [domainOperate] 应用域名: %@", appDomain);
-                NSLog(@"在局🔍 [domainOperate] 是否为外部URL: %@", isExternalURL ? @"YES" : @"NO");
             } else {
                 // 如果没有配置域名，通过常见的外部域名来判断
                 NSArray *externalDomains = @[@"m.amap.com", @"map.baidu.com", @"ditu.amap.com", 
@@ -1576,28 +1498,22 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     }
                 }
                 
-                NSLog(@"在局🔍 [domainOperate] 网络URL检查 - URL: %@", self.pinUrl);
-                NSLog(@"在局🔍 [domainOperate] 未配置应用域名，通过外部域名列表判断");
-                NSLog(@"在局🔍 [domainOperate] 是否为外部URL: %@", isExternalURL ? @"YES" : @"NO");
             }
             
             if (isExternalURL) {
-                NSLog(@"在局🌐 [domainOperate] 检测到外部网络URL，直接加载网络URL");
                 
                 // 直接加载网络URL
                 dispatch_async(dispatch_get_main_queue(), ^{
                     // 确保WebView存在
                     if (!self.webView) {
-                        NSLog(@"在局🔧 [domainOperate] WebView不存在，等待创建后加载");
                         // WebView还没创建，先标记需要加载网络URL，等待viewDidAppear中创建后加载
                         return;
                     }
                     
-                    NSLog(@"在局🚀 [domainOperate] 开始加载外部网络URL: %@", self.pinUrl);
                     
                     // 确保桥接已建立（网络页面也可能需要桥接）
                     if (!self.bridge) {
-                        [self loadWebBridge];
+                        [self setupUnifiedJavaScriptBridge];
                     }
                     
                     // 重置加载状态
@@ -1611,7 +1527,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     // 加载网络URL
                     [self.webView loadRequest:request];
                     
-                    NSLog(@"在局✅ [domainOperate] 外部网络URL加载请求已发送");
                     
                     // 启动页面加载监控
                     [self startPageLoadMonitor];
@@ -1622,12 +1537,10 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 
                 return; // 直接返回，不继续执行本地HTML加载逻辑
             } else {
-                NSLog(@"在局📱 [domainOperate] 检测到应用内部URL，使用本地HTML加载");
             }
         }
     }
     
-    NSLog(@"在局 🔧 [XZWKWebViewBaseController] 优化domainOperate - 使用异步文件I/O");
     
     // 只重置isLoading，不重置isWebViewLoading
     // isWebViewLoading应该在WebView创建流程中管理
@@ -1644,10 +1557,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     });
     
     // 在后台队列异步读取HTML文件，避免阻塞主线程
-    NSLog(@"在局 🚀 [XZWKWebViewBaseController] 开始异步读取HTML文件");
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
         NSString *filepath = [[BaseFileManager appH5LocailManifesPath] stringByAppendingPathComponent:@"app.html"];
-        NSLog(@"在局📁 读取HTML文件: %@", filepath);
         
         if ([[NSFileManager defaultManager] fileExistsAtPath:filepath]) {
             NSError *error;
@@ -1656,25 +1567,20 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             // 回到主线程处理结果
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (!error && htmlContent) {
-                    NSLog(@"在局✅ HTML文件读取成功，长度: %ld", (long)htmlContent.length);
                     self.htmlStr = htmlContent;
                     
                     // 检查WebView是否已经创建
                     if (self.webView) {
-                        NSLog(@"在局📝 [domainOperate] WebView已存在，开始加载HTML内容");
                         [self loadHTMLContent];
                     } else {
-                        NSLog(@"在局📝 [domainOperate] WebView尚未创建，等待viewDidAppear");
                         // WebView还没创建，等待viewDidAppear中创建后会自动调用loadHTMLContent
                     }
                 } else {
-                    NSLog(@"在局❌ 读取HTML文件失败: %@", error.localizedDescription);
                     self.networkNoteView.hidden = NO;
                 }
             });
         } else {
             dispatch_async(dispatch_get_main_queue(), ^{
-                NSLog(@"在局 HTML文件不存在: %@", filepath);
                 self.networkNoteView.hidden = NO;
             });
         }
@@ -1682,11 +1588,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)loadHTMLContent {
-    NSLog(@"在局🚀 [loadHTMLContent] 开始加载 - pinUrl: %@, isTabbarShow: %@", self.pinUrl, self.isTabbarShow ? @"YES" : @"NO");
     
     // 【性能优化】优先使用优化的HTML加载方法
     if (self.webView && (self.pinDataStr || [[self class] getCachedHTMLTemplate])) {
-        NSLog(@"在局⚡ [性能优化] 使用优化的HTML加载方法");
         [self optimizedLoadHTMLContent];
         return;
     }
@@ -1701,7 +1605,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 防止频繁重新加载（2秒内只允许加载一次） - 但只在WebView存在时检查
     NSDate *now = [NSDate date];
     if (lastLoadTime && [now timeIntervalSinceDate:lastLoadTime] < 2.0) {
-        NSLog(@"在局⚠️ [loadHTMLContent] 加载过于频繁，跳过（间隔: %.2f秒）", [now timeIntervalSinceDate:lastLoadTime]);
         return;
     }
     lastLoadTime = now;
@@ -1720,33 +1623,27 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     if (self.htmlStr) {
         // 确保JavaScript桥接已建立
         if (!self.bridge) {
-            [self loadWebBridge];
+            [self setupUnifiedJavaScriptBridge];
             
             // 直接尝试加载，不再延迟 - 修复tab切换时dispatch_after不执行的问题
-            NSLog(@"在局⚡ [loadHTMLContent] 桥接初始化完成，立即加载HTML");
             
             // 添加桥接状态检查
             if (self.bridge) {
-                NSLog(@"在局✅ [loadHTMLContent] 桥接验证成功，开始加载");
                 [self performHTMLLoading];
             } else {
-                NSLog(@"在局❌ [loadHTMLContent] 桥接验证失败，延迟重试");
                 // 如果桥接创建失败，使用performSelector延迟重试（可以被取消）
                 [self performSelector:@selector(retryHTMLLoading) withObject:nil afterDelay:0.1];
             }
         } else {
             // 桥接已存在，直接加载
-            NSLog(@"在局⚡ [loadHTMLContent] 桥接已存在，直接加载");
             [self performHTMLLoading];
         }
     } else {
-        NSLog(@"在局❌ [loadHTMLContent] htmlStr为空，无法加载页面");
     }
 }
 
 // 重试HTML加载的方法
 - (void)retryHTMLLoading {
-    NSLog(@"在局🔄 [retryHTMLLoading] 重试HTML加载");
     
     // 应用与CustomHybridProcessor相同的修复逻辑
     if (_isDisappearing) {
@@ -1756,46 +1653,36 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                                (self.tabBarController != nil);
         
         if (isFromExternalApp) {
-            NSLog(@"在局⚠️ [retryHTMLLoading] 检测到从外部App返回，忽略_isDisappearing标志，继续重试");
             _isDisappearing = NO;
         } else {
-            NSLog(@"在局❌ [retryHTMLLoading] 页面正在真正消失，取消重试");
             return;
         }
     }
     
     if (self.bridge) {
-        NSLog(@"在局✅ [retryHTMLLoading] 桥接现在可用，开始加载");
         [self performHTMLLoading];
     } else {
-        NSLog(@"在局❌ [retryHTMLLoading] 桥接仍然不可用，停止重试");
     }
 }
 
 // 新增方法：执行实际的HTML加载
 - (void)performHTMLLoading {
-    NSLog(@"在局🎯 [performHTMLLoading] 开始执行HTML加载 - pinDataStr: %@, pinUrl: %@", 
-          self.pinDataStr ? @"有数据" : @"无数据", self.pinUrl);
     
     // 添加WebView健康检查和重建机制
     if (![self checkAndRebuildWebViewIfNeeded]) {
-        NSLog(@"在局❌ [performHTMLLoading] WebView健康检查失败，等待重建");
         return;
     }
     
     // 🔧 关键修复：在加载HTML前确保WebView frame正确
     if (CGRectIsEmpty(self.webView.frame) || self.webView.frame.size.width == 0) {
-        NSLog(@"在局🔧 [performHTMLLoading] 检测到WebView frame异常: %@", NSStringFromCGRect(self.webView.frame));
         
         // 强制重新添加WebView以修复frame问题
         [self.webView removeFromSuperview];
         [self addWebView];
         
-        NSLog(@"在局🔧 [performHTMLLoading] WebView重新添加后frame: %@", NSStringFromCGRect(self.webView.frame));
         
         // 如果仍然是0，直接返回，等待布局完成
         if (CGRectIsEmpty(self.webView.frame)) {
-            NSLog(@"在局⚠️ [performHTMLLoading] WebView frame仍然异常，延迟重试");
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 [self performHTMLLoading];
             });
@@ -1805,8 +1692,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     if (self.pinDataStr && self.pinDataStr.length > 0) {
         // 直接数据模式
-        NSLog(@"在局📄 使用直接数据模式加载页面");
-        NSLog(@"在局📄 [直接数据模式] pinDataStr长度: %lu", (unsigned long)self.pinDataStr.length);
         
         if (self.pagetitle) {
             [self getnavigationBarTitleText:self.pagetitle];
@@ -1818,125 +1703,86 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             allHtmlStr = [allHtmlStr stringByReplacingOccurrencesOfString:@"{{phoneClass}}" withString:isIPhoneXSeries() ? @"iPhoneLiuHai" : @"iPhone"];
         }
         
-        NSLog(@"在局🌐 开始加载HTML字符串...");
         
         // 使用manifest目录作为baseURL，确保资源正确加载
         NSString *manifestPath = [BaseFileManager appH5LocailManifesPath];
         NSURL *baseURL = [NSURL fileURLWithPath:manifestPath isDirectory:YES];
         
-        NSLog(@"在局📁 [WKWebView-Direct] BaseURL: %@", baseURL);
         
-        // 检查是否是首页加载
-        if (self.isTabbarShow) {
-            NSLog(@"在局🏠 [首页加载] 正在加载TabBar页面内容");
-        }
         
-        NSLog(@"在局🚀 [直接数据模式] 即将调用loadHTMLString - HTML长度: %lu", (unsigned long)allHtmlStr.length);
-        NSLog(@"在局🚀 [直接数据模式] WebView delegate设置: navigationDelegate=%@, UIDelegate=%@", 
-              self.webView.navigationDelegate, self.webView.UIDelegate);
         
         // 关键修复：简化dispatch调用，避免Release版本中的嵌套问题
-        NSLog(@"在局🔧 [直接数据模式] 准备在主队列中执行loadHTMLString");
         
         // 验证WebView状态
         if (!self.webView) {
-            NSLog(@"在局❌ [直接数据模式] WebView为nil！");
             return;
         }
         
         // 检查WebView的navigation delegate状态并自动修复
         if (!self.webView.navigationDelegate) {
-            NSLog(@"在局❌ [直接数据模式] navigationDelegate丢失！开始自动修复");
             if (self.bridge) {
-                NSLog(@"在局🔧 [直接数据模式] Bridge存在，重新设置navigationDelegate");
                 // 🔧 关键修复：重新设置Bridge为navigationDelegate
                 self.webView.navigationDelegate = self.bridge;
-                NSLog(@"在局✅ [直接数据模式] navigationDelegate已恢复: %@", self.webView.navigationDelegate);
             } else {
-                NSLog(@"在局❌ [直接数据模式] Bridge不存在，无法恢复delegate");
                 return;
             }
         } else {
-            NSLog(@"在局✅ [直接数据模式] navigationDelegate正常: %@", self.webView.navigationDelegate);
         }
         
         // 确保WebView在window中且有正确frame
         if (!self.webView.superview) {
-            NSLog(@"在局❌ [直接数据模式] WebView没有superview！");
             return;
         }
         
-        NSLog(@"在局🔧 [直接数据模式] WebView状态验证完成:");
-        NSLog(@"在局🔧 [直接数据模式] - frame: %@", NSStringFromCGRect(self.webView.frame));
-        NSLog(@"在局🔧 [直接数据模式] - superview: %@", self.webView.superview);
-        NSLog(@"在局🔧 [直接数据模式] - navigationDelegate: %@", self.webView.navigationDelegate);
         
         // 停止任何正在进行的加载
         [self.webView stopLoading];
         
         // 直接数据模式也增加详细的dispatch追踪
-        NSLog(@"在局🎯 [DISPATCH-DEBUG-DIRECT] 准备提交dispatch_async任务到主队列");
         
         static int directDispatchTaskId = 1000;
         int currentDirectTaskId = ++directDispatchTaskId;
-        NSLog(@"在局🎯 [DISPATCH-DEBUG-DIRECT] 创建直接数据模式任务ID: %d", currentDirectTaskId);
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            NSLog(@"在局🔥🔥🔥 [DISPATCH-DEBUG-DIRECT] ===== 直接数据模式 dispatch回调开始执行！任务ID: %d =====", currentDirectTaskId);
             
             // 检查self和WebView状态
             if (!self || !self.webView) {
-                NSLog(@"在局❌ [DISPATCH-DEBUG-DIRECT] self或WebView已释放！任务ID: %d", currentDirectTaskId);
                 return;
             }
             
-            NSLog(@"在局🚀 [直接数据模式] 主队列中开始loadHTMLString - 任务ID: %d", currentDirectTaskId);
             
             // 对于第二个Tab，启动加载监控
             if (self.tabBarController && self.tabBarController.selectedIndex > 0) {
-                NSLog(@"在局👁️ [直接数据模式] 第二个Tab，启动加载监控");
                 [self startWebViewLoadingMonitor];
             }
             
             // 直接使用loadHTMLString:baseURL:方法
-            NSLog(@"在局🚀 [直接数据模式] 即将调用loadHTMLString，HTML长度: %lu - 任务ID: %d", (unsigned long)allHtmlStr.length, currentDirectTaskId);
             
             @try {
                 [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
-                NSLog(@"在局✅ [DISPATCH-DEBUG-DIRECT] loadHTMLString调用成功完成！任务ID: %d", currentDirectTaskId);
             } @catch (NSException *exception) {
-                NSLog(@"在局💥 [DISPATCH-DEBUG-DIRECT] loadHTMLString调用异常！任务ID: %d, 异常: %@", currentDirectTaskId, exception);
             }
             
-            NSLog(@"在局🚀 [直接数据模式] loadHTMLString调用完成，等待navigation delegate... - 任务ID: %d", currentDirectTaskId);
             
             // 启动定时器监控页面加载
             [self startPageLoadMonitor];
             
-            NSLog(@"在局🔥🔥🔥 [DISPATCH-DEBUG-DIRECT] ===== 直接数据模式 dispatch回调执行完成！任务ID: %d =====", currentDirectTaskId);
         });
         
-        NSLog(@"在局🎯 [DISPATCH-DEBUG-DIRECT] 直接数据模式 dispatch_async任务已提交，任务ID: %d", currentDirectTaskId);
         
         // 直接数据模式也增加fallback机制
-        NSLog(@"在局🕰️ [FALLBACK-DIRECT] 设置3秒fallback机制以防直接数据模式dispatch未执行");
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             if (self && self.webView && !self.isWebViewLoading) {
-                NSLog(@"在局⚠️ [FALLBACK-DIRECT] 3秒后检查发现WebView仍未开始加载，执行直接数据模式fallback");
                 
                 @try {
                     [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
-                    NSLog(@"在局✅ [FALLBACK-DIRECT] 直接数据模式 Fallback loadHTMLString调用成功");
                 } @catch (NSException *exception) {
-                    NSLog(@"在局💥 [FALLBACK-DIRECT] 直接数据模式 Fallback loadHTMLString异常: %@", exception);
                 }
             } else {
-                NSLog(@"在局✅ [FALLBACK-DIRECT] 3秒检查：直接数据模式WebView已开始加载或self已释放，无需fallback");
             }
         });
     } else {
         // 使用CustomHybridProcessor处理
-        NSLog(@"在局🔄 使用CustomHybridProcessor处理页面 - URL: %@", self.pinUrl);
         [CustomHybridProcessor custom_LocialPathByUrlStr:self.pinUrl
                                              templateDic:self.templateDic
                                         componentJsAndCs:self.componentJsAndCs
@@ -1944,15 +1790,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                                                  success:^(NSString *filePath, NSString *templateStr, NSString *title, BOOL isFileExsit) {
             
             @try {
-                NSLog(@"在局🔥 [CustomHybridProcessor] ===== 回调开始执行 =====");
-                NSLog(@"在局🔥 [CustomHybridProcessor] 步骤1: 回调参数检查");
-                NSLog(@"在局📋 CustomHybridProcessor处理完成 - 文件存在: %@, 标题: %@", isFileExsit ? @"是" : @"否", title);
-                NSLog(@"在局📋 templateStr长度: %lu", (unsigned long)templateStr.length);
-                NSLog(@"在局📋 filePath: %@", filePath);
-                
-                NSLog(@"在局🔥 [CustomHybridProcessor] 步骤2: 检查self状态");
                 if (!self) {
-                    NSLog(@"在局❌ [CustomHybridProcessor] self已经被释放，终止回调执行");
                     return;
                 }
                 // 修复微信回调后的重建循环问题：
@@ -1966,47 +1804,31 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                                            (self.tabBarController != nil);
                     
                     if (isFromExternalApp) {
-                        NSLog(@"在局⚠️ [CustomHybridProcessor] 检测到从外部App返回，忽略_isDisappearing标志，继续执行");
                         // 重置标志，允许继续执行
                         self->_isDisappearing = NO;
                     } else {
-                        NSLog(@"在局❌ [CustomHybridProcessor] 页面正在真正消失，终止回调执行");
                         return;
                     }
                 }
                 if (!self.webView) {
-                    NSLog(@"在局❌ [CustomHybridProcessor] WebView不存在，终止回调执行");
                     return;
                 }
                 
-                NSLog(@"在局🔥 [CustomHybridProcessor] 步骤3: 设置导航标题");
                 [self getnavigationBarTitleText:title];
-                NSLog(@"在局✅ [CustomHybridProcessor] 导航标题设置完成");
                 
-                NSLog(@"在局🔥 [CustomHybridProcessor] 步骤4: 处理HTML模板");
                 if (!self.htmlStr) {
-                    NSLog(@"在局❌ [CustomHybridProcessor] htmlStr为空，无法继续");
                     return;
                 }
                 if (!templateStr) {
-                    NSLog(@"在局❌ [CustomHybridProcessor] templateStr为空，使用空字符串");
                     templateStr = @"";
                 }
                 
                 NSString *allHtmlStr = [self.htmlStr stringByReplacingOccurrencesOfString:@"{{body}}" withString:templateStr];
-                NSLog(@"在局✅ [CustomHybridProcessor] HTML模板替换完成，长度: %lu", (unsigned long)allHtmlStr.length);
                 
-                NSLog(@"在局🔥 [CustomHybridProcessor] 步骤5: 处理iPhone X适配");
                 if ([self isHaveNativeHeader:self.pinUrl]) {
                     allHtmlStr = [allHtmlStr stringByReplacingOccurrencesOfString:@"{{phoneClass}}" withString:isIPhoneXSeries() ? @"iPhoneLiuHai" : @"iPhone"];
-                    NSLog(@"在局✅ [CustomHybridProcessor] iPhone X适配完成");
                 }
                 
-                NSLog(@"在局🔥 [CustomHybridProcessor] 步骤6: HTML内容调试");
-                // 关键调试：检查实际的HTML内容
-                NSLog(@"在局📄 [HTML-DEBUG] HTML长度: %lu", (unsigned long)allHtmlStr.length);
-                NSLog(@"在局📄 [HTML-DEBUG] 包含app.js: %@", [allHtmlStr containsString:@"app.js"] ? @"YES" : @"NO");
-                NSLog(@"在局📄 [HTML-DEBUG] 包含webviewbridge.js: %@", [allHtmlStr containsString:@"webviewbridge.js"] ? @"YES" : @"NO");
                 
                 // 添加调试：检查body内容是否正确替换
                 NSRange bodyRange = [allHtmlStr rangeOfString:@"<div id=\"pageWrapper\">"];
@@ -2014,187 +1836,123 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     NSRange endRange = [allHtmlStr rangeOfString:@"</div>" options:0 range:NSMakeRange(bodyRange.location, allHtmlStr.length - bodyRange.location)];
                     if (endRange.location != NSNotFound) {
                         NSString *bodyContent = [allHtmlStr substringWithRange:NSMakeRange(bodyRange.location, endRange.location - bodyRange.location + 6)];
-                        NSLog(@"在局📄 [HTML-DEBUG] pageWrapper内容长度: %lu", (unsigned long)bodyContent.length);
-                        NSLog(@"在局📄 [HTML-DEBUG] pageWrapper是否为空: %@", [bodyContent isEqualToString:@"<div id=\"pageWrapper\"></div>"] ? @"YES" : @"NO");
                     }
                 }
                 
-                NSLog(@"在局🔥 [CustomHybridProcessor] 步骤7: 准备baseURL");
                 // 使用manifest目录作为baseURL，确保资源正确加载
                 NSString *manifestPath = [BaseFileManager appH5LocailManifesPath];
                 NSURL *baseURL = [NSURL fileURLWithPath:manifestPath isDirectory:YES];
                 
-                NSLog(@"在局📁 [WKWebView-CustomHybrid] BaseURL: %@", baseURL);
                 
                 // 检查是否是首页加载
-                if (self.isTabbarShow) {
-                    NSLog(@"在局🏠 [首页加载] 正在加载TabBar页面内容");
-                }
                 
-                NSLog(@"在局🔥 [CustomHybridProcessor] 步骤8: 最终WebView检查");
                 if (!self.webView) {
-                    NSLog(@"在局❌ [CustomHybridProcessor] 最终检查：WebView已经被释放！");
                     return;
                 }
                 
-                NSLog(@"在局🚀 [CustomHybridProcessor] 步骤9: 即将调用loadHTMLString - HTML长度: %lu", (unsigned long)allHtmlStr.length);
-                NSLog(@"在局🚀 [CustomHybridProcessor] WebView delegate设置: navigationDelegate=%@, UIDelegate=%@", 
-                      self.webView.navigationDelegate, self.webView.UIDelegate);
-                
-                NSLog(@"在局🔥 [CustomHybridProcessor] 步骤10: 执行loadHTMLString");
-                
                 // 关键修复：简化dispatch调用，避免Release版本中的嵌套问题
-                NSLog(@"在局🔧 [CustomHybridProcessor] 准备在主队列中执行loadHTMLString");
                 
                 // 验证WebView状态
                 if (!self.webView) {
-                    NSLog(@"在局❌ [CustomHybridProcessor] WebView为nil！");
                     return;
                 }
                 
                 // 检查WebView的navigation delegate状态并自动修复
                 if (!self.webView.navigationDelegate) {
-                    NSLog(@"在局❌ [CustomHybridProcessor] navigationDelegate丢失！开始自动修复");
                     if (self.bridge) {
-                        NSLog(@"在局🔧 [CustomHybridProcessor] Bridge存在，重新设置navigationDelegate");
                         // 🔧 关键修复：重新设置Bridge为navigationDelegate
                         self.webView.navigationDelegate = self.bridge;
-                        NSLog(@"在局✅ [CustomHybridProcessor] navigationDelegate已恢复: %@", self.webView.navigationDelegate);
                     } else {
-                        NSLog(@"在局❌ [CustomHybridProcessor] Bridge不存在，无法恢复delegate");
                         return;
                     }
                 } else {
-                    NSLog(@"在局✅ [CustomHybridProcessor] navigationDelegate正常: %@", self.webView.navigationDelegate);
                 }
                 
                 // 确保WebView在window中且有正确frame
                 if (!self.webView.superview) {
-                    NSLog(@"在局❌ [CustomHybridProcessor] WebView没有superview！");
                     return;
                 }
                 
-                NSLog(@"在局🔧 [CustomHybridProcessor] WebView状态验证完成:");
-                NSLog(@"在局🔧 [CustomHybridProcessor] - frame: %@", NSStringFromCGRect(self.webView.frame));
-                NSLog(@"在局🔧 [CustomHybridProcessor] - superview: %@", self.webView.superview);
-                NSLog(@"在局🔧 [CustomHybridProcessor] - navigationDelegate: %@", self.webView.navigationDelegate);
                 
                 // 停止任何正在进行的加载
                 [self.webView stopLoading];
                 
                 // 关键修复：增加dispatch执行追踪，解决Release版本中断问题
-                NSLog(@"在局🎯 [DISPATCH-DEBUG] 准备提交dispatch_async任务到主队列");
-                NSLog(@"在局🎯 [DISPATCH-DEBUG] 当前线程: %@", [NSThread currentThread]);
-                NSLog(@"在局🎯 [DISPATCH-DEBUG] 是否主线程: %@", [NSThread isMainThread] ? @"YES" : @"NO");
                 
-                // 检查主队列状态
-                if (dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL) != NULL) {
-                    NSLog(@"在局🎯 [DISPATCH-DEBUG] 当前队列标签: %s", dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL));
-                }
                 
                 // 防重复执行检查
                 if (self.isLoadingInProgress) {
-                    NSLog(@"在局⚠️ [DISPATCH-DEBUG] 检测到重复loadHTMLString任务，跳过执行");
                     return;
                 }
                 
                 // 标记正在执行中
                 self.isLoadingInProgress = YES;
-                NSLog(@"在局🔒 [DISPATCH-DEBUG] 设置加载锁定状态");
                 
                 // 添加任务计数器
                 static int dispatchTaskId = 0;
                 int currentTaskId = ++dispatchTaskId;
-                NSLog(@"在局🎯 [DISPATCH-DEBUG] 创建dispatch任务ID: %d", currentTaskId);
                 
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    NSLog(@"在局🔥🔥🔥 [DISPATCH-DEBUG] ===== dispatch_async回调开始执行！任务ID: %d =====", currentTaskId);
-                    NSLog(@"在局🔥 [DISPATCH-DEBUG] 回调执行线程: %@", [NSThread currentThread]);
-                    NSLog(@"在局🔥 [DISPATCH-DEBUG] 回调是否主线程: %@", [NSThread isMainThread] ? @"YES" : @"NO");
                     
                     // 检查self状态
                     if (!self) {
-                        NSLog(@"在局❌ [DISPATCH-DEBUG] self已释放！任务ID: %d", currentTaskId);
                         return;
                     }
                     
                     // 检查WebView状态
                     if (!self.webView) {
-                        NSLog(@"在局❌ [DISPATCH-DEBUG] WebView已释放！任务ID: %d", currentTaskId);
                         return;
                     }
                     
-                    NSLog(@"在局🚀 [CustomHybridProcessor] 主队列中开始loadHTMLString - 任务ID: %d", currentTaskId);
                     
                     // 对于第二个Tab，启动加载监控
                     if (self.tabBarController && self.tabBarController.selectedIndex > 0) {
-                        NSLog(@"在局👁️ [CustomHybridProcessor] 第二个Tab，启动加载监控");
                         [self startWebViewLoadingMonitor];
                     }
                     
-                    // 再次验证关键对象状态
-                    NSLog(@"在局🔍 [DISPATCH-DEBUG] 执行前最终检查 - WebView: %@", self.webView);
-                    NSLog(@"在局🔍 [DISPATCH-DEBUG] HTML字符串长度: %lu", (unsigned long)allHtmlStr.length);
-                    NSLog(@"在局🔍 [DISPATCH-DEBUG] BaseURL: %@", baseURL);
                     
                     // 直接使用loadHTMLString:baseURL:方法
-                    NSLog(@"在局🚀 [CustomHybridProcessor] 即将调用loadHTMLString，HTML长度: %lu - 任务ID: %d", (unsigned long)allHtmlStr.length, currentTaskId);
                     
                     @try {
                         [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
-                        NSLog(@"在局✅ [DISPATCH-DEBUG] loadHTMLString调用成功完成！任务ID: %d", currentTaskId);
                     } @catch (NSException *exception) {
-                        NSLog(@"在局💥 [DISPATCH-DEBUG] loadHTMLString调用异常！任务ID: %d, 异常: %@", currentTaskId, exception);
                     }
                     
-                    NSLog(@"在局🚀 [CustomHybridProcessor] loadHTMLString调用完成，等待navigation delegate... - 任务ID: %d", currentTaskId);
                     
                     // 启动定时器监控页面加载
                     [self startPageLoadMonitor];
                     
-                    NSLog(@"在局🔥🔥🔥 [DISPATCH-DEBUG] ===== dispatch_async回调执行完成！任务ID: %d =====", currentTaskId);
-                    NSLog(@"在局🔥 [CustomHybridProcessor] ===== 回调执行成功完成 =====");
                     
                     // 解除加载锁定状态（延迟解除，防止时序问题）
                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                         if (self) {
                             self.isLoadingInProgress = NO;
-                            NSLog(@"在局🔓 [DISPATCH-DEBUG] 解除加载锁定状态 - 任务ID: %d", currentTaskId);
                         }
                     });
                 });
                 
-                NSLog(@"在局🎯 [DISPATCH-DEBUG] dispatch_async任务已提交，任务ID: %d", currentTaskId);
                 
                 // Release版本fallback机制：如果dispatch在短时间内未执行，直接在主线程调用
-                NSLog(@"在局🕰️ [FALLBACK] 设置3秒fallback机制以防dispatch未执行");
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     // 检查是否已经成功调用loadHTMLString（通过检查WebView的loading状态）
                     if (self && self.webView && !self.isWebViewLoading) {
-                        NSLog(@"在局⚠️ [FALLBACK] 3秒后检查发现WebView仍未开始加载，执行fallback");
-                        NSLog(@"在局🆘 [FALLBACK] 直接在主线程调用loadHTMLString作为fallback");
                         
                         @try {
                             [self.webView loadHTMLString:allHtmlStr baseURL:baseURL];
-                            NSLog(@"在局✅ [FALLBACK] Fallback loadHTMLString调用成功");
                         } @catch (NSException *exception) {
-                            NSLog(@"在局💥 [FALLBACK] Fallback loadHTMLString异常: %@", exception);
                         }
                         
                         // fallback执行后也解除锁定
                         if (self) {
                             self.isLoadingInProgress = NO;
-                            NSLog(@"在局🔓 [FALLBACK] Fallback执行后解除加载锁定状态");
                         }
                     } else {
-                        NSLog(@"在局✅ [FALLBACK] 3秒检查：WebView已开始加载或self已释放，无需fallback");
                     }
                 });
                 
                 // 延迟测试JavaScript桥接是否正常工作
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     @try {
-                        NSLog(@"在局🧪 [桥接测试] 开始测试JavaScript桥接");
                         
                         // 更详细的桥接诊断测试
                         NSString *diagnosticJS = @"(function(){"
@@ -2221,29 +1979,19 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                         
                         [self safelyEvaluateJavaScript:diagnosticJS completionHandler:^(id result, NSError *error) {
                             if (error) {
-                                NSLog(@"在局❌ [桥接测试] JavaScript执行错误: %@", error.localizedDescription);
                             } else {
-                                NSLog(@"在局🧪 [桥接测试] 详细诊断结果: %@", result);
                                 
                                 // 如果桥接不存在，尝试重新注入
                                 if ([result containsString:@"\"bridgeExists\":false"]) {
-                                    NSLog(@"在局🔧 [桥接测试] 检测到桥接不存在，尝试重新注入");
                                     [self forceReinjectBridge];
                                 }
                             }
                         }];
                     } @catch (NSException *bridgeException) {
-                        NSLog(@"在局💥 [桥接测试] 桥接测试发生异常: %@", bridgeException.reason);
                     }
                 });
                 
             } @catch (NSException *exception) {
-                NSLog(@"在局💥💥💥 [CustomHybridProcessor] 回调执行发生异常！");
-                NSLog(@"在局💥 异常名称: %@", exception.name);
-                NSLog(@"在局💥 异常原因: %@", exception.reason);
-                NSLog(@"在局💥 异常用户信息: %@", exception.userInfo);
-                NSLog(@"在局💥 异常调用栈: %@", exception.callStackSymbols);
-                NSLog(@"在局💥💥💥 [CustomHybridProcessor] 异常信息结束");
                 
                 // 即使发生异常，也要确保UI状态正确
                 dispatch_async(dispatch_get_main_queue(), ^{
@@ -2253,7 +2001,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     // 异常情况下也要解除加载锁定
                     if (self) {
                         self.isLoadingInProgress = NO;
-                        NSLog(@"在局🔓 [DISPATCH-DEBUG] 异常情况下解除加载锁定状态");
                     }
                 });
             }
@@ -2264,10 +2011,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 #pragma mark - Navigation
 
 - (void)getnavigationBarTitleText:(NSString *)title {
-    NSLog(@"在局🏷️ [标题设置] 收到标题: %@", title);
-    NSLog(@"在局🏷️ [标题设置] 当前pinUrl: %@", self.pinUrl);
-    NSLog(@"在局🏷️ [标题设置] 导航控制器: %@", self.navigationController);
-    NSLog(@"在局🏷️ [标题设置] 当前navigationItem: %@", self.navigationItem);
     
     // 如果标题为空，根据URL尝试提取标题
     if (!title || title.length == 0 || [title isEqualToString:@"(null)"]) {
@@ -2275,20 +2018,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         
         // 尝试从URL中提取更有意义的标题
         if (self.pinUrl) {
-            NSLog(@"在局🔍 [标题设置] 标题为空，从URL提取: %@", self.pinUrl);
             
-            // 解析URL路径来生成标题
-            if ([self.pinUrl containsString:@"/activity/"]) {
-                fallbackTitle = @"活动详情";
-            } else if ([self.pinUrl containsString:@"/news/"]) {
-                fallbackTitle = @"新闻详情";
-            } else if ([self.pinUrl containsString:@"/user/"]) {
-                fallbackTitle = @"用户信息";
-            } else if ([self.pinUrl containsString:@"/detail/"]) {
-                fallbackTitle = @"详情";
-            } else if ([self.pinUrl containsString:@"/list/"]) {
-                fallbackTitle = @"列表";
-            } else if ([self.pinUrl containsString:@"/p/"]) {
                 // 进一步解析p路径
                 NSArray *components = [self.pinUrl componentsSeparatedByString:@"/"];
                 if (components.count >= 4) {
@@ -2303,22 +2033,16 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                         fallbackTitle = @"详情页";
                     }
                 }
-            }
             
-            NSLog(@"在局🔍 [标题设置] URL分析结果: %@", fallbackTitle);
         } else {
-            NSLog(@"在局⚠️ [标题设置] pinUrl为空，使用默认标题");
         }
         
-        NSLog(@"在局✅ [标题设置] 使用备用标题: %@", fallbackTitle);
         self.navigationItem.title = fallbackTitle;
         
         // 强制刷新导航栏显示
         [self.navigationController.navigationBar setNeedsLayout];
         [self.navigationController.navigationBar layoutIfNeeded];
-        NSLog(@"在局🔄 [标题设置] 已强制刷新导航栏显示");
     } else {
-        NSLog(@"在局✅ [标题设置] 使用原标题: %@", title);
         self.navigationItem.title = title;
         
         // 强制刷新导航栏显示
@@ -2326,8 +2050,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         [self.navigationController.navigationBar layoutIfNeeded];
     }
     
-    // 验证设置结果
-    NSLog(@"在局🔍 [标题设置] 设置完成后的标题: %@", self.navigationItem.title);
 }
 
 #pragma mark - Network Monitoring
@@ -2356,7 +2078,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             // 检查应用状态，如果不是活跃状态则立即取消定时器
             // 直接在后台队列检查，避免同步到主线程
             if (strongSelf->_isDisappearing) {
-                NSLog(@"在局🔔 [Timer] 页面正在消失，取消定时器");
                 // 安全地取消timer，防止野指针
                 dispatch_source_t timerToCancel = strongSelf.timer;
                 if (timerToCancel) {
@@ -2368,9 +2089,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             
             if (timeout <= 0) {
                 if (strongSelf.isLoading || strongSelf.isWebViewLoading) {
-                    NSLog(@"在局🔥 [Timer] 页面已就绪(pageReady: %@, WebView: %@)，取消计时器", 
-                          strongSelf.isLoading ? @"YES" : @"NO", 
-                          strongSelf.isWebViewLoading ? @"YES" : @"NO");
                     // 安全地取消timer，防止野指针
                     dispatch_source_t timerToCancel = strongSelf.timer;
                     if (timerToCancel) {
@@ -2390,7 +2108,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     }
                     
                     if (strongSelf->_retryCount > 3) {
-                        NSLog(@"在局❌ [Timer] 重试次数超过限制(%ld次)，停止重新加载", (long)strongSelf->_retryCount);
                         // 安全地取消timer，防止野指针
                         dispatch_source_t timerToCancel = strongSelf.timer;
                         if (timerToCancel) {
@@ -2410,14 +2127,12 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                         return;
                     }
                     
-                    NSLog(@"在局⏰ [Timer] 页面加载超时，准备重新加载 (第%ld次重试)", (long)strongSelf->_retryCount);
                     dispatch_async(dispatch_get_main_queue(), ^{
                         // 检查网络状态
                         if (NoReachable) {
-                            NSLog(@"在局❌ [Timer] 网络不可达，取消重新加载");
                             return;
                         }
-                        [[HTMLCache sharedCache] removeObjectForKey:strongSelf.webViewDomain];
+                        [[HTMLCache sharedCache] removeObjectForKey:strongSelf.pinUrl];
                         [strongSelf domainOperate];
                     });
                 }
@@ -2488,7 +2203,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message {
     // 保留方法以防其他地方需要使用
-    NSLog(@"在局📨 [WKWebView] 收到未处理的JavaScript消息 - name: %@", message.name);
 }
 
 - (void)jsCallObjc:(NSDictionary *)jsData jsCallBack:(WVJBResponseCallback)jsCallBack {
@@ -2496,17 +2210,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     NSString *function = [jsDic objectForKey:@"action"];
     NSDictionary *dataDic = [jsDic objectForKey:@"data"];
     
-    NSLog(@"在局🎯 [XZWKWebViewBaseController] jsCallObjc - action: %@", function);
     
     // 父类只处理基础的action
     if ([function isEqualToString:@"pageReady"]) {
-        NSLog(@"在局✅ [pageReady] 页面就绪，开始处理");
-        NSLog(@"在局✅ [pageReady] 当前控制器: %@", self);
-        NSLog(@"在局✅ [pageReady] pinUrl: %@", self.pinUrl);
-        NSLog(@"在局✅ [pageReady] tabIndex: %ld", (long)self.tabBarController.selectedIndex);
-        NSLog(@"在局✅ [pageReady] navigationController.viewControllers.count: %ld", (long)self.navigationController.viewControllers.count);
-        NSLog(@"在局✅ [pageReady] webView frame: %@", NSStringFromCGRect(self.webView.frame));
-        NSLog(@"在局✅ [pageReady] isWebViewLoading之前: %@", self.isWebViewLoading ? @"YES" : @"NO");
         
         self.isLoading = YES;
         
@@ -2547,7 +2253,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 }
             }
         } @catch (NSException *exception) {
-            NSLog(@"在局处理下拉刷新时发生异常: %@", exception.reason);
         }
         
         // 通知页面显示完成 - pageReady完成后立即移除LoadingView，无论网络状态如何
@@ -2555,12 +2260,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         
         // 获取当前tab索引
         NSInteger currentTabIndex = self.tabBarController ? self.tabBarController.selectedIndex : -1;
-        
-        if (!appDelegate.networkRestricted) {
-            NSLog(@"在局 🎯 [XZTabBarController] 网络正常，发送showTabviewController通知");
-        } else {
-            NSLog(@"在局 🎯 [XZTabBarController] 网络受限，但首页内容已准备好，移除LoadingView");
-        }
         
         if (currentTabIndex == 0) {
             // 首页需要特殊处理：确保LoadingView移除完成后再允许数据请求
@@ -2586,7 +2285,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 // 检查应用状态
                 UIApplicationState state = [[UIApplication sharedApplication] applicationState];
                 if (state != UIApplicationStateActive) {
-                    NSLog(@"在局[XZWKWebView] 应用不在前台，跳过pageShow调用");
                     return;
                 }
                 
@@ -2603,7 +2301,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     // 再次检查应用状态
                     UIApplicationState currentState = [[UIApplication sharedApplication] applicationState];
                     if (currentState != UIApplicationStateActive) {
-                        NSLog(@"在局[XZWKWebView] 定时器执行时应用不在前台，跳过pageShow");
                         return;
                     }
                     
@@ -2637,7 +2334,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     wkWebView.scrollView.userInteractionEnabled = YES;
                 }
                 
-                NSLog(@"在局✅ [pageReady] WebView交互已启用，frame: %@", NSStringFromCGRect(self.webView.frame));
                 
                 // 尝试强制刷新页面内容
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -2693,9 +2389,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                         "}"
                     "})()" completionHandler:^(id result, NSError *error) {
                         if (error) {
-                            NSLog(@"在局❌ [pageReady] 页面强制刷新执行错误: %@", error.localizedDescription);
                         } else {
-                            NSLog(@"在局🔄 [pageReady] 页面强制刷新结果: %@", result ?: @"失败");
                         }
                     }];
                 });
@@ -2716,7 +2410,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         [self processPendingUniversalLinkIfNeeded];
     } else {
         // 其他所有action交给子类处理
-        NSLog(@"在局🔄 [XZWKWebViewBaseController] 将action '%@' 传递给子类处理", function);
         // 默认返回未实现，让子类覆盖
         if (jsCallBack) {
             jsCallBack(@{
@@ -2729,336 +2422,106 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
 }
 
-// 安全执行JavaScript的辅助方法
+// 精简的JavaScript安全执行方法
 - (void)safelyEvaluateJavaScript:(NSString *)javaScriptString completionHandler:(void (^ _Nullable)(id _Nullable, NSError * _Nullable))completionHandler {
-    // 【性能优化】使用简化的状态检查，但对于网络恢复场景要更宽松
+    // 基础检查
+    if (!self.webView || !javaScriptString) {
+        if (completionHandler) {
+            NSError *error = [NSError errorWithDomain:@"XZWebView" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"WebView不存在或脚本为空"}];
+            completionHandler(nil, error);
+        }
+        return;
+    }
+    
+    // 检查特殊脚本类型
     BOOL isNetworkRecoveryScenario = [javaScriptString containsString:@"onNetworkAvailable"] || 
                                     [javaScriptString containsString:@"onLoadingViewRemoved"] ||
                                     [javaScriptString containsString:@"loadingViewRemoved"] ||
                                     [javaScriptString containsString:@"onNetworkRestore"];
     
-    if (!isNetworkRecoveryScenario && ![self isReadyForJavaScriptExecution]) {
-        NSLog(@"在局⚠️ [性能优化] JavaScript执行状态检查未通过");
-        if (completionHandler) {
-            NSError *error = [NSError errorWithDomain:@"XZWebView" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"JavaScript执行条件不满足"}];
-            completionHandler(nil, error);
-        }
-        return;
-    }
-    
-    // 对于网络恢复场景，只进行基础检查
-    if (isNetworkRecoveryScenario) {
-        if (!self.webView) {
-            NSLog(@"在局⚠️ [网络恢复] WebView不存在，无法执行JavaScript");
-            if (completionHandler) {
-                NSError *error = [NSError errorWithDomain:@"XZWebView" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"WebView不存在"}];
-                completionHandler(nil, error);
-            }
-            return;
-        }
-        NSLog(@"在局✅ [网络恢复] 网络恢复场景，跳过严格检查，直接执行JavaScript");
-    }
-    
-    // 检查页面是否正在消失（保留原有逻辑作为备用）
-    if (_isDisappearing) {
-        // 添加更多诊断信息
-        UIApplicationState appState = [[UIApplication sharedApplication] applicationState];
-        BOOL isShowingOnWindow = [self isShowingOnKeyWindow];
-        BOOL hasWebView = (self.webView != nil);
-        BOOL hasWindow = (self.view.window != nil);
-        
-        NSLog(@"在局⚠️ [JavaScript拒绝] _isDisappearing=YES, 应用状态=%ld, 显示中=%@, WebView=%@, Window=%@", 
-              (long)appState, 
-              isShowingOnWindow ? @"是" : @"否",
-              hasWebView ? @"存在" : @"不存在", 
-              hasWindow ? @"存在" : @"不存在");
-        
-        // 特殊情况：如果是手势返回取消的情况，允许执行
-        // 🔧 修复：对于交互式转场恢复，不依赖isShowingOnWindow，因为转场期间可能暂时返回NO
-        BOOL isInteractiveCancelled = hasWebView && hasWindow && 
-                                     (appState == UIApplicationStateActive || appState == UIApplicationStateInactive);
-        
-        if (isInteractiveCancelled) {
-            NSLog(@"在局🔧 [JavaScript修复] 检测到交互式转场取消，重置_isDisappearing并继续执行");
-            NSLog(@"在局🔧 [JavaScript修复] 修复条件: hasWebView=%@, hasWindow=%@, appState=%ld", 
-                  hasWebView ? @"YES" : @"NO", 
-                  hasWindow ? @"YES" : @"NO", 
-                  (long)appState);
-            _isDisappearing = NO;
-        } else {
-            NSLog(@"在局[XZWKWebView] 页面正在消失，取消JavaScript执行");
-            NSLog(@"在局❌ [JavaScript修复] 修复失败条件: hasWebView=%@, hasWindow=%@, appState=%ld", 
-                  hasWebView ? @"YES" : @"NO", 
-                  hasWindow ? @"YES" : @"NO", 
-                  (long)appState);
-            if (completionHandler) {
-                NSError *error = [NSError errorWithDomain:@"XZWebView" code:-5 userInfo:@{NSLocalizedDescriptionKey: @"页面正在消失"}];
-                completionHandler(nil, error);
-            }
-            return;
-        }
-    }
-    
-    // 检查WebView状态
-    if (!self.webView) {
-        if (completionHandler) {
-            NSError *error = [NSError errorWithDomain:@"XZWebView" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"WebView不存在"}];
-            completionHandler(nil, error);
-        }
-        return;
-    }
-    
-    // 检查应用状态 - 确保在主线程访问UIApplication
-    __block UIApplicationState state;
-    if ([NSThread isMainThread]) {
-        state = [[UIApplication sharedApplication] applicationState];
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            state = [[UIApplication sharedApplication] applicationState];
-        });
-    }
-    
-    // 特殊处理：某些关键JavaScript（如桥接初始化）需要在非活跃状态下也能执行
     BOOL isEssentialScript = [javaScriptString containsString:@"WebViewJavascriptBridge"] ||
                            [javaScriptString containsString:@"wx.app"] ||
                            [javaScriptString containsString:@"bridgeTest"] ||
                            [javaScriptString containsString:@"typeof app"];
     
-    // 检查是否是交互式转场恢复场景
-    BOOL isInteractiveTransitionRestore = [javaScriptString containsString:@"app.refreshPage"] ||
-                                        [javaScriptString containsString:@"document.body.style.display"] ||
-                                        [javaScriptString containsString:@"强制重新渲染页面"] ||
-                                        [javaScriptString containsString:@"window.dispatchEvent"];
+    BOOL isInteractiveRestore = [javaScriptString containsString:@"document.body.style.display"] ||
+                               [javaScriptString containsString:@"window.dispatchEvent"];
     
-    // 检查控制器是否在活跃的window中（即使应用在后台，控制器可能仍在显示）
-    // 🔧 修复Main Thread Checker错误：UI API必须在主线程调用
-    __block BOOL isViewControllerActive = NO;
-    if ([NSThread isMainThread]) {
-        isViewControllerActive = self.view.window != nil && 
-                                !self.view.window.hidden && 
-                                self.view.superview != nil &&
-                                [self isShowingOnKeyWindow];
-    } else {
-        // 在后台队列时，执行简化检查避免UI访问
-        isViewControllerActive = self.view.window != nil && self.view.superview != nil;
+    // 应用状态检查
+    UIApplicationState appState = [[UIApplication sharedApplication] applicationState];
+    BOOL isAppActive = (appState == UIApplicationStateActive);
+    BOOL isControllerActive = self.view.window != nil && !self.view.window.hidden && self.view.superview != nil;
+    
+    // 判断是否允许执行
+    BOOL shouldExecute = isAppActive || isNetworkRecoveryScenario || isEssentialScript || 
+                        (isInteractiveRestore && isControllerActive);
+    
+    if (!shouldExecute && !_isDisappearing) {
+        if (completionHandler) {
+            NSError *error = [NSError errorWithDomain:@"XZWebView" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"JavaScript执行条件不满足"}];
+            completionHandler(nil, error);
+        }
+        return;
     }
     
-    // 🔧 关键修复：交互式转场恢复期间，优先检查控制器可见性而不是应用状态
-    if (isInteractiveTransitionRestore && isViewControllerActive) {
-        NSLog(@"在局🔧 [JavaScript执行] 交互式转场恢复场景，控制器可见，强制允许执行: %.50@...", javaScriptString);
-    } else if (state == UIApplicationStateBackground) {
-        // 后台状态始终拒绝执行（除非是关键脚本）
-        if (!isEssentialScript) {
-            NSLog(@"在局[XZWKWebView] 应用在后台，取消非关键JavaScript执行");
+    // 处理页面消失的特殊情况
+    if (_isDisappearing && !isNetworkRecoveryScenario && !isEssentialScript) {
+        // 检查是否为手势返回取消的情况
+        BOOL isInteractiveCancelled = self.webView && self.view.window && 
+                                     (appState == UIApplicationStateActive || appState == UIApplicationStateInactive);
+        if (isInteractiveCancelled) {
+            _isDisappearing = NO;
+        } else {
             if (completionHandler) {
-                NSError *error = [NSError errorWithDomain:@"XZWebView" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"应用不在前台"}];
+                NSError *error = [NSError errorWithDomain:@"XZWebView" code:-3 userInfo:@{NSLocalizedDescriptionKey: @"页面正在消失"}];
                 completionHandler(nil, error);
             }
             return;
         }
-    } else if (state == UIApplicationStateInactive && !isEssentialScript && !isInteractiveTransitionRestore && !isViewControllerActive) {
-        // 非活跃状态下，只有当不是关键脚本、不是交互式转场恢复、控制器也不活跃时才拒绝
-        NSLog(@"在局[XZWKWebView] 应用不在前台，取消非关键JavaScript执行");
-        if (completionHandler) {
-            NSError *error = [NSError errorWithDomain:@"XZWebView" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"应用不在前台"}];
-            completionHandler(nil, error);
-        }
-        return;
-    } else if (state != UIApplicationStateActive && (isEssentialScript || isInteractiveTransitionRestore)) {
-        NSLog(@"在局[XZWKWebView] 应用不在前台，但允许执行关键JavaScript (类型: %@): %.50@...", 
-              isEssentialScript ? @"桥接脚本" : @"转场恢复脚本", javaScriptString);
     }
     
-    // 使用weak引用避免在回调时崩溃
-    __weak typeof(self) weakSelf = self;
-    
-    // 创建JavaScript操作
-    NSBlockOperation *jsOperation = [NSBlockOperation blockOperationWithBlock:^{
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (completionHandler) {
-                    NSError *error = [NSError errorWithDomain:@"XZWebView" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"对象已释放"}];
-                    completionHandler(nil, error);
-                }
-            });
+    // 主线程执行JavaScript
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!self.webView || (self->_isDisappearing && !isNetworkRecoveryScenario)) {
+            if (completionHandler) {
+                NSError *error = [NSError errorWithDomain:@"XZWebView" code:-4 userInfo:@{NSLocalizedDescriptionKey: @"WebView已释放或页面已消失"}];
+                completionHandler(nil, error);
+            }
             return;
         }
         
-        if (strongSelf->_isDisappearing || !strongSelf.webView) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (completionHandler) {
-                    NSError *error = [NSError errorWithDomain:@"XZWebView" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"操作已取消"}];
-                    completionHandler(nil, error);
-                }
-            });
-            return;
-        }
-        
-        // 检查是否是关键脚本（在后台线程中不再检查应用状态，避免Main Thread Checker错误）
-        BOOL isEssentialInBlock = [javaScriptString containsString:@"WebViewJavascriptBridge"] ||
-                                 [javaScriptString containsString:@"wx.app"] ||
-                                 [javaScriptString containsString:@"bridgeTest"] ||
-                                 [javaScriptString containsString:@"typeof app"];
-        
-        // 检查是否是交互式转场恢复场景  
-        BOOL isInteractiveTransitionRestoreInBlock = [javaScriptString containsString:@"app.refreshPage"] ||
-                                                    [javaScriptString containsString:@"document.body.style.display"] ||
-                                                    [javaScriptString containsString:@"强制重新渲染页面"] ||
-                                                    [javaScriptString containsString:@"window.dispatchEvent"];
-        
-        // 🔧 关键修复：避免在后台线程中访问UI API，直接在主线程执行WebView操作
-        // 对于关键脚本和交互式转场恢复，直接允许执行，由主线程的最终检查来控制
-        
-        // 回到主线程执行JavaScript
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (!strongSelf) {
-                if (completionHandler) {
-                    NSError *error = [NSError errorWithDomain:@"XZWebView" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"对象已释放"}];
-                    completionHandler(nil, error);
-                }
-                return;
-            }
-            
-            if (strongSelf->_isDisappearing || !strongSelf.webView) {
-                if (completionHandler) {
-                    NSError *error = [NSError errorWithDomain:@"XZWebView" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"WebView已释放"}];
-                    completionHandler(nil, error);
-                }
-                return;
-            }
-            
-            // 设置超时保护 - 为网络恢复场景提供更长的超时时间
-            __block BOOL hasCompleted = NO;
-            NSTimeInterval timeoutInterval = isNetworkRecoveryScenario ? 10.0 : 5.0;
-            NSTimer *timeoutTimer = [NSTimer scheduledTimerWithTimeInterval:timeoutInterval repeats:NO block:^(NSTimer * _Nonnull timer) {
-                if (!hasCompleted && completionHandler) {
-                    hasCompleted = YES;
-                    NSString *timeoutMessage = isNetworkRecoveryScenario ? 
-                        [NSString stringWithFormat:@"网络恢复JavaScript执行超时(%.1fs)", timeoutInterval] :
-                        [NSString stringWithFormat:@"JavaScript执行超时(%.1fs)", timeoutInterval];
-                    NSError *timeoutError = [NSError errorWithDomain:@"XZWebView" code:-4 userInfo:@{NSLocalizedDescriptionKey: timeoutMessage}];
-                    completionHandler(nil, timeoutError);
-                }
-            }];
-            
-            // 添加到待执行列表
-            [strongSelf->_pendingJavaScriptOperations addObject:timeoutTimer];
-            
-            // 执行JavaScript
-            [strongSelf.webView evaluateJavaScript:javaScriptString completionHandler:^(id result, NSError *error) {
-                if (hasCompleted) {
-                    return; // 已经超时，忽略结果
-                }
+        // 设置超时保护
+        __block BOOL hasCompleted = NO;
+        NSTimeInterval timeout = isNetworkRecoveryScenario ? 10.0 : 5.0;
+        NSTimer *timeoutTimer = [NSTimer scheduledTimerWithTimeInterval:timeout repeats:NO block:^(NSTimer *timer) {
+            if (!hasCompleted && completionHandler) {
                 hasCompleted = YES;
-                
-                // 取消超时定时器
-                [timeoutTimer invalidate];
-                [strongSelf->_pendingJavaScriptOperations removeObject:timeoutTimer];
-                
-                if (completionHandler) {
-                    // 检查在回调执行时的状态
-                    if (!strongSelf) {
-                        NSError *stateError = [NSError errorWithDomain:@"XZWebView" code:-5 userInfo:@{NSLocalizedDescriptionKey: @"对象已释放"}];
-                        completionHandler(nil, stateError);
-                        return;
-                    }
-                    
-                    // 对于网络恢复场景，即使页面消失也要继续执行，因为它是系统级别的恢复操作
-                    if (strongSelf->_isDisappearing && !isNetworkRecoveryScenario) {
-                        NSError *stateError = [NSError errorWithDomain:@"XZWebView" code:-5 userInfo:@{NSLocalizedDescriptionKey: @"页面已消失"}];
-                        completionHandler(nil, stateError);
-                        return;
-                    }
-                    
-                    __block UIApplicationState currentState;
-                    if ([NSThread isMainThread]) {
-                        currentState = [[UIApplication sharedApplication] applicationState];
-                    } else {
-                        dispatch_sync(dispatch_get_main_queue(), ^{
-                            currentState = [[UIApplication sharedApplication] applicationState];
-                        });
-                    }
-                    
-                    // 🔧 修复手势返回空白页问题：检查是否为交互式转场恢复场景
-                    // 确保在主线程中检查UI状态
-                    BOOL isViewControllerActive = NO;
-                    if ([NSThread isMainThread]) {
-                        isViewControllerActive = strongSelf.view.window != nil && 
-                                               !strongSelf.view.window.hidden && 
-                                               strongSelf.view.superview != nil &&
-                                               [strongSelf isShowingOnKeyWindow];
-                    } else {
-                        // 如果不在主线程，执行简化检查
-                        isViewControllerActive = strongSelf.view.window != nil && 
-                                               strongSelf.view.superview != nil;
-                    }
-                    
-                    // 检查是否在导航栈中（处理手势返回的情况）
-                    BOOL isInNavigationStack = strongSelf.navigationController != nil &&
-                                             [strongSelf.navigationController.viewControllers containsObject:strongSelf];
-                    
-                    // 🔧 修复逻辑：考虑更多的交互式转场场景和网络恢复场景
-                    // 1. 网络恢复场景：即使应用在后台也要执行，因为这是系统级恢复
-                    // 2. 应用在后台时，非网络恢复场景拒绝
-                    // 3. 应用非活跃但控制器在导航栈中且有window，允许执行（手势返回场景）
-                    // 4. 其他情况下，非活跃且控制器不活跃时拒绝
-                    if (currentState == UIApplicationStateBackground && !isNetworkRecoveryScenario) {
-                        NSLog(@"在局[XZWKWebView] 回调执行时应用已不在前台（非网络恢复场景）");
-                        NSError *stateError = [NSError errorWithDomain:@"XZWebView" code:-3 userInfo:@{NSLocalizedDescriptionKey: @"回调执行时应用不在前台"}];
-                        completionHandler(nil, stateError);
-                        return;
-                    } else if (currentState == UIApplicationStateInactive && 
-                              !isViewControllerActive && 
-                              !isInNavigationStack &&
-                              !isNetworkRecoveryScenario) {
-                        NSLog(@"在局[XZWKWebView] 回调执行时应用不活跃且控制器不在导航栈中（非网络恢复场景）");
-                        NSError *stateError = [NSError errorWithDomain:@"XZWebView" code:-3 userInfo:@{NSLocalizedDescriptionKey: @"回调执行时应用不在前台"}];
-                        completionHandler(nil, stateError);
-                        return;
-                    }
-                    
-                    // 记录允许执行的情况
-                    if (currentState != UIApplicationStateActive && isViewControllerActive) {
-                        NSLog(@"在局[XZWKWebView] 应用状态非活跃但控制器活跃，允许执行回调（手势返回场景）");
-                    }
-                    
-                    // 对于网络恢复场景，如果有JavaScript错误，尝试简化重试并获取详细错误信息
-                    if (isNetworkRecoveryScenario && error) {
-                        NSLog(@"在局🔧 [网络恢复] JavaScript执行有错误: %@", error.localizedDescription);
-                        NSLog(@"在局🔧 [网络恢复] 错误代码: %ld, 错误域: %@", (long)error.code, error.domain);
-                        NSLog(@"在局🔧 [网络恢复] 错误用户信息: %@", error.userInfo);
-                        
-                        // 简化的诊断和恢复：分步执行以避免JavaScript过长
-                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                            // 步骤1: 基础诊断
-                            [strongSelf.webView evaluateJavaScript:@"JSON.stringify({appExists:typeof app!=='undefined',hasReload:typeof app!=='undefined'&&typeof app.reloadOtherPages==='function'})" completionHandler:^(id diagnosticResult, NSError *diagnosticError) {
-                                NSLog(@"在局🔍 [网络恢复] JavaScript环境诊断: %@", diagnosticResult ?: diagnosticError.localizedDescription);
-                                
-                                // 步骤2: 根据诊断结果选择恢复方法
-                                NSString *recoveryJS = @"(function(){if(typeof app!=='undefined'&&typeof app.reloadOtherPages==='function'){app.reloadOtherPages();return 'reload_called';}else{window.dispatchEvent(new Event('visibilitychange'));return 'event_fired';}})()";
-                                
-                                [strongSelf.webView evaluateJavaScript:recoveryJS completionHandler:^(id retryResult, NSError *retryError) {
-                                    NSLog(@"在局🔧 [网络恢复] 简化重试结果: %@", retryResult ?: retryError.localizedDescription);
-                                }];
-                            }];
-                        });
-                        
-                        // 仍然回调原始错误，但添加标记表示已尝试恢复  
-                        NSError *annotatedError = [NSError errorWithDomain:error.domain 
-                                                                      code:error.code 
-                                                                  userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"网络恢复已重试: %@", error.localizedDescription]}];
-                        completionHandler(result, annotatedError);
-                    } else {
-                        completionHandler(result, error);
-                    }
+                NSError *timeoutError = [NSError errorWithDomain:@"XZWebView" code:-5 userInfo:@{NSLocalizedDescriptionKey: @"JavaScript执行超时"}];
+                completionHandler(nil, timeoutError);
+            }
+        }];
+        
+        [self->_pendingJavaScriptOperations addObject:timeoutTimer];
+        
+        // 执行JavaScript
+        [self.webView evaluateJavaScript:javaScriptString completionHandler:^(id result, NSError *error) {
+            if (hasCompleted) return;
+            hasCompleted = YES;
+            
+            [timeoutTimer invalidate];
+            [self->_pendingJavaScriptOperations removeObject:timeoutTimer];
+            
+            if (completionHandler) {
+                // 简化的状态验证
+                if (self && (isNetworkRecoveryScenario || !self->_isDisappearing)) {
+                    completionHandler(result, error);
+                } else {
+                    NSError *stateError = [NSError errorWithDomain:@"XZWebView" code:-6 userInfo:@{NSLocalizedDescriptionKey: @"执行完成时状态已变化"}];
+                    completionHandler(nil, stateError);
                 }
-            }];
-        });
-    }];
-    
-    // 添加到操作队列
-    [self.jsOperationQueue addOperation:jsOperation];
+            }
+        }];
+    });
 }
 
 // 根据资料建议改进的objcCallJs方法
@@ -3104,10 +2567,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     
     if (state != UIApplicationStateActive && !isEssentialAction && !isViewControllerActive) {
-        NSLog(@"在局[XZWKWebView] 应用不在前台且控制器不活跃，跳过非关键objcCallJs: %@", action);
         return;
     } else if (state != UIApplicationStateActive && (isEssentialAction || isViewControllerActive)) {
-        NSLog(@"在局[XZWKWebView] 应用状态非活跃但允许执行objcCallJs: %@ (关键操作: %@, 控制器活跃: %@)", action, isEssentialAction ? @"YES" : @"NO", isViewControllerActive ? @"YES" : @"NO");
     }
     
     // 确保在主线程执行
@@ -3120,13 +2581,11 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                                           self.view.superview != nil;
         
         if (currentState != UIApplicationStateActive && !isEssentialAction && !isStillViewControllerActive) {
-            NSLog(@"在局[XZWKWebView] 主线程检查：应用不在前台且控制器不活跃，取消非关键JavaScript调用");
             return;
         }
         
         // 检查WebView和Bridge状态
         if (!self.webView || !self.bridge) {
-            NSLog(@"在局[XZWKWebView] WebView或Bridge不存在，取消JavaScript调用");
             return;
         }
         
@@ -3175,7 +2634,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             });
         }
         if (state != UIApplicationStateActive) {
-            NSLog(@"在局[XZWKWebView] 应用不在前台，跳过JavaScript执行: %@", script);
             if (completion) {
                 completion(nil);
             }
@@ -3284,7 +2742,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                                                        options:NSJSONWritingPrettyPrinted
                                                          error:&error];
     if (error) {
-        NSLog(@"在局JSON序列化失败: %@", error.localizedDescription);
         return @"{}";
     }
     
@@ -3321,16 +2778,13 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 #pragma mark - JavaScript Bridge Initialization
 
 - (void)performJavaScriptBridgeInitialization {
-    NSLog(@"在局🔥 [JavaScript桥接初始化] 开始执行桥接初始化");
     
     // 先检查桥接是否存在
     if (!self.bridge) {
-        NSLog(@"在局⚠️ [JavaScript桥接初始化] 桥接对象不存在，尝试重新创建");
-        [self setupJavaScriptBridge];
+        [self setupUnifiedJavaScriptBridge];
         
         // 如果仍然不存在，延迟重试
         if (!self.bridge) {
-            NSLog(@"在局❌ [JavaScript桥接初始化] 桥接创建失败，1秒后重试");
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 [self performJavaScriptBridgeInitialization];
             });
@@ -3386,36 +2840,26 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         "return JSON.stringify(result);"
     "})()";
     
-    NSLog(@"在局🔥 [JavaScript桥接初始化] 即将执行JavaScript代码，长度: %lu", (unsigned long)javascriptCode.length);
     
     [self safelyEvaluateJavaScript:javascriptCode completionHandler:^(id result, NSError *error) {
         if (result && !error) {
-            NSLog(@"在局✅ [JavaScript桥接初始化] 执行结果: %@", result);
             
             // 解析结果，如果初始化失败，可能需要重试
             NSError *jsonError;
             NSDictionary *resultDict = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&jsonError];
             
             if (!jsonError && [resultDict[@"error"] isEqualToString:@"environment_not_ready"]) {
-                NSLog(@"在局⚠️ [JavaScript桥接初始化] 环境未就绪，将在1秒后重试");
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     [self performJavaScriptBridgeInitialization];
                 });
             }
         } else {
-            NSLog(@"在局❌ [JavaScript桥接初始化] 执行失败: %@", error ? error.localizedDescription : @"未知错误");
-            if (error) {
-                NSLog(@"在局❌ [JavaScript桥接初始化] 错误详情: %@", error);
-                NSLog(@"在局❌ [JavaScript桥接初始化] 错误代码: %ld", (long)error.code);
-                NSLog(@"在局❌ [JavaScript桥接初始化] 错误域: %@", error.domain);
-            }
         }
     }];
 }
 
 // 强制检查并触发pageReady事件的方法
 - (void)forceCheckAndTriggerPageReady {
-    NSLog(@"在局🔥 [强制pageReady] 开始检查页面状态和JavaScript环境");
     
     // 检查页面是否真正准备就绪
     NSString *checkPageReadyScript = @"(function() {"
@@ -3432,18 +2876,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     [self safelyEvaluateJavaScript:checkPageReadyScript completionHandler:^(id result, NSError *error) {
         if (error) {
-            NSLog(@"在局❌ [强制pageReady] 页面状态检查失败: %@", error.localizedDescription);
             return;
         }
         
-        NSLog(@"在局🔍 [强制pageReady] 页面状态检查结果: %@", result);
         
         // 解析检查结果
         NSError *jsonError;
         NSDictionary *statusDict = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&jsonError];
         
         if (jsonError || !statusDict) {
-            NSLog(@"在局❌ [强制pageReady] 解析检查结果失败: %@", jsonError);
             return;
         }
         
@@ -3454,17 +2895,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         BOOL pageReadyAlreadyCalled = [statusDict[@"pageReadyAlreadyCalled"] boolValue];
         NSInteger bodyContent = [statusDict[@"bodyContent"] integerValue];
         
-        NSLog(@"在局📊 [强制pageReady] 详细状态:");
-        NSLog(@"  - 页面加载完成: %@", pageLoaded ? @"YES" : @"NO");
-        NSLog(@"  - 桥接存在: %@", bridgeExists ? @"YES" : @"NO");
-        NSLog(@"  - App对象存在: %@", appExists ? @"YES" : @"NO");
-        NSLog(@"  - pageReady函数存在: %@", pageReadyFunctionExists ? @"YES" : @"NO");
-        NSLog(@"  - pageReady已调用: %@", pageReadyAlreadyCalled ? @"YES" : @"NO");
-        NSLog(@"  - 页面内容长度: %ld", (long)bodyContent);
         
         // 如果pageReady还没有被调用，强制触发
         if (!pageReadyAlreadyCalled && pageLoaded && bridgeExists) {
-            NSLog(@"在局🚀 [强制pageReady] 条件满足，强制触发pageReady事件");
             
             NSString *forcePageReadyScript = @"(function() {"
                 "try {"
@@ -3495,11 +2928,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             "})()";
             
             [self safelyEvaluateJavaScript:forcePageReadyScript completionHandler:^(id triggerResult, NSError *triggerError) {
-                if (triggerError) {
-                    NSLog(@"在局❌ [强制pageReady] 触发失败: %@", triggerError.localizedDescription);
-                } else {
-                    NSLog(@"在局✅ [强制pageReady] 触发结果: %@", triggerResult);
-                }
+               
                 
                 // 额外的网络状态检查和触发
                 [self scheduleJavaScriptTask:^{
@@ -3507,10 +2936,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 } afterDelay:0.5];
             }];
         } else if (pageReadyAlreadyCalled) {
-            NSLog(@"在局ℹ️ [强制pageReady] pageReady已经调用过，检查是否需要网络恢复");
             [self triggerNetworkRecoveryIfNeeded];
         } else {
-            NSLog(@"在局⚠️ [强制pageReady] 条件不满足，等待稍后重试");
             // 条件不满足，延迟重试
             [self scheduleJavaScriptTask:^{
                 [self forceCheckAndTriggerPageReady];
@@ -3521,7 +2948,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 触发网络恢复检查
 - (void)triggerNetworkRecoveryIfNeeded {
-    NSLog(@"在局🌐 [网络恢复检查] 开始检查网络状态并触发恢复");
     
     NSString *networkRecoveryScript = @"(function() {"
         "try {"
@@ -3552,26 +2978,16 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     "})()";
     
     [self safelyEvaluateJavaScript:networkRecoveryScript completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局❌ [网络恢复检查] 执行失败: %@", error.localizedDescription);
-        } else {
-            NSLog(@"在局✅ [网络恢复检查] 执行结果: %@", result);
-        }
+        
     }];
 }
 
 #pragma mark - WKNavigationDelegate
 
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-    NSLog(@"在局🎉🎉🎉 ===== didFinishNavigation 被调用了！=====");
-    NSLog(@"在局✅ WKWebView页面加载完成 - URL: %@", webView.URL.absoluteString);
-    NSLog(@"在局✅ WebView: %@", webView);
-    NSLog(@"在局✅ Navigation: %@", navigation);
-    NSLog(@"在局✅ 当前时间: %@", [NSDate date]);
     
     // 取消页面加载监控器
     if (self.healthCheckTimer) {
-        NSLog(@"在局✅ [页面监控] 页面加载成功，取消监控器");
         [self.healthCheckTimer invalidate];
         self.healthCheckTimer = nil;
     }
@@ -3581,20 +2997,13 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         // [self.activityIndicatorView stopAnimating]; // 已禁用loading指示器
     });
     
-    // 添加白屏检测机制
-    NSLog(@"在局 🔧 [XZWKWebViewBaseController] 添加WebView白屏检测");
-    [self scheduleJavaScriptTask:^{
-        [self detectBlankWebView];
-    } afterDelay:1.0];
     
     // 延迟处理JavaScript桥接初始化，确保页面完全加载
     [self scheduleJavaScriptTask:^{
-        NSLog(@"在局🌉 [didFinishNavigation] 开始执行JavaScript桥接初始化");
         [self performJavaScriptBridgeInitialization];
         
         // 关键修复：强制检查并触发pageReady事件
         [self scheduleJavaScriptTask:^{
-            NSLog(@"在局🔥 [强制pageReady] 开始强制检查并触发pageReady事件");
             [self forceCheckAndTriggerPageReady];
         } afterDelay:0.8];
     } afterDelay:0.5];
@@ -3631,24 +3040,16 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         
         // 设置加载完成标志
         self.isWebViewLoading = YES;
-        NSLog(@"在局✅ 页面加载处理完成，设置 isWebViewLoading = YES");
         
         // 处理待执行的JavaScript任务
         [self processPendingJavaScriptTasks];
         
     } else {
-        NSLog(@"在局⚠️ 页面加载完成事件已经处理过，跳过重复处理");
     }
 }
 
 - (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-    NSLog(@"在局🔥🔥🔥 ===== didFailNavigation 被调用了！=====");
-    NSLog(@"在局❌ WebView加载失败: %@", error.localizedDescription);
-    NSLog(@"在局❌ 错误码: %ld, 域: %@", (long)error.code, error.domain);
-    NSLog(@"在局❌ URL: %@", webView.URL);
-    NSLog(@"在局❌ WebView: %@", webView);
-    NSLog(@"在局❌ Navigation: %@", navigation);
-    NSLog(@"在局❌ 完整错误信息: %@", error);
+   
     
     // 隐藏loading指示器
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -3661,13 +3062,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-    NSLog(@"在局💥💥💥 ===== didFailProvisionalNavigation 被调用了！=====");
-    NSLog(@"在局❌ WebView预加载失败: %@", error.localizedDescription);
-    NSLog(@"在局❌ 错误码: %ld, 域: %@", (long)error.code, error.domain);
-    NSLog(@"在局❌ URL: %@", webView.URL);
-    NSLog(@"在局❌ WebView: %@", webView);
-    NSLog(@"在局❌ Navigation: %@", navigation);
-    NSLog(@"在局❌ 完整错误信息: %@", error);
     
     // 隐藏loading指示器
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -3680,22 +3074,14 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)webView:(WKWebView *)webView didCommitNavigation:(WKNavigation *)navigation {
-    NSLog(@"在局📋📋📋 ===== didCommitNavigation 被调用了！=====");
-    NSLog(@"在局📄 WebView开始加载内容: %@", webView.URL);
-    NSLog(@"在局📄 WebView: %@", webView);
-    NSLog(@"在局📄 Navigation: %@", navigation);
+   
 }
 
 - (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(WKNavigation *)navigation {
-    NSLog(@"在局🚀🚀🚀 ===== didStartProvisionalNavigation 被调用了！=====");
-    NSLog(@"在局📄 WebView开始导航: %@", webView.URL);
-    NSLog(@"在局📄 WebView: %@", webView);
-    NSLog(@"在局📄 Navigation: %@", navigation);
-    NSLog(@"在局📄 当前时间: %@", [NSDate date]);
+  
     
     // 取消加载监控定时器（navigation delegate已触发）
     if (self.healthCheckTimer) {
-        NSLog(@"在局✅ [加载监控] Navigation开始，取消健康检查定时器");
         [self.healthCheckTimer invalidate];
         self.healthCheckTimer = nil;
     }
@@ -3710,7 +3096,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         [self.view bringSubviewToFront:self.progressView];
         [self.view bringSubviewToFront:self.activityIndicatorView];
         
-        NSLog(@"在局📊 [didStartProvisionalNavigation] 页面开始加载（进度条已禁用）");
     });
 }
 
@@ -3720,22 +3105,16 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 关键：允许WebViewJavascriptBridge的wvjbscheme://连接
     if ([scheme isEqualToString:@"wvjbscheme"]) {
-        NSLog(@"在局🔗 [WKWebView] 检测到WebViewJavascriptBridge连接: %@", url.absoluteString);
         decisionHandler(WKNavigationActionPolicyAllow);
         return;
     }
     
     // 处理电话客服按钮
     if ([scheme isEqualToString:@"tel"]) {
-        NSLog(@"在局📞 [WKWebView] 检测到电话链接: %@", url.absoluteString);
         // 在iOS 10.0以上使用新的API
         if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:10.0]) {
             [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:^(BOOL success) {
-                if (success) {
-                    NSLog(@"在局✅ [WKWebView] 电话拨打成功");
-                } else {
-                    NSLog(@"在局❌ [WKWebView] 电话拨打失败");
-                }
+                
             }];
         } else {
             // iOS 10.0以下使用旧API
@@ -3751,7 +3130,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         return;
     }
     
-    NSLog(@"在局🚫 [WKWebView] 阻止未知URL scheme: %@", url.absoluteString);
     decisionHandler(WKNavigationActionPolicyCancel);
 }
 
@@ -3811,59 +3189,11 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
 }
 
-- (void)debugJavaScriptCallback {
-    NSLog(@"在局🔍 [JavaScript回调调试] 开始检查JavaScript回调问题...");
-    
-    // 检查应用状态 - 确保在主线程访问UIApplication
-    __block UIApplicationState state;
-    if ([NSThread isMainThread]) {
-        state = [[UIApplication sharedApplication] applicationState];
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), ^{
-            state = [[UIApplication sharedApplication] applicationState];
-        });
-    }
-    if (state != UIApplicationStateActive) {
-        NSLog(@"在局🔍 [JavaScript回调调试] 应用不在前台，取消调试");
-        return;
-    }
-    
-    // 1. 检查WebViewJavascriptBridge是否正常工作
-    [self safelyEvaluateJavaScript:@"typeof WebViewJavascriptBridge !== 'undefined' && WebViewJavascriptBridge.callHandler ? 'WebViewJavascriptBridge正常' : 'WebViewJavascriptBridge异常'" completionHandler:^(id result, NSError *error) {
-        NSLog(@"在局🔍 [JavaScript回调调试] WebViewJavascriptBridge状态: %@", result ?: @"检查失败");
-        
-        // 2. 检查app.request方法是否存在
-        [self safelyEvaluateJavaScript:@"typeof app !== 'undefined' && typeof app.request === 'function' ? 'app.request方法存在' : 'app.request方法不存在'" completionHandler:^(id result, NSError *error) {
-            NSLog(@"在局🔍 [JavaScript回调调试] app.request状态: %@", result ?: @"检查失败");
-            
-            // 3. 检查app.tips方法是否存在
-            [self safelyEvaluateJavaScript:@"typeof app !== 'undefined' && typeof app.tips === 'function' ? 'app.tips方法存在' : 'app.tips方法不存在'" completionHandler:^(id result, NSError *error) {
-                NSLog(@"在局🔍 [JavaScript回调调试] app.tips状态: %@", result ?: @"检查失败");
-                
-                // 4. 手动测试app.tips是否能正常工作
-                [self safelyEvaluateJavaScript:@"try { if(typeof app !== 'undefined' && typeof app.tips === 'function') { app.tips('JavaScript回调测试'); return 'app.tips调用成功'; } else { return 'app.tips不可用'; } } catch(e) { return 'app.tips调用失败: ' + e.message; }" completionHandler:^(id result, NSError *error) {
-                    NSLog(@"在局🔍 [JavaScript回调调试] app.tips测试结果: %@", result ?: @"测试失败");
-                    
-                    // 5. 手动测试一个简单的app.request调用
-                    [self safelyEvaluateJavaScript:@"try { if(typeof app !== 'undefined' && typeof app.request === 'function') { app.request('//test/callback', {}, function(res) { app.tips('手动测试回调成功!'); }); return 'app.request手动测试已发起'; } else { return 'app.request不可用'; } } catch(e) { return 'app.request手动测试失败: ' + e.message; }" completionHandler:^(id result, NSError *error) {
-                        NSLog(@"在局🔍 [JavaScript回调调试] app.request手动测试: %@", result ?: @"测试失败");
-                        
-                        // 6. 检查是否有JavaScript错误
-                        [self safelyEvaluateJavaScript:@"(function() { var errors = []; try { if(window.console && window.console.log) { var originalLog = console.log; var originalError = console.error; var logMessages = []; var errorMessages = []; console.log = function(...args) { logMessages.push(args.join(' ')); originalLog.apply(console, args); }; console.error = function(...args) { errorMessages.push(args.join(' ')); originalError.apply(console, args); }; return 'JavaScript错误监听已启动'; } else { return '控制台不可用'; } } catch(e) { return '错误监听设置失败: ' + e.message; } })()" completionHandler:^(id result, NSError *error) {
-                            NSLog(@"在局🔍 [JavaScript回调调试] JavaScript错误监听: %@", result ?: @"监听失败");
-                        }];
-                    }];
-                }];
-            }];
-        }];
-    }];
-}
 
 #pragma mark - WebView Health Check
 
 // 检查并重建WebView如果需要
 - (BOOL)checkAndRebuildWebViewIfNeeded {
-    NSLog(@"在局🔍 [checkAndRebuildWebViewIfNeeded] 开始WebView健康检查");
     
     // 检查WebView是否存在
     if (!self.webView) {
@@ -3874,48 +3204,38 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 检查navigation delegate是否正常并自动修复
     if (!self.webView.navigationDelegate) {
-        NSLog(@"在局❌ [健康检查] navigationDelegate丢失！开始自动修复");
         if (self.bridge) {
-            NSLog(@"在局🔧 [健康检查] Bridge存在，重新设置navigationDelegate");
             // 🔧 关键修复：重新设置Bridge为navigationDelegate
             self.webView.navigationDelegate = self.bridge;
-            NSLog(@"在局✅ [健康检查] navigationDelegate已恢复: %@", self.webView.navigationDelegate);
         } else {
-            NSLog(@"在局❌ [健康检查] Bridge不存在，需要重新创建桥接");
-            [self setupJavaScriptBridge];
+            [self setupUnifiedJavaScriptBridge];
         }
     } else {
-        NSLog(@"在局✅ [健康检查] navigationDelegate正常: %@", self.webView.navigationDelegate);
     }
     
     // 检查WebView是否在视图层级中
     if (!self.webView.superview) {
-        NSLog(@"在局❌ [健康检查] WebView不在视图层级中，重新添加");
         [self addWebView];
     }
     
     // 检查WebView的frame是否正常
     if (CGRectIsEmpty(self.webView.frame) || CGRectGetWidth(self.webView.frame) == 0) {
-        NSLog(@"在局⚠️ [健康检查] WebView frame异常: %@，触发布局", NSStringFromCGRect(self.webView.frame));
         [self.view setNeedsLayout];
         [self.view layoutIfNeeded];
     }
     
     // 对于第二个Tab，进行特殊的健康检查
     if (self.tabBarController && self.tabBarController.selectedIndex > 0) {
-        NSLog(@"在局🔍 [健康检查] 检测到非首个Tab，执行深度检查");
         
         // 设置加载超时监控
         [self startWebViewLoadingMonitor];
     }
     
-    NSLog(@"在局✅ [健康检查] WebView状态正常");
     return YES;
 }
 
 // 启动WebView加载监控
 - (void)startWebViewLoadingMonitor {
-    NSLog(@"在局⏱️ [加载监控] 启动WebView加载监控");
     
     // 取消之前的监控
     if (self.healthCheckTimer) {
@@ -3936,11 +3256,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // WebView加载超时处理
 - (void)webViewLoadingTimeout {
-    NSLog(@"在局⏰ [加载超时] WebView加载2秒超时！");
     
     // 如果页面正在消失，不处理超时
     if (_isDisappearing) {
-        NSLog(@"在局⏰ [加载超时] 页面正在消失，忽略超时检查");
         return;
     }
     
@@ -3948,8 +3266,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     NSDate *startTime = objc_getAssociatedObject(self, @selector(startWebViewLoadingMonitor));
     NSTimeInterval elapsed = [[NSDate date] timeIntervalSinceDate:startTime];
     
-    NSLog(@"在局⏰ [加载超时] 距离loadHTMLString调用已过去: %.2f秒", elapsed);
-    NSLog(@"在局⏰ [加载超时] isWebViewLoading状态: %@", self.isWebViewLoading ? @"YES" : @"NO");
     
     // 更严格的死亡状态判断
     BOOL isReallyDead = !self.isWebViewLoading && 
@@ -3959,19 +3275,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                         self.webView.navigationDelegate != nil; // 确保delegate存在
     
     if (isReallyDead) {
-        NSLog(@"在局⚠️ [WebView状态] WebView需要重建，详细状态: elapsed=%.2f, webView.isLoading=%@, delegate=%@", 
-              elapsed, self.webView.isLoading ? @"YES" : @"NO", self.webView.navigationDelegate);
         
         // 强制重建WebView
         [self forceRebuildWebViewForDeadState];
     } else {
-        NSLog(@"在局✅ [加载超时] WebView状态正常或未达到重建条件，继续等待");
         
         // 如果不是真正的死亡状态，可以再等待一段时间
         if (elapsed < 10.0) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 if (!self->_isDisappearing && !self.isWebViewLoading) {
-                    NSLog(@"在局⏰ [二次检查] 继续检查WebView状态");
                     [self webViewLoadingTimeout];
                 }
             });
@@ -3981,21 +3293,17 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 统一的WebView重建管理
 - (void)rebuildWebView {
-    NSLog(@"在局🔧 [重建WebView] 开始统一的WebView重建流程...");
-    NSLog(@"在局 🔧 [XZWKWebViewBaseController] 统一WebView重建管理逻辑");
     
     // 检查重建条件和限制
     static NSDate *lastRebuildTime = nil;
     NSDate *now = [NSDate date];
     if (lastRebuildTime && [now timeIntervalSinceDate:lastRebuildTime] < 2.0) {
-        NSLog(@"在局 ⚠️ [重建WebView] 重建请求过于频繁，忽略此次请求");
         return;
     }
     lastRebuildTime = now;
     
     // 记录重建原因（用于调试）
     NSArray *callStack = [NSThread callStackSymbols];
-    NSLog(@"在局 📍 [重建WebView] 调用堆栈: %@", [callStack subarrayWithRange:NSMakeRange(0, MIN(5, callStack.count))]);
     
     // 保存当前状态
     NSString *currentUrl = self.pinUrl;
@@ -4003,34 +3311,27 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     BOOL wasLoading = self.isLoading;
     
     // 步骤1：清理旧的WebView
-    NSLog(@"在局 🧹 [重建WebView] 步骤1：清理旧的WebView");
     [self cleanupWebView];
     
     // 步骤2：重置相关状态
-    NSLog(@"在局 🔄 [重建WebView] 步骤2：重置状态");
     self.isLoading = NO;
     self.isWebViewLoading = NO;
     self->_retryCount = 0;
     
     // 步骤3：重新创建WebView
-    NSLog(@"在局 🏗️ [重建WebView] 步骤3：创建新的WebView");
     [self setupWebView];
     [self addWebView];
     
     // 步骤4：重新建立JavaScript桥接
-    NSLog(@"在局 🌉 [重建WebView] 步骤4：建立JavaScript桥接");
-    [self setupJavaScriptBridge];
+    [self setupUnifiedJavaScriptBridge];
     
     // 步骤5：恢复状态
-    NSLog(@"在局 📥 [重建WebView] 步骤5：恢复状态");
     self.pinUrl = currentUrl;
     self.pinDataStr = currentData;
     
-    NSLog(@"在局 ✅ [重建WebView] WebView重建完成");
     
     // 步骤6：重新加载内容（延迟执行以确保WebView完全准备好）
     if (wasLoading && currentUrl) {
-        NSLog(@"在局 🔄 [重建WebView] 步骤6：重新加载内容");
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self domainOperate];
         });
@@ -4039,7 +3340,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 清理WebView的统一方法
 - (void)cleanupWebView {
-    NSLog(@"在局 🧹 [清理WebView] 开始清理WebView资源");
     
     if (self.webView) {
         // 停止加载
@@ -4050,7 +3350,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
             [self.webView removeObserver:self forKeyPath:@"title"];
         } @catch (NSException *exception) {
-            NSLog(@"在局 ⚠️ [清理WebView] 移除KVO观察者异常: %@", exception);
         }
         
         // 清理代理
@@ -4073,131 +3372,20 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     if (self.userContentController) {
         [self.userContentController removeAllUserScripts];
         self.userContentController = nil;
-        NSLog(@"在局 ✅ [清理WebView] UserContentController已清理");
     }
     
-    NSLog(@"在局 ✅ [清理WebView] WebView资源清理完成");
 }
 
-// 设置JavaScript桥接的统一方法
-- (void)setupJavaScriptBridge {
-    if (self.webView && [self.webView isKindOfClass:[WKWebView class]]) {
-        NSLog(@"在局 🌉 [JavaScript桥接] 开始设置WKWebView JavaScript桥接");
-        
-        // 检查是否已经存在桥接
-        if (self.bridge) {
-            NSLog(@"在局 ⚠️ [JavaScript桥接] 桥接已存在，先清理");
-            self.bridge = nil;
-        }
-        
-        // 创建新的桥接
-        NSLog(@"在局 🔧 [JavaScript桥接] 创建WKWebViewJavascriptBridge...");
-        WKWebView *wkWebView = (WKWebView *)self.webView;
-        self.bridge = [WKWebViewJavascriptBridge bridgeForWebView:wkWebView];
-        
-        if (!self.bridge) {
-            NSLog(@"在局 ❌ [JavaScript桥接] Bridge创建失败！");
-            return;
-        }
-        
-        NSLog(@"在局 🔧 [JavaScript桥接] 设置WebViewDelegate为self");
-        [self.bridge setWebViewDelegate:self];
-        
-        // 启用桥接日志以便调试
-        [WKWebViewJavascriptBridge enableLogging];
-        NSLog(@"在局 🔧 [JavaScript桥接] 已启用桥接日志");
-        
-        // 手动注入JavaScript桥接代码，确保WebViewJavascriptBridge对象可用
-        NSLog(@"在局 🔧 [JavaScript桥接] 手动注入JavaScript桥接代码");
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            NSString *bridgeJSCode = WebViewJavascriptBridge_js();
-            if (bridgeJSCode && bridgeJSCode.length > 0) {
-                [wkWebView evaluateJavaScript:bridgeJSCode completionHandler:^(id result, NSError *error) {
-                    if (error) {
-                        NSLog(@"在局 ❌ [JavaScript桥接] 手动注入失败: %@", error.localizedDescription);
-                    } else {
-                        NSLog(@"在局 ✅ [JavaScript桥接] 手动注入成功");
-                        // 验证注入是否成功
-                        [wkWebView evaluateJavaScript:@"typeof WebViewJavascriptBridge" completionHandler:^(id checkResult, NSError *checkError) {
-                            if (checkError) {
-                                NSLog(@"在局 ❌ [JavaScript桥接] 验证检查失败: %@", checkError.localizedDescription);
-                            } else {
-                                NSLog(@"在局 🔍 [JavaScript桥接] 注入验证结果: %@", checkResult);
-                            }
-                        }];
-                    }
-                }];
-            } else {
-                NSLog(@"在局 ❌ [JavaScript桥接] 无法获取桥接JavaScript代码");
-            }
-        });
-        
-        // 验证Bridge是否正确设置为navigationDelegate
-        NSLog(@"在局 🔍 [JavaScript桥接] 验证delegate设置 - navigationDelegate: %@", self.webView.navigationDelegate);
-        if (self.webView.navigationDelegate != self.bridge) {
-            NSLog(@"在局 ❌ [JavaScript桥接] delegate设置异常！期望: %@, 实际: %@", self.bridge, self.webView.navigationDelegate);
-        } else {
-            NSLog(@"在局 ✅ [JavaScript桥接] navigationDelegate设置正确");
-        }
-        
-        // 设置桥接处理器
-        __weak typeof(self) weakSelf = self;
-        
-        // 注册xzBridge处理器
-        [self.bridge registerHandler:@"xzBridge" handler:^(id data, WVJBResponseCallback responseCallback) {
-            __strong typeof(weakSelf) strongSelf = weakSelf;
-            NSLog(@"在局 🌉 [xzBridge] 收到JS调用: %@", data);
-            [strongSelf jsCallObjc:data jsCallBack:responseCallback];
-        }];
-        
-        // 注册独立的pageReady处理器
-        [self.bridge registerHandler:@"pageReady" handler:^(id data, WVJBResponseCallback responseCallback) {
-            __strong typeof(weakSelf) strongSelf = weakSelf;
-            NSLog(@"在局🎯 [pageReady Handler] 直接pageReady调用");
-            
-            // 调用原有的pageReady处理逻辑
-            NSDictionary *pageReadyData = @{
-                @"fn": @"pageReady",
-                @"params": data ?: @{}
-            };
-            [strongSelf jsCallObjc:pageReadyData jsCallBack:responseCallback];
-        }];
-        
-        // 注册桥接测试处理器
-        [self.bridge registerHandler:@"bridgeTest" handler:^(id data, WVJBResponseCallback responseCallback) {
-            NSLog(@"在局🧪 [桥接测试] 收到测试请求: %@", data);
-            if (responseCallback) {
-                responseCallback(@{
-                    @"success": @YES,
-                    @"message": @"桥接正常工作",
-                    @"timestamp": @([[NSDate date] timeIntervalSince1970])
-                });
-            }
-        }];
-        
-        NSLog(@"在局 ✅ [JavaScript桥接] 桥接设置完成，已注册3个处理器: xzBridge, pageReady, bridgeTest");
-        
-        // 验证桥接是否正常工作，增加延迟以适应Release版本
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [self verifyBridgeSetup];
-        });
-    } else {
-        NSLog(@"在局 ❌ [JavaScript桥接] 无法设置桥接: WebView不存在或类型不正确");
-    }
-}
 
 // 验证桥接设置
 - (void)verifyBridgeSetup {
-    NSLog(@"在局 🔍 [桥接验证] 开始验证JavaScript桥接设置");
     
     if (!self.bridge) {
-        NSLog(@"在局 ❌ [桥接验证] 桥接对象不存在");
         return;
     }
     
     // 检查WebView是否正常
     if (!self.webView || ![self.webView isKindOfClass:[WKWebView class]]) {
-        NSLog(@"在局 ❌ [桥接验证] WebView不存在或类型错误");
         return;
     }
     
@@ -4211,16 +3399,13 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         "return JSON.stringify(result);"
     "})()" completionHandler:^(id result, NSError *error) {
         if (error) {
-            NSLog(@"在局 ❌ [桥接验证] JavaScript执行失败: %@", error.localizedDescription);
         } else {
-            NSLog(@"在局 ✅ [桥接验证] JavaScript环境状态: %@", result);
             
             // 如果桥接未就绪，尝试手动注入
             NSError *jsonError;
             NSDictionary *resultDict = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&jsonError];
             
             if (!jsonError && ![resultDict[@"bridgeReady"] boolValue]) {
-                NSLog(@"在局 ⚠️ [桥接验证] 桥接未就绪，尝试手动初始化");
                 [self injectBridgeScript];
             }
         }
@@ -4229,7 +3414,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 手动注入桥接脚本
 - (void)injectBridgeScript {
-    NSLog(@"在局 💉 [桥接注入] 开始手动注入桥接脚本");
     
     // 不再手动注入桥接脚本，而是触发JavaScript环境的重新初始化
     NSString *bridgeInitScript = @"(function(){"
@@ -4259,10 +3443,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     [self safelyEvaluateJavaScript:bridgeInitScript completionHandler:^(id result, NSError *error) {
         if (error) {
-            NSLog(@"在局 ❌ [桥接注入] 脚本执行失败: %@", error.localizedDescription);
-            NSLog(@"在局 ❌ [桥接注入] 错误详情: %@", error);
         } else {
-            NSLog(@"在局 ✅ [桥接注入] 脚本执行结果: %@", result);
             
             // 如果环境未准备好，延迟重试
             if ([result isEqualToString:@"environment_not_ready"]) {
@@ -4276,7 +3457,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 强制重建WebView（针对死亡状态）
 - (void)forceRebuildWebViewForDeadState {
-    NSLog(@"在局💀 [强制重建] 检测到WebView死亡状态，执行强制重建！");
     
     // 添加循环重建防护机制
     static NSDate *lastForceRebuildTime = nil;
@@ -4286,7 +3466,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     if (lastForceRebuildTime && [now timeIntervalSinceDate:lastForceRebuildTime] < 10.0) {
         rebuildCount++;
         if (rebuildCount > 3) {
-            NSLog(@"在局🚨 [强制重建] 检测到循环重建，停止强制重建！已重建%ld次", (long)rebuildCount);
             return;
         }
     } else {
@@ -4294,11 +3473,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     lastForceRebuildTime = now;
     
-    NSLog(@"在局💀 [强制重建] 开始第%ld次强制重建", (long)rebuildCount);
     
     // 检查页面是否正在消失（如果正在消失，不应该重建）
     if (_isDisappearing) {
-        NSLog(@"在局❌ [强制重建] 页面正在消失，取消强制重建");
         return;
     }
     
@@ -4313,19 +3490,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     NSString *currentData = self.pinDataStr;
     NSString *currentHtml = self.htmlStr;
     
-    NSLog(@"在局💀 [强制重建] 保存的状态 - URL: %@, 有数据: %@, 有HTML: %@", 
-          currentUrl, currentData ? @"YES" : @"NO", currentHtml ? @"YES" : @"NO");
     
     // 完全清理现有WebView
     if (self.webView) {
-        NSLog(@"在局💀 [强制重建] 开始清理死亡的WebView");
         
         // 移除所有观察者
         @try {
             [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
             [self.webView removeObserver:self forKeyPath:@"title"];
         } @catch (NSException *exception) {
-            NSLog(@"在局⚠️ [强制重建] 移除观察者异常: %@", exception.reason);
         }
         
         // 清理JavaScript桥接
@@ -4348,7 +3521,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         // 释放WebView
         self.webView = nil;
         
-        NSLog(@"在局💀 [强制重建] 死亡WebView清理完成");
     }
     
     // 重置所有状态标志
@@ -4358,26 +3530,23 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 延迟创建新的WebView（给系统一点时间清理）
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSLog(@"在局🔧 [强制重建] 开始创建全新的WebView");
         
         // 创建全新的WebView
         [self setupWebView];
         [self addWebView];
         
         // 重新建立桥接
-        [self loadWebBridge];
+        [self setupUnifiedJavaScriptBridge];
         
         // 恢复保存的状态
         self.pinUrl = currentUrl;
         self.pinDataStr = currentData;
         self.htmlStr = currentHtml;
         
-        NSLog(@"在局✅ [强制重建] 新WebView创建完成，准备加载内容");
         
         // 使用不同的加载策略
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             // 统一使用正常加载流程，不区分Tab
-            NSLog(@"在局🔄 [强制重建] 开始正常加载流程");
             [self performHTMLLoading];
         });
     });
@@ -4390,7 +3559,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 页面加载监控方法
 - (void)startPageLoadMonitor {
-    NSLog(@"在局⏱️ [页面监控] 启动页面加载监控器");
     
     // 取消之前的监控
     if (self.healthCheckTimer) {
@@ -4408,10 +3576,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 检查页面加载状态
 - (void)checkPageLoadStatus {
-    NSLog(@"在局🔍 [页面监控] 检查页面加载状态");
     
     if (!self.isLoading) {
-        NSLog(@"在局⚠️ [页面监控] 3秒后仍未收到pageReady，尝试手动触发");
         
         // 手动触发pageReady
         [self safelyEvaluateJavaScript:@"(function(){"
@@ -4434,83 +3600,11 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             "    return 'failed_no_bridge';"
             "}"
         "})()" completionHandler:^(id result, NSError *error) {
-            NSLog(@"在局🔥 [手动触发] 结果: %@", result ?: error.localizedDescription);
         }];
     } else {
-        NSLog(@"在局✅ [页面监控] pageReady已经触发，页面正常加载");
     }
 }
 
-#pragma mark - WebView白屏检测
-
-- (void)detectBlankWebView {
-    NSLog(@"在局 🔍 [XZWKWebViewBaseController] 开始检测WebView是否白屏");
-    
-    // 方法1：检测DOM内容
-    NSString *jsCode = @"document.body.innerHTML.length";
-    [self.webView evaluateJavaScript:jsCode completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局 ❌ [白屏检测] JavaScript执行错误: %@", error.localizedDescription);
-            return;
-        }
-        
-        NSInteger contentLength = [result integerValue];
-        NSLog(@"在局 📊 [白屏检测] DOM内容长度: %ld", (long)contentLength);
-        
-        if (contentLength < 100) {
-            NSLog(@"在局 ⚠️ [白屏检测] 检测到可能的白屏，DOM内容过少");
-            
-            // 方法2：检测页面是否有可见元素
-            NSString *checkVisibleElements = @"document.querySelectorAll('*').length";
-            [self.webView evaluateJavaScript:checkVisibleElements completionHandler:^(id elementCount, NSError *error) {
-                NSInteger count = [elementCount integerValue];
-                NSLog(@"在局 📊 [白屏检测] 页面元素数量: %ld", (long)count);
-                
-                if (count < 10) {
-                    NSLog(@"在局 🚨 [白屏检测] 确认白屏！页面元素过少");
-                    [self handleBlankWebView];
-                } else {
-                    NSLog(@"在局 ✅ [白屏检测] 页面正常，有足够的DOM元素");
-                }
-            }];
-        } else {
-            NSLog(@"在局 ✅ [白屏检测] 页面正常，DOM内容充足");
-        }
-    }];
-    
-    // 方法3：检测JavaScript是否正常执行
-    NSString *checkJS = @"typeof app !== 'undefined' && typeof app.request === 'function'";
-    [self.webView evaluateJavaScript:checkJS completionHandler:^(id result, NSError *error) {
-        BOOL jsReady = [result boolValue];
-        NSLog(@"在局 📊 [白屏检测] JavaScript环境就绪: %@", jsReady ? @"YES" : @"NO");
-        
-        if (!jsReady && self.isLoading) {
-            NSLog(@"在局 ⚠️ [白屏检测] JavaScript环境未就绪，可能存在加载问题");
-        }
-    }];
-}
-
-- (void)handleBlankWebView {
-    NSLog(@"在局 🚨 [白屏处理] 开始处理白屏问题");
-    
-    // 检查重试次数
-    if (self->_retryCount >= 3) {
-        NSLog(@"在局 ❌ [白屏处理] 重试次数已达上限，显示错误页面");
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.networkNoteView.hidden = NO;
-        });
-        return;
-    }
-    
-    self->_retryCount++;
-    NSLog(@"在局 🔄 [白屏处理] 尝试重新加载页面（第%ld次）", (long)self->_retryCount);
-    
-    // 清除缓存并重新加载
-    [[HTMLCache sharedCache] removeObjectForKey:self.webViewDomain];
-    
-    // 重建WebView
-    [self rebuildWebView];
-}
 
 #pragma mark - Universal Links处理
 
@@ -4521,11 +3615,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 - (void)handleUniversalLinkNavigation:(NSNotification *)notification {
     NSString *path = notification.userInfo[@"path"];
     if (!path) {
-        NSLog(@"在局❌ [Universal Links] 路径为空");
         return;
     }
     
-    NSLog(@"在局📱 [Universal Links] WebView收到导航请求: %@", path);
     
     // 确保在主线程执行
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -4547,11 +3639,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
  * @param retryCount 重试次数
  */
 - (void)navigateToUniversalLinkPath:(NSString *)path retryCount:(NSInteger)retryCount {
-    NSLog(@"在局🧭 [Universal Links] 开始导航到路径: %@, 重试次数: %ld", path, (long)retryCount);
     
     // 防止无限重试
     if (retryCount >= 5) {
-        NSLog(@"在局❌ [Universal Links] 重试次数过多，放弃导航: %@", path);
         return;
     }
     
@@ -4562,8 +3652,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         return;
     }
     
-    if (self.isWebViewLoading || !self.isCreat) {
-        NSLog(@"在局⏳ [Universal Links] WebView正在加载，延迟导航 (重试: %ld)", (long)retryCount);
+    if (!self.isWebViewLoading) {
         // 延迟处理，增加重试计数
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self navigateToUniversalLinkPath:path retryCount:retryCount + 1];
@@ -4584,7 +3673,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         @"data": params
     };
     
-    NSLog(@"在局📡 [Universal Links] 通知H5页面处理路由: %@", callInfo);
     
     // 执行JavaScript调用
     [self objcCallJs:callInfo];
@@ -4600,26 +3688,21 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 - (void)processPendingUniversalLinkIfNeeded {
     NSString *pendingPath = objc_getAssociatedObject(self, @"PendingUniversalLinkPath");
     if (pendingPath) {
-        NSLog(@"在局🔄 [Universal Links] 处理待处理的路径: %@", pendingPath);
         [self navigateToUniversalLinkPath:pendingPath];
     }
 }
 
 // 首页专用修复方案 - 解决第二次启动JavaScript桥接失败问题
 - (void)performHomepageSpecialFix {
-    NSLog(@"在局🏠 [首页修复] ========== 开始首页专用修复 ==========");
     
     // 不再清理桥接，而是检查并确保桥接正常
     if (!self.bridge) {
-        NSLog(@"在局🏠 [首页修复] 桥接不存在，需要创建");
-        [self setupJavaScriptBridge];
+        [self setupUnifiedJavaScriptBridge];
     } else {
-        NSLog(@"在局🏠 [首页修复] 桥接已存在，保持现有设置");
     }
     
     // 延迟执行桥接初始化，给页面加载一些时间
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSLog(@"在局🏠 [首页修复] 开始执行延迟的桥接初始化");
         
         // 执行桥接初始化
         [self performJavaScriptBridgeInitialization];
@@ -4630,15 +3713,12 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         });
     });
     
-    NSLog(@"在局🏠 [首页修复] ========== 首页修复方案已启动 ==========");
 }
 
 // 强制重新注入桥接代码
 - (void)forceReinjectBridge {
-    NSLog(@"在局🔧 [强制重注入] 开始强制重新注入桥接代码");
     
     if (![self.webView isKindOfClass:[WKWebView class]]) {
-        NSLog(@"在局❌ [强制重注入] WebView不是WKWebView类型");
         return;
     }
     
@@ -4647,43 +3727,33 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 获取桥接JavaScript代码
     NSString *bridgeJSCode = WebViewJavascriptBridge_js();
     if (!bridgeJSCode || bridgeJSCode.length == 0) {
-        NSLog(@"在局❌ [强制重注入] 无法获取桥接JavaScript代码");
         return;
     }
     
-    NSLog(@"在局🔧 [强制重注入] 准备注入桥接代码，长度: %lu", (unsigned long)bridgeJSCode.length);
     
     [wkWebView evaluateJavaScript:bridgeJSCode completionHandler:^(id result, NSError *error) {
         if (error) {
-            NSLog(@"在局❌ [强制重注入] 注入失败: %@", error.localizedDescription);
         } else {
-            NSLog(@"在局✅ [强制重注入] 注入成功");
             
             // 立即验证注入结果
             [wkWebView evaluateJavaScript:@"typeof WebViewJavascriptBridge" completionHandler:^(id checkResult, NSError *checkError) {
                 if (checkError) {
-                    NSLog(@"在局❌ [强制重注入] 验证失败: %@", checkError.localizedDescription);
                 } else {
-                    NSLog(@"在局🔍 [强制重注入] 验证结果: %@ (期望: 'object')", checkResult);
                     
                     if ([@"object" isEqualToString:checkResult]) {
-                        NSLog(@"在局✅ [强制重注入] 桥接重新注入成功！");
                         
                         // 重新设置桥接处理器
-                        [self registerOptimizedBridgeHandlers];
+                        [self registerUnifiedBridgeHandlers];
                         
                         // 再次测试桥接
                         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                             [wkWebView evaluateJavaScript:@"WebViewJavascriptBridge.callHandler('bridgeTest', {test: 'reinject'}, function(response) { console.log('重注入测试成功:', response); })" completionHandler:^(id testResult, NSError *testError) {
                                 if (testError) {
-                                    NSLog(@"在局❌ [强制重注入] 重注入后测试失败: %@", testError.localizedDescription);
                                 } else {
-                                    NSLog(@"在局✅ [强制重注入] 重注入后测试成功");
                                 }
                             }];
                         });
                     } else {
-                        NSLog(@"在局❌ [强制重注入] 桥接对象仍然不可用");
                     }
                 }
             }];
@@ -4693,44 +3763,36 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 首页后备检查机制
 - (void)performHomepageFallbackCheck {
-    NSLog(@"在局🏠 [首页后备] 开始后备检查");
     
     // 检查JavaScript环境
     [self safelyEvaluateJavaScript:@"typeof window.WebViewJavascriptBridge !== 'undefined'" completionHandler:^(id result, NSError *error) {
         if (error || ![result boolValue]) {
-            NSLog(@"在局🏠 [首页后备] JavaScript桥接仍然失败，执行最终修复");
             
             // 最终修复：不能使用window.location.reload()，因为会导致加载baseURL（目录）
             // 应该重新调用domainOperate方法来重新加载HTML内容
-            NSLog(@"在局🏠 [首页后备] 重新执行domainOperate方法");
             
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (self && !self.isWebViewLoading) {
                     [self domainOperate];
                 } else {
-                    NSLog(@"在局🏠 [首页后备] WebView正在加载中或self已释放，跳过重载");
                 }
             });
         } else {
-            NSLog(@"在局🏠 [首页后备] JavaScript桥接正常");
         }
     }];
 }
 
 // 确保LoadingView移除完成后再允许数据请求
 - (void)ensureLoadingViewRemovedBeforeDataRequests {
-    NSLog(@"在局🏠 [首页时序] 开始确保LoadingView移除完成后再允许数据请求");
     
     AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
     
     // 首先直接尝试移除LoadingView（如果还存在）
     if (!appDelegate.isLoadingViewRemoved) {
-        NSLog(@"在局🏠 [首页时序] LoadingView仍存在，立即移除");
         [appDelegate removeGlobalLoadingViewWithReason:@"首页pageReady完成"];
     }
     
     // 发送通知确保TabBar控制器也处理LoadingView移除
-    NSLog(@"在局🏠 [首页时序] 发送showTabviewController通知");
     [[NSNotificationCenter defaultCenter] postNotificationName:@"showTabviewController" object:self];
     
     // 使用更频繁的检查（0.05秒间隔）以减少延迟
@@ -4745,10 +3807,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
         BOOL loadingViewRemoved = appDelegate.isLoadingViewRemoved;
         
-        NSLog(@"在局🏠 [首页时序] 检查LoadingView状态: %@", loadingViewRemoved ? @"已移除" : @"仍存在");
         
         if (loadingViewRemoved) {
-            NSLog(@"在局✅ [首页时序] LoadingView已移除，允许数据请求");
             [timer invalidate];
             
             // LoadingView已移除，现在可以安全地允许数据请求
@@ -4761,7 +3821,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             static NSInteger checkCount = 0;
             checkCount++;
             if (checkCount > 50) {
-                NSLog(@"在局⚠️ [首页时序] LoadingView移除等待超时，强制允许数据请求");
                 [timer invalidate];
                 checkCount = 0; // 重置计数器
                 
@@ -4775,31 +3834,26 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 通知页面可以开始数据请求
 - (void)notifyPageDataRequestsAllowed {
-    NSLog(@"在局🚀 [首页时序] 通知页面可以开始数据请求");
     
     // 步骤1: 设置LoadingView移除标志
     [self safelyEvaluateJavaScript:@"window.loadingViewRemoved = true; 'flag_set'" completionHandler:^(id result, NSError *error) {
-        NSLog(@"在局🔧 [数据请求-步骤1] 设置标志: %@", result ?: error.localizedDescription);
     }];
     
     // 步骤2: 尝试调用实际存在的方法触发数据刷新
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self safelyEvaluateJavaScript:@"(function(){if(typeof app!=='undefined'&&typeof app.reloadOtherPages==='function'){app.reloadOtherPages();return 'reload_called';}return 'reload_not_available';})()" completionHandler:^(id result, NSError *error) {
-            NSLog(@"在局🔧 [数据请求-步骤2] 方法调用: %@", result ?: error.localizedDescription);
         }];
     });
     
     // 步骤3: 触发loadingViewRemoved事件
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self safelyEvaluateJavaScript:@"window.dispatchEvent(new CustomEvent('loadingViewRemoved')); 'event_dispatched'" completionHandler:^(id result, NSError *error) {
-            NSLog(@"在局🔧 [数据请求-步骤3] 事件触发: %@", result ?: error.localizedDescription);
         }];
     });
     
     // 步骤4: 触发页面可见性事件（备用方案）
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self safelyEvaluateJavaScript:@"document.dispatchEvent(new Event('visibilitychange')); 'visibility_event'" completionHandler:^(id result, NSError *error) {
-            NSLog(@"在局✅ [数据请求-步骤4] 可见性事件: %@", result ?: error.localizedDescription);
         }];
     });
 }
@@ -4811,12 +3865,10 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     NSDate *now = [NSDate date];
     
     if (self.isRestoreInProgress) {
-        NSLog(@"在局⚠️ [交互式转场恢复] 恢复操作正在进行中，忽略重复调用");
         return;
     }
     
     if (self.lastRestoreTime && [now timeIntervalSinceDate:self.lastRestoreTime] < minRestoreInterval) {
-        NSLog(@"在局⚠️ [交互式转场恢复] 距离上次恢复时间过短(%.2fs)，忽略重复调用", [now timeIntervalSinceDate:self.lastRestoreTime]);
         return;
     }
     
@@ -4824,19 +3876,11 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     self.isRestoreInProgress = YES;
     self.lastRestoreTime = now;
     
-    NSLog(@"在局🔙 [交互式转场恢复] 开始恢复WebView状态");
-    NSLog(@"在局🔙 [交互式转场恢复] 当前控制器: %@", self);
-    NSLog(@"在局🔙 [交互式转场恢复] pinUrl: %@", self.pinUrl);
-    NSLog(@"在局🔙 [交互式转场恢复] isWebViewLoading: %@", self.isWebViewLoading ? @"YES" : @"NO");
-    NSLog(@"在局🔙 [交互式转场恢复] isExist: %@", self.isExist ? @"YES" : @"NO");
-    NSLog(@"在局🔙 [交互式转场恢复] tabBarController.selectedIndex: %ld", (long)self.tabBarController.selectedIndex);
     
     // 🔧 关键修复：重置_isDisappearing标志，允许JavaScript执行
-    NSLog(@"在局🔧 [交互式转场恢复] 重置_isDisappearing标志: %@ -> NO", _isDisappearing ? @"YES" : @"NO");
     _isDisappearing = NO;
     
     if (!self.webView) {
-        NSLog(@"在局⚠️ [交互式转场恢复] WebView不存在，无需恢复");
         return;
     }
     
@@ -4855,10 +3899,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             break;
     }
     
-    NSLog(@"在局🔍 [交互式转场恢复] 应用状态: %@ (%ld)", stateStr, (long)appState);
-    NSLog(@"在局🔍 [交互式转场恢复] 控制器是否显示: %@", [self isShowingOnKeyWindow] ? @"是" : @"否");
-    NSLog(@"在局🔍 [交互式转场恢复] WebView frame: %@", NSStringFromCGRect(self.webView.frame));
-    NSLog(@"在局🔍 [交互式转场恢复] WebView hidden: %@, alpha: %.2f", self.webView.hidden ? @"是" : @"否", self.webView.alpha);
     
     BOOL isAppActive = (appState == UIApplicationStateActive);
     // 修复：对于手势返回取消的场景，即使应用状态为Inactive也应该执行恢复
@@ -4895,14 +3935,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                                      (isTopViewController && hasValidWindow) ||
                                      isInteractiveGestureReturn;
     
-    NSLog(@"在局🔧 [交互式转场恢复] 强制执行恢复逻辑详细状态:");
-    NSLog(@"在局🔧 [详细诊断] isShowingOnKeyWindow: %@", [self isShowingOnKeyWindow] ? @"是" : @"否");
-    NSLog(@"在局🔧 [详细诊断] isInNavigationStack: %@", isInNavigationStack ? @"是" : @"否");
-    NSLog(@"在局🔧 [详细诊断] hasValidWindow: %@", hasValidWindow ? @"是" : @"否");
-    NSLog(@"在局🔧 [详细诊断] isViewControllerActive: %@", isViewControllerActive ? @"是" : @"否");
-    NSLog(@"在局🔧 [详细诊断] isTopViewController: %@", isTopViewController ? @"是" : @"否");
-    NSLog(@"在局🔧 [详细诊断] isInteractiveGestureReturn: %@", isInteractiveGestureReturn ? @"是" : @"否");
-    NSLog(@"在局🔧 [详细诊断] shouldExecuteRestoreForced: %@", shouldExecuteRestoreForced ? @"是" : @"否");
+   
     
     // 1. 确保WebView的基本状态正确
     self.webView.hidden = NO;
@@ -4910,14 +3943,12 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     self.webView.userInteractionEnabled = YES;
     
     // 🔧 关键修复：强制WebView重新渲染
-    NSLog(@"在局🔧 [强制渲染] 开始强制WebView重新渲染");
     self.webView.backgroundColor = [UIColor whiteColor];
     [self.webView setNeedsDisplay];
     [self.webView setNeedsLayout];
     [self.webView layoutIfNeeded];
     
     // 🔧 新增：强制重新渲染通过移除和重新添加WebView
-    NSLog(@"在局🔧 [强制渲染] 通过移除和重新添加WebView强制重渲染");
     UIView *webViewSuperview = self.webView.superview;
     CGRect webViewFrame = self.webView.frame;
     [self.webView removeFromSuperview];
@@ -4925,9 +3956,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     self.webView.frame = webViewFrame;
     
     // 🔧 修复：恢复下拉刷新控件（因为WebView被重新添加）
-    NSLog(@"在局🔄 [强制渲染] 检查并恢复下拉刷新控件");
     if (self.webView.scrollView && !self.webView.scrollView.mj_header) {
-        NSLog(@"在局🔧 [强制渲染] 下拉刷新控件缺失，重新设置");
         [self setupRefreshControl];
     }
     
@@ -4935,40 +3964,29 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     [self.view bringSubviewToFront:self.webView];
     
     // 🔧 强制移除可能的遮挡视图
-    NSLog(@"在局🔧 [视图诊断] 检查WebView上层的视图");
     for (UIView *subview in self.view.subviews) {
         if (subview != self.webView && subview != self.progressView && subview != self.activityIndicatorView) {
-            NSLog(@"在局🔍 [视图诊断] 发现其他子视图: %@ - frame: %@, hidden: %@, alpha: %.2f", 
-                  NSStringFromClass([subview class]), 
-                  NSStringFromCGRect(subview.frame),
-                  subview.hidden ? @"YES" : @"NO",
-                  subview.alpha);
             
             // 如果有可能遮挡WebView的视图，临时隐藏
             if (!subview.hidden && subview.alpha > 0.1 && CGRectIntersectsRect(subview.frame, self.webView.frame)) {
-                NSLog(@"在局⚠️ [视图诊断] 发现可能遮挡WebView的视图，临时隐藏: %@", NSStringFromClass([subview class]));
                 subview.hidden = YES;
             }
         }
     }
     
     // 🔧 新增：通过UIKit强制重新渲染整个视图层级
-    NSLog(@"在局🔧 [强制渲染] 强制重新渲染整个视图控制器");
     [self.view setNeedsDisplay];
     [self.view setNeedsLayout];
     [self.view layoutIfNeeded];
     
     // 🔧 新增：通过CALayer强制重渲染
-    NSLog(@"在局🔧 [强制渲染] 通过CALayer强制重渲染WebView");
     [self.webView.layer setNeedsDisplay];
     [self.webView.layer displayIfNeeded];
     
     // 🔧 新增：检查WebView的内容大小和滚动位置
     if ([self.webView isKindOfClass:[WKWebView class]]) {
         WKWebView *wkWebView = (WKWebView *)self.webView;
-        NSLog(@"在局🔍 [视图诊断] WebView scrollView contentSize: %@", NSStringFromCGSize(wkWebView.scrollView.contentSize));
-        NSLog(@"在局🔍 [视图诊断] WebView scrollView contentOffset: %@", NSStringFromCGPoint(wkWebView.scrollView.contentOffset));
-        NSLog(@"在局🔍 [视图诊断] WebView scrollView bounds: %@", NSStringFromCGRect(wkWebView.scrollView.bounds));
+       
         
         // 注释掉强制重置滚动位置的代码，避免页面切换时滚动到顶部
         // wkWebView.scrollView.contentOffset = CGPointZero;
@@ -4979,13 +3997,11 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 3. 检查并恢复WebView的布局 - 关键修复：强制重新应用约束
     if (CGRectIsEmpty(self.webView.frame) || self.webView.frame.size.width == 0) {
-        NSLog(@"在局🔧 [交互式转场恢复] WebView frame异常: %@，强制重新布局", NSStringFromCGRect(self.webView.frame));
         
         // 强制移除并重新添加WebView以修复约束问题
         [self.webView removeFromSuperview];
         [self addWebView]; // 这个方法会重新设置所有约束
         
-        NSLog(@"在局🔧 [布局修复] WebView重新添加后frame: %@", NSStringFromCGRect(self.webView.frame));
         
         // 如果还是0，手动设置frame
         if (CGRectIsEmpty(self.webView.frame)) {
@@ -5000,15 +4016,12 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 }
             }
             
-            NSLog(@"在局🔧 [布局修复] 手动设置WebView frame: %@", NSStringFromCGRect(targetFrame));
             self.webView.frame = targetFrame;
         }
     }
     
     // 4. 统一的JavaScript恢复脚本（合并原有的多个脚本）
-    NSLog(@"在局🔧 [JavaScript执行检查] shouldExecuteRestoreForced = %@", shouldExecuteRestoreForced ? @"是" : @"否");
     if (shouldExecuteRestoreForced) {
-        NSLog(@"在局✅ [交互式转场恢复] 开始执行统一的JavaScript恢复脚本");
         
         // 合并后的统一恢复脚本
         NSString *unifiedRestoreScript = @"(function() {"
@@ -5119,30 +4132,16 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         "})()";
         
         [self safelyEvaluateJavaScript:unifiedRestoreScript completionHandler:^(id result, NSError *error) {
-            if (error) {
-                NSLog(@"在局⚠️ [交互式转场恢复] 统一JavaScript执行失败: %@", error.localizedDescription);
-            } else {
-                NSLog(@"在局✅ [交互式转场恢复] 统一JavaScript执行成功: %@", result);
-            }
+            
         }];
     } else {
-        NSLog(@"在局⚠️ [交互式转场恢复] 控制器状态不合适，跳过JavaScript执行");
     }
     
     // 6. 触发pageShow事件（如果页面已经加载完成）
-    NSLog(@"在局🔧 [pageShow检查] shouldExecuteRestoreForced=%@, isWebViewLoading=%@, isExist=%@", 
-          shouldExecuteRestoreForced ? @"是" : @"否",
-          self.isWebViewLoading ? @"是" : @"否", 
-          self.isExist ? @"是" : @"否");
     if (shouldExecuteRestoreForced && self.isWebViewLoading && self.isExist) {
-        NSLog(@"在局🔄 [交互式转场恢复] 触发pageShow事件");
         NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageShow" data:nil];
         [self objcCallJs:callJsDic];
     } else {
-        NSLog(@"在局⚠️ [交互式转场恢复] 跳过pageShow事件 - shouldExecute: %@, isWebViewLoading: %@, isExist: %@", 
-              shouldExecuteRestoreForced ? @"是" : @"否", 
-              self.isWebViewLoading ? @"是" : @"否", 
-              self.isExist ? @"是" : @"否");
     }
     
     // 7. 确保ScrollView可以正常滚动
@@ -5152,37 +4151,22 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         wkWebView.scrollView.userInteractionEnabled = YES;
     }
     
-    NSLog(@"在局✅ [交互式转场恢复] WebView状态恢复完成");
     
-    // 8. 添加延迟检查，确保内容真的恢复了
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self checkWebViewContentAfterRestore];
-    });
-    
-    // 9. 添加手势返回专用的快速修复机制
+    // 延迟执行统一的WebView恢复操作
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self quickFixForInteractiveTransition];
-    });
-    
-    // 10. 添加最终救援机制：如果2秒后页面仍然空白，强制重新加载
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self finalRescueForBlankPage];
+        [self performWebViewRecovery];
     });
 }
 
-// 手势返回专用的快速修复机制
-- (void)quickFixForInteractiveTransition {
-    NSLog(@"在局⚡ [快速修复] 开始手势返回专用快速修复");
-    
+// 统一的WebView快速修复机制（替代多个冗余方法）
+- (void)performWebViewRecovery {
     if (_isDisappearing || !self.webView) {
-        NSLog(@"在局⚠️ [快速修复] 页面已消失或WebView不存在，取消修复");
         return;
     }
     
-    // 检查控制器是否在导航栈中
+    // 检查控制器状态
     BOOL isInNavigationStack = self.navigationController && 
                               [self.navigationController.viewControllers containsObject:self];
-    // 🔧 修复Main Thread Checker错误：UI API必须在主线程调用
     __block BOOL hasValidWindow = NO;
     if ([NSThread isMainThread]) {
         hasValidWindow = (self.view.window != nil && !self.view.window.hidden);
@@ -5193,383 +4177,53 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     
     if (!isInNavigationStack || !hasValidWindow) {
-        NSLog(@"在局⚠️ [快速修复] 控制器状态不符合修复条件");
         return;
     }
     
-    NSLog(@"在局⚡ [快速修复] 开始执行快速JavaScript修复");
-    
-    // 快速JavaScript修复，专门针对手势返回后的显示问题
-    NSString *quickFixScript = @"(function(){"
+    // 统一的JavaScript恢复脚本
+    NSString *recoveryScript = @"(function(){"
         "try {"
-            "console.log('手势返回快速修复开始');"
-            "var result = {};"
-            "// 1. 强制显示body内容"
+            "var result = { timestamp: Date.now(), actions: [] };"
             "if (document.body) {"
                 "document.body.style.display = 'block';"
                 "document.body.style.visibility = 'visible';"
                 "document.body.style.opacity = '1';"
                 "document.body.style.transform = 'none';"
-                "result.bodyFixed = true;"
+                "result.actions.push('body_restored');"
             "}"
-            "// 2. 强制显示主要容器"
-            "var mainContainers = document.querySelectorAll('main, .main, #main, .app, #app, .container, #container');"
-            "for (var i = 0; i < mainContainers.length; i++) {"
-                "var container = mainContainers[i];"
-                "container.style.display = 'block';"
-                "container.style.visibility = 'visible';"
-                "container.style.opacity = '1';"
+            "var containers = document.querySelectorAll('main, .main, #main, .app, #app, .container, #container');"
+            "for (var i = 0; i < containers.length; i++) {"
+                "containers[i].style.display = 'block';"
+                "containers[i].style.visibility = 'visible';"
+                "containers[i].style.opacity = '1';"
             "}"
-            "result.containersFixed = mainContainers.length;"
-            "// 3. 移除可能的遮罩层"
             "var masks = document.querySelectorAll('.mask, .overlay, .loading-mask');"
             "for (var i = 0; i < masks.length; i++) {"
                 "masks[i].style.display = 'none';"
             "}"
-            "result.masksRemoved = masks.length;"
-            "// 4. 强制重新计算布局"
             "if (document.body) {"
-                "document.body.offsetHeight;" // 触发重排
-                "var event = new Event('resize');"
-                "window.dispatchEvent(event);"
-                "result.layoutRecalculated = true;"
-            "}"
-            "// 5. 如果有app对象，尝试调用刷新方法"
-            "if (typeof app !== 'undefined' && app.loaded) {"
-                "if (typeof app.refreshCurrentPage === 'function') {"
-                    "app.refreshCurrentPage();"
-                    "result.appRefreshCalled = true;"
-                "} else if (typeof app.updateView === 'function') {"
-                    "app.updateView();"
-                    "result.appUpdateCalled = true;"
-                "}"
-            "}"
-            "return JSON.stringify(result);"
-        "} catch(e) {"
-            "return JSON.stringify({error: e.message});"
-        "}"
-    "})()";
-    
-    [self safelyEvaluateJavaScript:quickFixScript completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局⚠️ [快速修复] JavaScript执行失败: %@", error.localizedDescription);
-        } else {
-            NSLog(@"在局✅ [快速修复] JavaScript执行成功: %@", result);
-        }
-    }];
-}
-
-// 执行延迟的WebView恢复操作
-- (void)executeDelayedRestoreOperations {
-    NSLog(@"在局🔄 [延迟恢复] 开始执行延迟的WebView恢复操作");
-    
-    if (!self.webView) {
-        NSLog(@"在局⚠️ [延迟恢复] WebView不存在，取消恢复操作");
-        return;
-    }
-    
-    // 4. 强制刷新WebView内容（关键修复）
-    NSLog(@"在局🔧 [延迟恢复] 开始执行JavaScript恢复脚本");
-    NSString *refreshScript = @"(function() {"
-        "try {"
-            "if (typeof app !== 'undefined' && app.loaded) {"
-                "console.log('强制刷新页面内容');"
-                "if (typeof app.refreshPage === 'function') {"
-                    "app.refreshPage();"
-                "} else if (typeof location !== 'undefined') {"
-                    "location.reload();"
-                "}"
-                "return 'WebView内容已刷新';"
-            "} else {"
-                "return 'App未初始化，跳过刷新';"
-            "}"
-        "} catch(e) {"
-            "return 'WebView刷新失败: ' + e.message;"
-        "}"
-    "})()";
-    
-    [self safelyEvaluateJavaScript:refreshScript completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局⚠️ [延迟恢复] 第一步JavaScript执行失败: %@", error.localizedDescription);
-        } else {
-            NSLog(@"在局✅ [延迟恢复] 第一步JavaScript执行成功: %@", result);
-        }
-    }];
-    
-    // 5. 触发页面刷新以恢复内容显示（关键修复）
-    NSLog(@"在局🔧 [延迟恢复] 开始执行页面恢复JavaScript");
-    NSString *pageRestoreScript = @"(function(){"
-        "try {"
-            "console.log('开始页面恢复操作');"
-            "if (document.body) {"
-                "document.body.style.display = 'none';"
                 "document.body.offsetHeight;"
-                "document.body.style.display = 'block';"
-            "}"
-            "if (typeof window.dispatchEvent === 'function') {"
                 "window.dispatchEvent(new Event('resize'));"
+                "result.actions.push('layout_recalculated');"
             "}"
-            "if (typeof window.onPageShow === 'function') { window.onPageShow(); }"
-            "if (typeof window.pageShow === 'function') { window.pageShow(); }"
-            "if (typeof document.hidden !== 'undefined') {"
-                "document.visibilityState = 'visible';"
+            "if (typeof app !== 'undefined' && app.loaded && typeof app.refreshPage === 'function') {"
+                "app.refreshPage();"
+                "result.actions.push('app_refresh_called');"
             "}"
-            "return '延迟页面恢复完成';"
+            "window.scrollTo(0, 1); window.scrollTo(0, 0);"
+            "result.success = true;"
+            "return JSON.stringify(result);"
         "} catch(e) {"
-            "console.error('延迟页面恢复失败:', e);"
-            "return '恢复失败: ' + e.message;"
+            "return JSON.stringify({success: false, error: e.message});"
         "}"
     "})()";
     
-    [self safelyEvaluateJavaScript:pageRestoreScript completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局⚠️ [延迟恢复] 第二步JavaScript执行失败: %@", error.localizedDescription);
-        } else {
-            NSLog(@"在局✅ [延迟恢复] 第二步JavaScript执行成功: %@", result);
-        }  
-    }];
-    
-    // 6. 触发pageShow事件（如果页面已经加载完成）
-    if (self.isWebViewLoading && self.isExist) {
-        NSLog(@"在局🔄 [延迟恢复] 触发pageShow事件");
-        NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageShow" data:nil];
-        [self objcCallJs:callJsDic];
-    }
-    
-    NSLog(@"在局✅ [延迟恢复] 延迟恢复操作执行完成");
+    [self safelyEvaluateJavaScript:recoveryScript completionHandler:nil];
 }
 
-// 检查WebView恢复后的内容状态
-- (void)checkWebViewContentAfterRestore {
-    if (!self.webView) {
-        return;
-    }
-    
-    // 重新检查应用状态
-    UIApplicationState appState = [[UIApplication sharedApplication] applicationState];
-    BOOL isAppActive = (appState == UIApplicationStateActive);
-    BOOL shouldExecuteCheck = isAppActive || [self isShowingOnKeyWindow];
-    
-    if (!shouldExecuteCheck) {
-        NSLog(@"在局⚠️ [内容检查] 应用状态不合适，跳过内容检查");
-        return;
-    }
-    
-    NSLog(@"在局🔍 [内容检查] 检查WebView恢复后的内容状态");
-    
-    [self safelyEvaluateJavaScript:@"(function(){"
-        "try {"
-            "var bodyHeight = document.body ? document.body.scrollHeight : 0;"
-            "var bodyHTML = document.body ? document.body.innerHTML : '';"
-            "var bodyContentLength = bodyHTML.length;"
-            "var bodyContent = bodyContentLength > 500 ? '有内容' : '内容不足';"  // 提高阈值到500
-            "var isVisible = document.body ? (document.body.style.display !== 'none' ? '可见' : '隐藏') : '无body';"
-            "var totalElements = document.querySelectorAll('*').length;"
-            "var hasElements = totalElements > 50 ? '元素充足' : '元素不足';"  // 提高阈值到50
-            "var hasAppContent = (bodyHTML.indexOf('app') > -1 || bodyHTML.indexOf('page') > -1) ? true : false;"
-            "var hasScripts = document.querySelectorAll('script').length > 0;"
-            ""
-            "// 更智能的内容判断"
-            "var isContentValid = (bodyHeight > 1000 && bodyContentLength > 1000) || "  // 页面高度和内容都足够
-            "                     (totalElements > 100) || "  // 或者元素数量足够
-            "                     (hasAppContent && hasScripts);"  // 或者包含应用内容和脚本
-            ""
-            "return JSON.stringify({"
-                "'bodyHeight': bodyHeight,"
-                "'bodyContentLength': bodyContentLength,"
-                "'bodyContent': bodyContent,"
-                "'isVisible': isVisible,"
-                "'totalElements': totalElements,"
-                "'hasElements': hasElements,"
-                "'hasAppContent': hasAppContent,"
-                "'hasScripts': hasScripts,"
-                "'isContentValid': isContentValid,"
-                "'url': window.location.href"
-            "});"
-        "} catch(e) {"
-            "return JSON.stringify({'error': e.message});"
-        "}"
-    "})()" completionHandler:^(id result, NSError *error) {
-        if (result && !error) {
-            NSLog(@"在局🔍 [内容检查] 页面状态: %@", result);
-            
-            NSError *jsonError;
-            NSDictionary *resultDict = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&jsonError];
-            
-            if (!jsonError && resultDict) {
-                BOOL isContentValid = [resultDict[@"isContentValid"] boolValue];
-                
-                if (!isContentValid) {
-                    NSLog(@"在局⚠️ [内容检查] 检测到页面内容不足，尝试重新加载");
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        if (self.pinUrl && self.pinUrl.length > 0) {
-                            NSLog(@"在局🔄 [内容检查] 重新执行domainOperate");
-                            [self domainOperate];
-                        }
-                    });
-                } else {
-                    NSLog(@"在局✅ [内容检查] 页面内容正常");
-                }
-            }
-        } else {
-            NSLog(@"在局⚠️ [内容检查] 页面状态检查失败: %@", error.localizedDescription);
-        }
-    }];
-}
 
-// 最终救援机制：处理极端的空白页面情况
-- (void)finalRescueForBlankPage {
-    NSLog(@"在局🆘 [最终救援] 开始最终救援机制检查");
-    
-    if (_isDisappearing || !self.webView) {
-        NSLog(@"在局⚠️ [最终救援] 页面已消失或WebView不存在，取消救援");
-        return;
-    }
-    
-    // 检查应用和控制器状态
-    UIApplicationState appState = [[UIApplication sharedApplication] applicationState];
-    BOOL isAppActive = (appState == UIApplicationStateActive);
-    BOOL isViewControllerVisible = [self isShowingOnKeyWindow];
-    
-    if (!isAppActive && !isViewControllerVisible) {
-        NSLog(@"在局⚠️ [最终救援] 应用不活跃且控制器不可见，取消救援");
-        return;
-    }
-    
-    NSLog(@"在局🆘 [最终救援] 检查页面最终状态");
-    
-    // 最终检查页面内容
-    [self safelyEvaluateJavaScript:@"(function(){"
-        "try {"
-            "var bodyHeight = document.body ? document.body.scrollHeight : 0;"
-            "var bodyVisible = document.body ? (document.body.style.display !== 'none' && document.body.style.visibility !== 'hidden') : false;"
-            "var bodyOpacity = document.body ? parseFloat(document.body.style.opacity || '1') : 0;"
-            "var hasVisibleContent = document.querySelectorAll('*:not(script):not(style)').length > 10;"
-            "var result = {"
-                "bodyHeight: bodyHeight,"
-                "bodyVisible: bodyVisible,"
-                "bodyOpacity: bodyOpacity,"
-                "hasVisibleContent: hasVisibleContent,"
-                "needsRescue: (bodyHeight < 100 || !bodyVisible || bodyOpacity < 0.5 || !hasVisibleContent)"
-            "};"
-            "return JSON.stringify(result);"
-        "} catch(e) {"
-            "return JSON.stringify({error: e.message, needsRescue: true});"
-        "}"
-    "})()" completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局❌ [最终救援] 页面检查失败: %@，强制执行救援", error.localizedDescription);
-            [self executeForceRescue];
-            return;
-        }
-        
-        NSLog(@"在局🔍 [最终救援] 页面最终状态: %@", result);
-        
-        // 解析结果判断是否需要救援
-        NSError *jsonError;
-        NSDictionary *resultDict = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&jsonError];
-        
-        if (jsonError || [resultDict[@"needsRescue"] boolValue]) {
-            NSLog(@"在局🆘 [最终救援] 检测到页面仍然空白，执行强制救援");
-            [self executeForceRescue];
-        } else {
-            NSLog(@"在局✅ [最终救援] 页面内容正常，无需救援");
-        }
-        
-        // 恢复操作完成，重置状态
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.isRestoreInProgress = NO;
-            NSLog(@"在局✅ [交互式转场恢复] 恢复操作完成，状态已重置");
-        });
-    }];
-}
 
-// 执行强制救援
-- (void)executeForceRescue {
-    NSLog(@"在局💥 [强制救援] 开始执行强制救援操作");
-    
-    // 保存当前状态
-    NSString *currentUrl = self.pinUrl;
-    NSString *currentData = self.pinDataStr;
-    
-    NSLog(@"在局💥 [强制救援] 保存状态 - URL: %@, 数据长度: %lu", 
-          currentUrl, (unsigned long)(currentData ? currentData.length : 0));
-    
-    // 1. 强制重置WebView显示状态
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (!self.webView) return;
-        
-        // 强制移除所有可能的遮挡
-        for (UIView *subview in self.view.subviews) {
-            if (subview != self.webView && subview != self.progressView && subview != self.activityIndicatorView && subview != self.networkNoteView) {
-                NSLog(@"在局💥 [强制救援] 临时隐藏可能遮挡的视图: %@", NSStringFromClass([subview class]));
-                subview.alpha = 0.1;
-            }
-        }
-        
-        // 强制WebView到最前
-        self.webView.hidden = NO;
-        self.webView.alpha = 1.0;
-        self.webView.backgroundColor = [UIColor whiteColor];
-        [self.view bringSubviewToFront:self.webView];
-        
-        // 强制重新布局
-        [self.view setNeedsLayout];
-        [self.view layoutIfNeeded];
-        [self.webView setNeedsDisplay];
-        [self.webView.layer displayIfNeeded];
-        
-        NSLog(@"在局💥 [强制救援] 执行最后的JavaScript救援");
-        
-        // 2. 最后的JavaScript救援
-        NSString *rescueScript = @"(function(){"
-            "try {"
-                "console.log('执行最终JavaScript救援');"
-                "// 强制清除所有隐藏样式"
-                "var allElements = document.querySelectorAll('*');"
-                "for (var i = 0; i < allElements.length; i++) {"
-                    "var elem = allElements[i];"
-                    "if (elem.tagName && elem.tagName !== 'SCRIPT' && elem.tagName !== 'STYLE') {"
-                        "elem.style.display = elem.style.display === 'none' ? 'block' : elem.style.display;"
-                        "elem.style.visibility = elem.style.visibility === 'hidden' ? 'visible' : elem.style.visibility;"
-                        "elem.style.opacity = elem.style.opacity === '0' ? '1' : elem.style.opacity;"
-                    "}"
-                "}"
-                "// 强制重新渲染整个文档"
-                "if (document.body) {"
-                    "document.body.style.transform = 'translateZ(0)';" // 强制GPU渲染
-                    "setTimeout(function() {"
-                        "document.body.style.transform = '';"
-                    "}, 10);"
-                "}"
-                "// 触发强制重绘"
-                "window.scrollTo(0, 1);"
-                "window.scrollTo(0, 0);"
-                "return '强制救援JavaScript执行完成';"
-            "} catch(e) {"
-                "return '救援失败: ' + e.message;"
-            "}"
-        "})();";
-        
-        [self safelyEvaluateJavaScript:rescueScript completionHandler:^(id result, NSError *error) {
-            NSLog(@"在局💥 [强制救援] JavaScript救援结果: %@", result ?: error.localizedDescription);
-        }];
-        
-        // 3. 如果JavaScript救援也失败，最后手段：重新加载内容
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (currentUrl && currentUrl.length > 0) {
-                NSLog(@"在局💥 [强制救援] 最后手段：重新加载页面内容");
-                self.pinUrl = currentUrl;
-                self.pinDataStr = currentData;
-                [self domainOperate];
-            }
-            
-            // 强制救援完成，重置恢复状态
-            self.isRestoreInProgress = NO;
-            NSLog(@"在局✅ [强制救援] 救援操作完成，状态已重置");
-        });
-    });
-}
+
 
 #pragma mark - 性能优化方法实现
 
@@ -5580,7 +4234,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 + (void)preloadHTMLTemplates {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        NSLog(@"在局🚀 [性能优化] 开始预加载HTML模板");
         
         // 异步加载，不阻塞主线程
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
@@ -5596,12 +4249,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     _cachedHTMLTemplate = [templateContent copy];
                     _templateCacheTime = [NSDate date];
                     
-                    NSLog(@"在局✅ [性能优化] HTML模板预加载成功，大小: %lu 字符", (unsigned long)templateContent.length);
                 } else {
-                    NSLog(@"在局❌ [性能优化] HTML模板预加载失败: %@", error.localizedDescription);
                 }
             } else {
-                NSLog(@"在局⚠️ [性能优化] HTML模板文件不存在: %@", templatePath);
             }
         });
         
@@ -5636,7 +4286,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
  * 在viewDidLoad中调用，设置所有优化相关的属性
  */
 - (void)initializePerformanceOptimizations {
-    NSLog(@"在局🚀 [性能优化] 初始化性能优化组件");
     
     // 初始化状态标志
     self.isWebViewPreCreated = NO;
@@ -5656,7 +4305,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         self.htmlProcessingQueue.qualityOfService = NSQualityOfServiceUserInitiated;
     }
     
-    NSLog(@"在局✅ [性能优化] 性能优化组件初始化完成");
 }
 
 /**
@@ -5668,7 +4316,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         return; // 已经预创建或者已存在
     }
     
-    NSLog(@"在局🚀 [性能优化] 开始预创建WebView");
     
     // 异步预创建，避免阻塞主线程
     NSBlockOperation *preCreateOperation = [NSBlockOperation blockOperationWithBlock:^{
@@ -5678,7 +4325,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 return; // 避免重复创建
             }
             
-            NSLog(@"在局🔧 [性能优化] 主线程中预创建WebView");
             
             // 创建WebView配置
             WKWebViewConfiguration *configuration = [self createOptimizedWebViewConfiguration];
@@ -5689,12 +4335,11 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             self.webView.hidden = YES; // 预创建时隐藏
             
             // 🔧 关键修复：立即设置桥接，确保navigationDelegate不会为nil
-            [self setupOptimizedJavaScriptBridge];
+            [self setupUnifiedJavaScriptBridge];
             
             // 标记为已预创建
             self.isWebViewPreCreated = YES;
             
-            NSLog(@"在局✅ [性能优化] WebView预创建完成，桥接已设置");
         }];
     }];
     
@@ -5774,138 +4419,28 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     [self.userContentController addUserScript:debugUserScript];
     #endif
     
-    NSLog(@"在局✅ [性能优化] 优化的WebView配置创建完成");
     return configuration;
 }
 
-/**
- * 设置优化的JavaScript桥接
- * 使用预创建的WebView和预注入的脚本，减少初始化时间200ms
- */
-- (void)setupOptimizedJavaScriptBridge {
-    if (!self.webView || self.isBridgeReady) {
-        return; // WebView不存在或桥接已就绪
-    }
-    
-    NSLog(@"在局🚀 [性能优化] 开始设置优化的JavaScript桥接");
-    
-    // 检查是否已经存在桥接实例
-    if (self.bridge) {
-        NSLog(@"在局⚠️ [性能优化] 桥接已存在，先清理");
-        self.bridge = nil;
-    }
-    
-    // 创建桥接实例
-    self.bridge = [WKWebViewJavascriptBridge bridgeForWebView:self.webView];
-    if (!self.bridge) {
-        NSLog(@"在局❌ [性能优化] 桥接创建失败");
-        return;
-    }
-    
-    // 设置WebView代理（桥接库会自动处理）
-    [self.bridge setWebViewDelegate:self];
-    
-    // 注册处理器
-    [self registerOptimizedBridgeHandlers];
-    
-    // 标记桥接已就绪
-    self.isBridgeReady = YES;
-    
-    NSLog(@"在局✅ [性能优化] 优化的JavaScript桥接设置完成");
-    
-    // 通知JavaScript桥接已就绪
-    [self notifyJavaScriptBridgeReady];
-}
-
-/**
- * 注册优化的桥接处理器
- * 集中注册所有必要的JavaScript桥接处理器
- */
-- (void)registerOptimizedBridgeHandlers {
-    __weak typeof(self) weakSelf = self;
-    
-    // 主要的桥接处理器
-    [self.bridge registerHandler:@"xzBridge" handler:^(id data, WVJBResponseCallback responseCallback) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (strongSelf) {
-            [strongSelf jsCallObjc:data jsCallBack:responseCallback];
-        }
-    }];
-    
-    // 直接的pageReady处理器
-    [self.bridge registerHandler:@"pageReady" handler:^(id data, WVJBResponseCallback responseCallback) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (strongSelf) {
-            NSDictionary *pageReadyData = @{
-                @"fn": @"pageReady",
-                @"params": data ?: @{}
-            };
-            [strongSelf jsCallObjc:pageReadyData jsCallBack:responseCallback];
-        }
-    }];
-    
-    // 桥接测试处理器
-    [self.bridge registerHandler:@"bridgeTest" handler:^(id data, WVJBResponseCallback responseCallback) {
-        NSLog(@"在局🧪 [桥接测试] 收到测试请求: %@", data);
-        if (responseCallback) {
-            responseCallback(@{
-                @"success": @YES,
-                @"message": @"桥接正常工作",
-                @"optimized": @YES,
-                @"timestamp": @([[NSDate date] timeIntervalSince1970])
-            });
-        }
-    }];
-    
-    NSLog(@"在局✅ [性能优化] 桥接处理器注册完成");
-}
-
-/**
- * 通知JavaScript桥接已就绪
- * 触发预注入脚本中的回调，确保页面能及时响应
- */
-- (void)notifyJavaScriptBridgeReady {
-    NSString *notifyScript = @""
-    "if (window.bridgeInitCallbacks) {"
-    "    window.webViewBridgeReady = true;"
-    "    window.bridgeInitCallbacks.forEach(function(callback) {"
-    "        try { callback(); } catch(e) { console.error('桥接回调执行失败:', e); }"
-    "    });"
-    "    window.bridgeInitCallbacks = [];"
-    "    console.log('在局✅ [性能优化] 桥接就绪通知已发送');"
-    "}";
-    
-    [self safelyEvaluateJavaScript:notifyScript completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局⚠️ [性能优化] 桥接就绪通知失败: %@", error.localizedDescription);
-        } else {
-            NSLog(@"在局✅ [性能优化] 桥接就绪通知发送成功");
-        }
-    }];
-}
 
 /**
  * 优化的HTML内容加载方法
  * 使用缓存的模板和异步处理，提升加载性能
  */
 - (void)optimizedLoadHTMLContent {
-    NSLog(@"在局🚀 [性能优化] 开始优化的HTML内容加载");
     
     // 防重复调用检查 - 修复闪烁问题
     if (self.isLoadingInProgress) {
-        NSLog(@"在局⚠️ [性能优化] 检测到重复加载调用，跳过执行");
         return;
     }
     
     // 检查WebView状态
     if (!self.webView) {
-        NSLog(@"在局⚠️ [性能优化] WebView不存在，触发预创建");
         [self preCreateWebViewIfNeeded];
         
         // 避免无限递归 - 最多重试一次
         static NSInteger retryCount = 0;
         if (retryCount >= 1) {
-            NSLog(@"在局⚠️ [性能优化] WebView创建重试次数已达上限，回退到原有方法");
             retryCount = 0;
             [self fallbackToOriginalLoadMethod];
             return;
@@ -5927,7 +4462,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 确保桥接已设置
     if (!self.isBridgeReady) {
-        [self setupOptimizedJavaScriptBridge];
+        [self setupUnifiedJavaScriptBridge];
     }
     
     // 创建HTML处理操作
@@ -5940,7 +4475,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 [self loadProcessedHTMLContent:processedHTML];
             }];
         } else {
-            NSLog(@"在局❌ [性能优化] HTML内容处理失败，回退到原有加载方法");
             // 回退到原有的加载方法
             [[NSOperationQueue mainQueue] addOperationWithBlock:^{
                 [self fallbackToOriginalLoadMethod];
@@ -5961,13 +4495,11 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 如果缓存的模板不可用，尝试直接读取
     if (!htmlTemplate) {
-        NSLog(@"在局⚠️ [性能优化] 缓存模板不可用，直接读取文件");
         NSString *templatePath = [[BaseFileManager appH5LocailManifesPath] stringByAppendingPathComponent:@"app.html"];
         htmlTemplate = [NSString stringWithContentsOfFile:templatePath encoding:NSUTF8StringEncoding error:nil];
     }
     
     if (!htmlTemplate) {
-        NSLog(@"在局❌ [性能优化] 无法获取HTML模板");
         return nil;
     }
     
@@ -5977,11 +4509,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     if (self.pinDataStr && self.pinDataStr.length > 0) {
         // 直接数据模式
         bodyContent = self.pinDataStr;
-        NSLog(@"在局📄 [性能优化] 使用直接数据模式，内容长度: %lu", (unsigned long)bodyContent.length);
     } else if (self.pinUrl) {
         // URL模式，需要通过CustomHybridProcessor处理
         // 这里暂时返回空内容，实际处理在CustomHybridProcessor中
-        NSLog(@"在局🔄 [性能优化] URL模式，等待CustomHybridProcessor处理");
         return nil;
     }
     
@@ -5994,7 +4524,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         processedHTML = [processedHTML stringByReplacingOccurrencesOfString:@"{{phoneClass}}" withString:phoneClass];
     }
     
-    NSLog(@"在局✅ [性能优化] HTML内容处理完成，最终长度: %lu", (unsigned long)processedHTML.length);
     return processedHTML;
 }
 
@@ -6003,12 +4532,10 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
  * 当优化的加载方法失败时使用
  */
 - (void)fallbackToOriginalLoadMethod {
-    NSLog(@"在局🔄 [性能优化] 执行回退策略，使用原有加载方法");
     
     // 禁用优化标志，避免无限循环
     static BOOL isInFallback = NO;
     if (isInFallback) {
-        NSLog(@"在局⚠️ [性能优化] 已在回退模式中，避免无限循环");
         return;
     }
     isInFallback = YES;
@@ -6024,11 +4551,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
  * 这是原有逻辑的简化版本，确保基础功能正常工作
  */
 - (void)loadHTMLContentWithoutOptimization {
-    NSLog(@"在局🔄 [性能优化] 使用原有逻辑加载HTML内容");
     
     // 检查WebView是否存在
     if (!self.webView) {
-        NSLog(@"在局⚠️ [loadHTMLContent] WebView不存在，无法加载");
         return;
     }
     
@@ -6038,7 +4563,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         NSString *basePath = [BaseFileManager appH5LocailManifesPath];
         NSURL *baseURL = [NSURL fileURLWithPath:basePath];
         [self.webView loadHTMLString:self.htmlStr baseURL:baseURL];
-        NSLog(@"在局✅ [loadHTMLContent] 使用已处理的htmlStr加载HTML内容");
         return;
     }
     
@@ -6058,26 +4582,22 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             NSString *basePath = [BaseFileManager appH5LocailManifesPath];
             NSURL *baseURL = [NSURL fileURLWithPath:basePath];
             [self.webView loadHTMLString:finalHTML baseURL:baseURL];
-            NSLog(@"在局✅ [loadHTMLContent] 使用pinDataStr模板加载HTML内容");
         }
         return;
     }
     
     // 对于URL模式，调用原有的完整加载流程
     if (self.pinUrl && self.pinUrl.length > 0) {
-        NSLog(@"在局🔄 [loadHTMLContent] URL模式，调用原有的完整加载流程");
         
         // 确保桥接已建立
         if (!self.bridge) {
-            [self loadWebBridge];
+            [self setupUnifiedJavaScriptBridge];
         }
         
         // 调用原有的完整加载方法
         if (self.bridge) {
-            NSLog(@"在局✅ [loadHTMLContent] 桥接可用，调用performHTMLLoading");
             [self performHTMLLoading];
         } else {
-            NSLog(@"在局⚠️ [loadHTMLContent] 桥接不可用，延迟重试");
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 [self loadHTMLContentWithoutOptimization];
             });
@@ -6085,7 +4605,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         return;
     }
     
-    NSLog(@"在局⚠️ [loadHTMLContent] 没有可用的加载数据");
 }
 
 /**
@@ -6094,11 +4613,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
  */
 - (void)loadProcessedHTMLContent:(NSString *)htmlContent {
     if (!htmlContent || !self.webView) {
-        NSLog(@"在局❌ [性能优化] 无法加载HTML内容：内容或WebView为空");
         return;
     }
     
-    NSLog(@"在局🚀 [性能优化] 开始加载处理完成的HTML内容");
     
     // 确保WebView可见
     self.webView.hidden = NO;
@@ -6116,7 +4633,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 加载HTML内容
     [self.webView loadHTMLString:htmlContent baseURL:baseURL];
     
-    NSLog(@"在局✅ [性能优化] HTML内容已提交给WebView加载");
 }
 
 /**
@@ -6154,8 +4670,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 如果是交互式转场恢复场景，即使应用在后台也允许执行关键JavaScript
     if (isInteractiveRestoreScenario) {
-        NSLog(@"在局[XZWKWebView] 应用状态非活跃但允许执行JavaScript: %@ (关键操作: YES, 控制器活跃: %@)", 
-              @"交互式转场恢复", isControllerActive ? @"YES" : @"NO");
         return YES;
     }
     
@@ -6166,7 +4680,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 页面正在消失但需要执行关键JavaScript的情况
     if (_isDisappearing && isControllerActive) {
-        NSLog(@"在局[XZWKWebView] 页面消失中但控制器活跃，允许关键JavaScript执行");
         return YES;
     } else if (_isDisappearing) {
         return NO;
@@ -6181,40 +4694,33 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
  */
 - (BOOL)hasValidWebViewContent {
     if (!self.webView) {
-        NSLog(@"在局🔍 [内容检查] WebView不存在");
         return NO;
     }
     
     // 如果页面已经标记为存在且已经收到pageReady，认为有效
     if (self.isExist && self.isLoading) {
-        NSLog(@"在局✅ [内容检查] 页面已标记为存在且加载完成");
         return YES;
     }
     
     // 对于tab页面，如果WebView存在且已经接收过pageReady事件（isExist为YES），就认为有效
     // 即使isLoading可能被重置，isExist会保持页面的历史状态
     if (self.isTabbarShow && self.isExist) {
-        NSLog(@"在局✅ [内容检查] Tab页面已加载过内容（isExist=YES）");
         return YES;
     }
     
     // 检查URL - 只有当URL完全无效时才返回NO
     NSURL *currentURL = self.webView.URL;
     if (!currentURL) {
-        NSLog(@"在局🔍 [内容检查] WebView没有URL");
         return NO;
     }
     
     NSString *urlString = currentURL.absoluteString;
-    NSLog(@"在局🔍 [内容检查] 当前URL: %@", urlString);
     
     // 只有当URL是about:blank或者空的时候才认为无效
     if ([urlString isEqualToString:@"about:blank"] || urlString.length == 0) {
-        NSLog(@"在局❌ [内容检查] URL无效: %@", urlString);
         
         // 即使URL是about:blank，如果WebView正在加载，给它一次机会
         if (self.webView.isLoading) {
-            NSLog(@"在局🔄 [内容检查] WebView正在加载中，暂时认为有效");
             return YES;
         }
         
@@ -6223,11 +4729,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 检查是否是有效的内容URL（不是file://路径的基础目录）
     if ([urlString hasPrefix:@"file://"] && [urlString hasSuffix:@"/manifest/"]) {
-        NSLog(@"在局⚠️ [内容检查] 只有基础manifest目录，没有具体内容");
         
         // 如果正在加载或者已经标记为正在加载，认为有效
         if (self.webView.isLoading || self.isWebViewLoading) {
-            NSLog(@"在局🔄 [内容检查] 正在加载内容，认为有效");
             return YES;
         }
         
@@ -6235,7 +4739,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     
     // 如果WebView有有效URL，认为有内容
-    NSLog(@"在局✅ [内容检查] WebView有有效URL，认为有内容");
     return YES;
 }
 
@@ -6276,11 +4779,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     BOOL isReturn = isStackDecrease || isReturnToHome;
     
     if (isReturn || hasWebViewContent) {
-        NSLog(@"在局🔄 [返回检测] 栈数量: %ld->%ld, 是首页: %@, 有内容: %@, 判定返回: %@", 
-              (long)lastStackCount, (long)currentStackCount,
-              isHomePage ? @"YES" : @"NO",
-              hasWebViewContent ? @"YES" : @"NO", 
-              isReturn ? @"YES" : @"NO");
     }
     
     return isReturn;

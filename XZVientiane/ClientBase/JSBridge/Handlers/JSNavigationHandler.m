@@ -61,17 +61,13 @@
         if ([data isKindOfClass:[NSString class]]) {
             // 如果data本身就是字符串URL
             url = (NSString *)data;
-            NSLog(@"在局🔧 [JSNavigationHandler navigateTo] 接收到字符串格式URL: %@", url);
         } else if ([data isKindOfClass:[NSDictionary class]]) {
             // 如果data是字典，从中提取url
             url = [(NSDictionary *)data objectForKey:@"url"];
-            NSLog(@"在局🔧 [JSNavigationHandler navigateTo] 从字典中提取URL: %@", url);
         } else {
-            NSLog(@"在局❌ [JSNavigationHandler navigateTo] 未知的数据格式: %@", [data class]);
         }
         
         if (!url || url.length == 0) {
-            NSLog(@"在局❌ [JSNavigationHandler navigateTo] URL为空或无效");
             return;
         }
         
@@ -106,17 +102,15 @@
                 CFJClientH5Controller *appH5VC = [[CFJClientH5Controller alloc] init];
                 appH5VC.hidesBottomBarWhenPushed = YES;
                 appH5VC.pinUrl = url;
-                appH5VC.replaceUrl = url;
-                appH5VC.pinDataStr = templateStr;
+                appH5VC.pinDataStr = templateStr;  // 使用正确的属性名
                 appH5VC.pagetitle = title;
-                appH5VC.templateStr = templateStr;
                 
                 [controller.navigationController pushViewController:appH5VC animated:YES];
                 
                 __weak typeof(cfController) weakController = cfController;
                 appH5VC.nextPageDataBlock = ^(NSDictionary *dic) {
                     __strong typeof(weakController) strongController = weakController;
-                    strongController.nextPageData = dic;
+                    // 通过 nextPageDataBlock 处理数据传递，而不是直接设置属性
                     NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"dialogBridge" data:dic];
                     [strongController objcCallJs:callJsDic];
                 };

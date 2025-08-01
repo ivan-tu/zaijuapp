@@ -44,24 +44,7 @@
             _searchBar.searchTextField.layer.masksToBounds = YES;
             }
             else{
-                NSLog(@"在局🔧 [JFCityHeaderView] iOS 13以下系统不再支持搜索框样式自定义");
-                // iOS 13以下系统，不使用私有API
-                // 可以通过遍历子视图的方式找到textField，但这也可能被拒绝
-                // 最安全的做法是不进行样式自定义
-                /*
-                for (UIView *subView in _searchBar.subviews) {
-                    for (UIView *secondLevelSubview in subView.subviews) {
-                        if ([secondLevelSubview isKindOfClass:[UITextField class]]) {
-                            UITextField *searchField = (UITextField *)secondLevelSubview;
-                            searchField.borderStyle = UITextBorderStyleNone;
-                            searchField.backgroundColor = [UIColor whiteColor];
-                            searchField.layer.cornerRadius = 6;
-                            searchField.layer.masksToBounds = YES;
-                            break;
-                        }
-                    }
-                }
-                */
+                
             }
 
         //        searchField.leftViewMode=UITextFieldViewModeNever;

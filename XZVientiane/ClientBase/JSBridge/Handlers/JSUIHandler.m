@@ -227,7 +227,6 @@
                 }
             }
         } @catch (NSException *exception) {
-            NSLog(@"在局❌ [stopPullDownRefresh] 处理下拉刷新时发生异常: %@", exception.reason);
         }
     });
     
@@ -271,23 +270,60 @@
 - (void)handleAreaSelect:(id)data controller:(UIViewController *)controller callback:(JSActionCallbackBlock)callback {
     NSDictionary *dataDic = (NSDictionary *)data;
     
-    // 保存回调
-    self.currentAreaSelectCallback = callback;
     
+    // 使用原有的MOFSPickerManager地址选择器
     dispatch_async(dispatch_get_main_queue(), ^{
-        // 创建地区选择控制器
-        JFCityViewController *cityVC = [[JFCityViewController alloc] init];
-        cityVC.delegate = self;
-        cityVC.hidesBottomBarWhenPushed = YES;
+        __weak typeof(self) weakSelf = self;
+        MOFSPickerManager *pickerManager = [MOFSPickerManager shareManger];
         
-        // 如果有预设的名称，可以在这里设置
-        NSString *currentName = dataDic[@"name"];
-        if (currentName && currentName.length > 0) {
-            // 这里可以设置当前选中的城市名称
-            NSLog(@"[areaSelect] 当前预设城市: %@", currentName);
-        }
+        NSString *defaultAddress = dataDic[@"name"] ?: @"";
         
-        [controller.navigationController pushViewController:cityVC animated:YES];
+        [pickerManager showCFJAddressPickerWithDefaultZipcode:@"" 
+                                                       title:@"选择地区" 
+                                                 cancelTitle:@"取消" 
+                                                 commitTitle:@"确定" 
+                                                 commitBlock:^(NSString *address, NSString *zipcode) {
+            
+            // 处理地址字符串，提取城市名称
+            NSArray *components = [address componentsSeparatedByString:@"-"];
+            NSString *cityName = components.count > 1 ? components[1] : address;
+            
+            // 保存选择的城市
+            [[NSUserDefaults standardUserDefaults] setObject:cityName forKey:@"SelectCity"];
+            if (zipcode && zipcode.length > 0) {
+                [[NSUserDefaults standardUserDefaults] setObject:zipcode forKey:@"currentCityCode"];
+            }
+            [[NSUserDefaults standardUserDefaults] synchronize];
+            
+            // 构建返回数据 - 与CFJClientH5Controller保持一致的格式
+            NSDictionary *responseData = @{
+                @"success": @"true",
+                @"data": @{
+                    @"value": address,
+                    @"code": zipcode ?: @"",
+                    @"name": cityName,
+                    @"cityTitle": cityName,
+                    @"cityCode": zipcode ?: @""
+                },
+                @"errorMessage": @""
+            };
+            
+            if (callback) {
+                callback(responseData);
+            }
+            
+        } cancelBlock:^{
+            
+            if (callback) {
+                NSDictionary *cancelData = @{
+                    @"success": @"false",
+                    @"data": @{},
+                    @"errorMessage": @"用户取消"
+                };
+                callback(cancelData);
+            }
+        }];
+        
     });
 }
 

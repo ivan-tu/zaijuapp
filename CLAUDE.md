@@ -33,6 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 修改完成后按时间生成简单的修改总结文档在/Test/Docs/修复文档 示例：[2025-07-31 19:18]修复xxx问题.md
 - 所有文档都存在/Test/Doc下自行归类
 - 所有脚本都存在/Test/Scripts下自行归类
+- 优化代码时注意有则改之无则加勉，不要刻意的优化
 
 ## 常用命令
 
@@ -42,10 +43,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 pod install
 
 # 构建Archive (自动打开Organizer)
-./build.sh
+cd Test/Scripts && ./build.sh
 
 # 在Xcode中打开项目
 open XZVientiane.xcworkspace
+
+# 运行单元测试
+xcodebuild test -workspace XZVientiane.xcworkspace -scheme XZVientiane -destination 'platform=iOS Simulator,name=iPhone 15'
 ```
 
 ### 清理和重置
@@ -73,16 +77,37 @@ UIViewController
           └── CFJClientH5Controller (业务实现)
 ```
 
-### JavaScript 桥接
+### JavaScript 桥接架构（已重构）
 - 使用 WKWebViewJavascriptBridge 实现双向通信
-- 所有JS调用Native的方法集中在 `jsCallObjc` 中处理
 - 桥接对象名称: `xzBridge`
+- **新架构**：JSBridge功能已模块化
+  - `JSActionHandlerManager`: 统一管理所有JS处理器
+  - `JSActionHandler`: 处理器基类
+  - 独立的Handler模块：
+    - `JSUIHandler`: UI相关功能（toast、loading、modal等）
+    - `JSLocationHandler`: 定位功能
+    - `JSMediaHandler`: 媒体功能（相册、拍照等）
+    - `JSNetworkHandler`: 网络请求
+    - `JSFileHandler`: 文件操作
+    - `JSUserHandler`: 用户相关功能
+    - `JSMiscHandler`: 其他功能
+    - `JSPageLifecycleHandler`: 页面生命周期
 
 ### 主要模块
 - **XZBase/**: 基础框架类，包括导航控制器、TabBar控制器等
-- **ClientBase/**: 业务基础组件，包括网络请求、用户管理等
+- **ClientBase/**: 业务基础组件
+  - `BaseController/`: 基础控制器
+  - `JSBridge/`: JS桥接模块（新架构）
+  - `Network/`: 网络请求封装
+  - `Storage/`: 数据存储
 - **ThirdParty/**: 第三方SDK集成（微信、支付宝、友盟等）
 - **manifest/**: H5资源文件存放目录
+- **Module/**: 业务模块
+  - `MOFSPickerManager/`: 地区选择器等UI组件
+- **Common/**: 公共工具类
+  - `ErrorCode/`: 错误码管理
+  - `Utilities/`: 工具类
+  - `WebView/`: WebView性能管理
 
 ## 开发注意事项
 
@@ -90,6 +115,7 @@ UIViewController
 - WebView在 `viewDidAppear` 中延迟创建以优化启动性能
 - iOS 18适配：处理了 `viewDidAppear` 多次调用问题
 - 导航栏样式设置需要延迟处理，避免闪烁
+- JavaScript调用Native时使用 `window.xzBridge.callHandler` 方法
 
 ### 第三方SDK配置
 - **微信AppID**: wx10a321f7fbdd6023
@@ -100,11 +126,12 @@ UIViewController
 - 当前使用开发环境推送证书
 - 生产环境需要上传推送证书到友盟后台
 
-### 已知问题
-1. `jsCallObjc` 方法过长（500+行），需要重构
-2. 存在大量重复的iOS版本检查代码
+### 已知问题和解决方案
+1. ~~`jsCallObjc` 方法过长（500+行），需要重构~~ ✅ 已通过JSBridge模块化解决
+2. ~~存在大量重复的iOS版本检查代码~~ ✅ 已通过XZiOSVersionManager统一管理
 3. 注释代码和调试日志需要清理
 4. 导航栏显示时机问题可能导致闪烁
+5. `selectLocation:` 方法缺失导致首页地区选择崩溃（需要修复）
 
 ## 测试
 目前测试框架已搭建但未实现具体测试用例：
@@ -117,3 +144,11 @@ UIViewController
 - 代码解释/: 主要类的方法说明
 - 优化建议/: 代码优化方案
 - 任务文档/: 开发任务和需求文档
+- 优化文档/: 2025年优化记录、JSBridge优化文档
+
+## 关键文件路径
+- 主控制器: `XZVientiane/ClientBase/BaseController/CFJClientH5Controller.m`
+- JS桥接管理: `XZVientiane/ClientBase/JSBridge/JSActionHandlerManager.m`
+- 地区选择器: `XZVientiane/Module/MOFSPickerManager/`
+- 构建脚本: `Test/Scripts/build.sh`
+- 修复文档: `Test/Docs/修复文档/`

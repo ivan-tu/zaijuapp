@@ -45,22 +45,15 @@
 }
 
 - (void)animateTransition:(id<UIViewControllerContextTransitioning>)transitionContext {
-    NSLog(@"在局🎬 [转场动画] 开始执行%@动画", self.isPresenting ? @"进入" : @"退出");
-    NSLog(@"在局🎬 [转场动画] transitionContext: %@", transitionContext);
     
     UIViewController *fromVC = [transitionContext viewControllerForKey:UITransitionContextFromViewControllerKey];
     UIViewController *toVC = [transitionContext viewControllerForKey:UITransitionContextToViewControllerKey];
     UIView *containerView = [transitionContext containerView];
     
-    NSLog(@"在局🎬 [转场动画] fromVC: %@", NSStringFromClass([fromVC class]));
-    NSLog(@"在局🎬 [转场动画] toVC: %@", NSStringFromClass([toVC class]));
-    NSLog(@"在局🎬 [转场动画] containerView: %@", containerView);
     
     CGRect finalFrameForToVC = [transitionContext finalFrameForViewController:toVC];
     CGRect initialFrameForFromVC = [transitionContext initialFrameForViewController:fromVC];
     
-    NSLog(@"在局🎬 [转场动画] finalFrameForToVC: %@", NSStringFromCGRect(finalFrameForToVC));
-    NSLog(@"在局🎬 [转场动画] initialFrameForFromVC: %@", NSStringFromCGRect(initialFrameForFromVC));
     
     if (self.isPresenting) {
         [self animatePresentationWithContext:transitionContext
@@ -120,10 +113,7 @@
         
         // 对于交互式转场，即使finished为NO，如果没有被取消，仍然应该成功完成
         BOOL success = ![transitionContext transitionWasCancelled];
-        NSLog(@"在局🎬 [XZInlineSlideAnimator] 准备调用completeTransition: %@", success ? @"YES" : @"NO");
-        NSLog(@"在局🎬 [XZInlineSlideAnimator] transitionWasCancelled: %@", [transitionContext transitionWasCancelled] ? @"YES" : @"NO");
         [transitionContext completeTransition:success];
-        NSLog(@"在局🎬 [XZInlineSlideAnimator] completeTransition调用完成");
     }];
 }
 
@@ -134,17 +124,11 @@
                    finalFrameForToVC:(CGRect)finalFrame
                 initialFrameForFromVC:(CGRect)initialFrame {
     
-    NSLog(@"在局🎬 [转场动画] animateDismissalWithContext 开始执行");
-    NSLog(@"在局🎬 [转场动画] containerView bounds: %@", NSStringFromCGRect(containerView.bounds));
-    NSLog(@"在局🎬 [转场动画] fromVC.view: %@, frame: %@", fromVC.view, NSStringFromCGRect(fromVC.view.frame));
-    NSLog(@"在局🎬 [转场动画] toVC.view: %@, frame: %@", toVC.view, NSStringFromCGRect(toVC.view.frame));
     
     // 确保toVC.view已经被添加到视图层次结构中
     if (toVC.view.superview != containerView) {
-        NSLog(@"在局🎬 [转场动画] 将toVC.view插入到containerView中");
         [containerView insertSubview:toVC.view belowSubview:fromVC.view];
     } else {
-        NSLog(@"在局🎬 [转场动画] toVC.view已经在containerView中");
     }
     
     CGRect backgroundInitialFrame = finalFrame;
@@ -152,21 +136,15 @@
     toVC.view.frame = backgroundInitialFrame;
     toVC.view.alpha = 0.9;
     
-    NSLog(@"在局🎬 [转场动画] toVC初始frame设置为: %@", NSStringFromCGRect(backgroundInitialFrame));
-    NSLog(@"在局🎬 [转场动画] 添加阴影到fromVC.view");
     [self addShadowToView:fromVC.view];
     
     NSTimeInterval duration = [self transitionDuration:transitionContext];
-    NSLog(@"在局🎬 [转场动画] 动画时长: %.2f", duration);
     
     // 判断是否是交互式转场
     BOOL isInteractive = transitionContext.isInteractive;
-    NSLog(@"在局🎬 [转场动画] 是否交互式转场: %@", isInteractive ? @"YES" : @"NO");
-    NSLog(@"在局🎬 [转场动画] 开始执行UIView动画");
     
     // 定义动画块
     void (^animationBlock)(void) = ^{
-        NSLog(@"在局🎬 [转场动画] 动画块开始执行");
         
         CGRect exitFrame = initialFrame;
         exitFrame.origin.x = CGRectGetMaxX(containerView.bounds);
@@ -178,14 +156,11 @@
     
     // 定义完成块
     void (^completionBlock)(BOOL) = ^(BOOL finished) {
-        NSLog(@"在局🎬 [转场动画] 动画完成回调 - finished: %@", finished ? @"YES" : @"NO");
-        NSLog(@"在局🎬 [转场动画] 转场是否被取消: %@", [transitionContext transitionWasCancelled] ? @"YES" : @"NO");
         
         // 清理阴影
         [self removeShadowFromView:fromVC.view];
         
         if ([transitionContext transitionWasCancelled]) {
-            NSLog(@"在局🎬 [转场动画] 转场被取消，恢复视图状态");
             fromVC.view.frame = initialFrame;
             toVC.view.frame = backgroundInitialFrame;
             toVC.view.alpha = 0.9;
@@ -195,97 +170,24 @@
                 [containerView addSubview:fromVC.view];
             }
             
-            // 🔧 关键修复：转场取消后应该恢复目标控制器(toVC)的状态，而不是源控制器(fromVC)
+            // 🔧 关键修复：转场取消后恢复视图状态
             dispatch_async(dispatch_get_main_queue(), ^{
-                NSLog(@"在局🔧 [转场取消] 开始恢复目标控制器(toVC)状态 - fromVC: %@, toVC: %@", 
+                NSLog(@"在局Claude Code[转场动画]+转场取消，恢复控制器状态: fromVC=%@, toVC=%@", 
                       NSStringFromClass([fromVC class]), NSStringFromClass([toVC class]));
                 
-                // 优先恢复toVC（目标控制器，通常是首页）
-                if ([toVC respondsToSelector:@selector(webView)]) {
-                    UIView *webView = [toVC valueForKey:@"webView"];
-                    if (webView) {
-                        NSLog(@"在局🔧 [转场取消] 恢复toVC的WebView状态");
-                        
-                        // 确保WebView可见和可交互
-                        webView.hidden = NO;
-                        webView.alpha = 1.0;
-                        webView.userInteractionEnabled = YES;
-                        
-                        // 确保WebView在视图层级的正确位置
-                        [toVC.view bringSubviewToFront:webView];
-                        
-                        // 重新设置WebView的frame，确保显示正确
-                        if (CGRectEqualToRect(webView.frame, CGRectZero)) {
-                            webView.frame = toVC.view.bounds;
-                            NSLog(@"在局🔧 [转场取消] 重置toVC WebView frame: %@", NSStringFromCGRect(webView.frame));
-                        }
-                        
-                        // 延迟触发WebView内容刷新，确保视图层级稳定后再执行
-                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                            if ([toVC respondsToSelector:@selector(restoreWebViewStateAfterInteractiveTransition)]) {
-                                SEL restoreSel = NSSelectorFromString(@"restoreWebViewStateAfterInteractiveTransition");
-                                NSMethodSignature *signature = [toVC methodSignatureForSelector:restoreSel];
-                                NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
-                                [invocation setTarget:toVC];
-                                [invocation setSelector:restoreSel];
-                                [invocation invoke];
-                                
-                                NSLog(@"在局✅ [转场取消] 已恢复toVC的WebView状态");
-                            }
-                            
-                        });
-                    } else {
-                        NSLog(@"在局⚠️ [转场取消] toVC没有webView");
-                    }
-                } else {
-                    NSLog(@"在局⚠️ [转场取消] toVC不支持webView属性");
-                }
-                
-                // 兼容性处理：如果toVC恢复失败，再尝试fromVC（保持原有逻辑）
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                    if ([fromVC respondsToSelector:@selector(webView)]) {
-                        UIView *webView = [fromVC valueForKey:@"webView"];
-                        if (webView) {
-                            NSLog(@"在局🔧 [转场取消] 备用恢复fromVC的WebView状态");
-                            
-                            // 确保WebView可见和可交互
-                            webView.hidden = NO;
-                            webView.alpha = 1.0;
-                            webView.userInteractionEnabled = YES;
-                            
-                            // 重新设置WebView的frame，确保显示正确
-                            if (CGRectEqualToRect(webView.frame, CGRectZero)) {
-                                webView.frame = fromVC.view.bounds;
-                                NSLog(@"在局🔧 [转场取消] 重置fromVC WebView frame: %@", NSStringFromCGRect(webView.frame));
-                            }
-                            
-                            if ([fromVC respondsToSelector:@selector(restoreWebViewStateAfterInteractiveTransition)]) {
-                                SEL restoreSel = NSSelectorFromString(@"restoreWebViewStateAfterInteractiveTransition");
-                                NSMethodSignature *signature = [fromVC methodSignatureForSelector:restoreSel];
-                                NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
-                                [invocation setTarget:fromVC];
-                                [invocation setSelector:restoreSel];
-                                [invocation invoke];
-                                
-                                NSLog(@"在局✅ [转场取消] 已备用恢复fromVC的WebView状态");
-                            }
-                        } else {
-                            NSLog(@"在局⚠️ [转场取消] fromVC没有webView");
-                        }
-                    } else {
-                        NSLog(@"在局⚠️ [转场取消] fromVC不支持webView属性");
-                    }
-                });
+                // 发送通知让导航控制器处理WebView状态恢复
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"InteractiveTransitionCancelled" 
+                                                                    object:nil 
+                                                                  userInfo:@{@"toViewController": toVC, 
+                                                                           @"fromViewController": fromVC}];
             });
         } else {
-            NSLog(@"在局🎬 [转场动画] 转场成功，设置最终状态");
             toVC.view.frame = finalFrame;
             toVC.view.alpha = 1.0;
             
             // 转场成功完成，确保fromVC的视图被正确移除
             // 这是关键：必须在动画完成后移除fromVC的视图
             [fromVC.view removeFromSuperview];
-            NSLog(@"在局🎬 [转场动画] 已移除fromVC.view");
             
             // 🔧 关键修复：只有返回到首页（根视图控制器）时才显示TabBar
             if (toVC.tabBarController && !toVC.hidesBottomBarWhenPushed) {
@@ -295,7 +197,6 @@
                                            toVC.navigationController.viewControllers.firstObject == toVC);
                 
                 if (isRootViewController) {
-                    NSLog(@"在局🎬 [转场动画] 返回到首页，恢复TabBar显示");
                     toVC.tabBarController.tabBar.hidden = NO;
                     
                     // 确保TabBar的frame正确
@@ -303,34 +204,24 @@
                     tabBarFrame.origin.y = CGRectGetHeight(toVC.tabBarController.view.bounds) - CGRectGetHeight(tabBarFrame);
                     toVC.tabBarController.tabBar.frame = tabBarFrame;
                 } else {
-                    NSLog(@"在局🎬 [转场动画] 未返回到首页（导航栈数量: %ld），不显示TabBar", (long)toVC.navigationController.viewControllers.count);
                 }
             }
         }
         
         // 对于交互式转场，即使finished为NO，如果没有被取消，仍然应该成功完成
         BOOL success = ![transitionContext transitionWasCancelled];
-        NSLog(@"在局🎬 [转场动画] 准备调用completeTransition: %@", success ? @"YES" : @"NO");
-        NSLog(@"在局🎬 [转场动画] transitionWasCancelled: %@", [transitionContext transitionWasCancelled] ? @"YES" : @"NO");
-        NSLog(@"在局🎬 [转场动画] fromVC: %@", fromVC);
-        NSLog(@"在局🎬 [转场动画] toVC: %@", toVC);
         [transitionContext completeTransition:success];
-        NSLog(@"在局🎬 [转场动画] completeTransition调用完成");
         
         // 额外的清理工作：确保视图层级正确
         if (success) {
             // 对于交互式转场，需要确保导航控制器的状态正确更新
-            NSLog(@"在局🎬 [转场动画] 转场成功完成，当前导航栈数量: %ld", (long)toVC.navigationController.viewControllers.count);
             
             // 延迟执行额外的清理，确保转场完全结束
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                NSLog(@"在局🎬 [转场动画] 延迟清理检查");
-                NSLog(@"在局🎬 [转场动画] 延迟检查时导航栈数量: %ld", (long)toVC.navigationController.viewControllers.count);
                 
                 // 再次确保fromVC的视图已被移除
                 if (fromVC.view.superview) {
                     [fromVC.view removeFromSuperview];
-                    NSLog(@"在局🎬 [转场动画] 延迟清理：移除残留的fromVC.view");
                 }
                 
                 // 确保toVC的视图在正确的位置
@@ -349,7 +240,6 @@
     // 根据是否是交互式转场选择不同的动画方法
     if (isInteractive) {
         // 交互式转场使用标准动画，避免spring效果导致的完成回调延迟
-        NSLog(@"在局🎬 [转场动画] 使用标准动画（交互式转场）");
         [UIView animateWithDuration:duration
                               delay:0
                             options:UIViewAnimationOptionCurveLinear
@@ -357,7 +247,6 @@
                          completion:completionBlock];
     } else {
         // 非交互式转场可以使用spring动画
-        NSLog(@"在局🎬 [转场动画] 使用Spring动画（非交互式转场）");
         [UIView animateWithDuration:duration
                               delay:0
              usingSpringWithDamping:self.springDamping
@@ -442,6 +331,12 @@
     
     // 配置交互式返回手势
     [self setupInteractiveGesture];
+    
+    // 监听交互式转场取消通知
+    [[NSNotificationCenter defaultCenter] addObserver:self 
+                                             selector:@selector(handleInteractiveTransitionCancelled:) 
+                                                 name:@"InteractiveTransitionCancelled" 
+                                               object:nil];
 }
 
 
@@ -480,10 +375,8 @@
  * 验证手势配置是否正确
  */
 - (void)verifyGestureConfiguration {
-    NSLog(@"在局🔍 [手势验证] ========== 开始验证手势配置 ==========");
     
     // 1. 检查系统手势是否已禁用
-    NSLog(@"在局🔍 [手势验证] 系统手势状态: %@", self.interactivePopGestureRecognizer.enabled ? @"启用❌" : @"禁用✅");
     
     // 2. 检查自定义手势
     NSInteger edgeGestureCount = 0;
@@ -492,20 +385,13 @@
     for (UIGestureRecognizer *gesture in self.view.gestureRecognizers) {
         if ([gesture isKindOfClass:[UIScreenEdgePanGestureRecognizer class]]) {
             edgeGestureCount++;
-            NSLog(@"在局✅ [手势验证] 找到边缘手势: %@", gesture);
         } else if ([gesture isKindOfClass:[UIPanGestureRecognizer class]]) {
             panGestureCount++;
-            NSLog(@"在局❌ [手势验证] 发现多余的Pan手势: %@", gesture);
         }
     }
     
     // 3. 验证结果
     BOOL isConfigCorrect = (edgeGestureCount == 1 && panGestureCount == 0);
-    NSLog(@"在局📊 [手势验证] 边缘手势数量: %ld %@", (long)edgeGestureCount, edgeGestureCount == 1 ? @"✅" : @"❌");
-    NSLog(@"在局📊 [手势验证] Pan手势数量: %ld %@", (long)panGestureCount, panGestureCount == 0 ? @"✅" : @"❌");
-    NSLog(@"在局📊 [手势验证] 配置状态: %@", isConfigCorrect ? @"正确✅" : @"错误❌");
-    
-    NSLog(@"在局🔍 [手势验证] ========== 手势配置验证完成 ==========");
 }
 
 
@@ -558,21 +444,14 @@
                                                fromViewController:(UIViewController *)fromVC
                                                  toViewController:(UIViewController *)toVC {
     
-    NSLog(@"在局🔍 [转场代理] animationControllerForOperation被调用");
-    NSLog(@"在局🔍 [转场代理] 操作类型: %@", operation == UINavigationControllerOperationPush ? @"Push" : @"Pop");
-    NSLog(@"在局🔍 [转场代理] From控制器: %@", NSStringFromClass([fromVC class]));
-    NSLog(@"在局🔍 [转场代理] To控制器: %@", NSStringFromClass([toVC class]));
-    NSLog(@"在局🔍 [转场代理] 交互式转场状态: %@", self.isInteractiveTransition ? @"YES" : @"NO");
     
     // 如果禁用了自定义转场动画，返回nil使用系统默认动画
     if (!self.enableCustomTransition) {
-        NSLog(@"在局⚪ [转场动画] 自定义动画已禁用，使用系统默认");
         return nil;
     }
     
     // 关键修复：如果是交互式转场，必须返回动画控制器才能触发交互控制器方法
     if (self.isInteractiveTransition && operation == UINavigationControllerOperationPop) {
-        NSLog(@"在局🎬 [转场动画] 交互式Pop转场，返回自定义动画控制器");
         
         // 为交互式转场配置动画控制器
         self.slideAnimator.isPresenting = NO; // Pop操作
@@ -582,7 +461,6 @@
     }
     
     // 临时修复：非交互式转场使用系统默认动画
-    NSLog(@"在局⚪ [转场动画] 非交互式转场，使用系统默认动画");
     
     return nil;
 }
@@ -590,21 +468,12 @@
 - (id<UIViewControllerInteractiveTransitioning>)navigationController:(UINavigationController *)navigationController
                          interactionControllerForAnimationController:(id<UIViewControllerAnimatedTransitioning>)animationController {
     
-    NSLog(@"在局🎉🎉🎉 [交互转场] interactionControllerForAnimationController被调用！");
-    NSLog(@"在局👆 [交互转场] animationController: %@", animationController);
-    NSLog(@"在局👆 [交互转场] animationController类型: %@", NSStringFromClass([animationController class]));
-    NSLog(@"在局👆 [交互转场] isInteractiveTransition: %@", self.isInteractiveTransition ? @"YES" : @"NO");
-    NSLog(@"在局👆 [交互转场] interactiveTransition对象: %@", self.interactiveTransition);
     
     // 关键修复：只要是交互式转场就返回交互控制器
     if (self.isInteractiveTransition && self.interactiveTransition) {
-        NSLog(@"在局👆 [交互转场] ✅ 返回交互控制器 - %@", self.interactiveTransition);
         return self.interactiveTransition;
     }
     
-    NSLog(@"在局👆 [交互转场] ❌ 不返回交互控制器 (isInteractive:%@ transition:%@)", 
-          self.isInteractiveTransition ? @"YES" : @"NO",
-          self.interactiveTransition ? @"存在" : @"nil");
     return nil;
 }
 
@@ -623,28 +492,7 @@
     self.interactivePopGestureRecognizer.enabled = NO;
     
     // 确保TabBar的显示状态正确
-    if (viewController.tabBarController) {
-        BOOL shouldHideTabBar = viewController.hidesBottomBarWhenPushed;
-        
-        // 如果是导航控制器的根视图控制器，应该显示TabBar
-        if (self.viewControllers.count == 1) {
-            shouldHideTabBar = NO;
-        }
-        
-        viewController.tabBarController.tabBar.hidden = shouldHideTabBar;
-        
-        // 如果显示TabBar，确保其frame正确
-        if (!shouldHideTabBar) {
-            CGRect tabBarFrame = viewController.tabBarController.tabBar.frame;
-            CGFloat tabBarHeight = CGRectGetHeight(tabBarFrame);
-            CGFloat screenHeight = CGRectGetHeight(viewController.tabBarController.view.bounds);
-            tabBarFrame.origin.y = screenHeight - tabBarHeight;
-            viewController.tabBarController.tabBar.frame = tabBarFrame;
-            
-            // 确保TabBar在视图层级的最前面
-            [viewController.tabBarController.view bringSubviewToFront:viewController.tabBarController.tabBar];
-        }
-    }
+    [self configureTabBarVisibilityForViewController:viewController];
     
     // 关键修复：检查并恢复WebView控制器状态
     // 但需要区分Tab切换和真正的导航转场
@@ -660,62 +508,12 @@
     }
     
     if ([viewController respondsToSelector:@selector(webView)] && [viewController respondsToSelector:@selector(pinUrl)]) {
-        if (isTabSwitch) {
-            NSLog(@"在局ℹ️ [转场恢复] 检测到Tab切换，跳过WebView恢复逻辑");
-        } else {
-            NSLog(@"在局🔧 [转场恢复] 开始恢复WebView控制器状态");
-        }
         
         // 只有在非Tab切换的情况下才执行恢复逻辑
         if (!isTabSwitch) {
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            UIView *webView = [viewController valueForKey:@"webView"];
-            NSString *pinUrl = [viewController valueForKey:@"pinUrl"];
-            
-            NSLog(@"在局🔍 [转场恢复] WebView存在: %@, pinUrl: %@", webView ? @"YES" : @"NO", pinUrl ?: @"nil");
-            
-            if (!webView && pinUrl && pinUrl.length > 0) {
-                // WebView不存在但有URL，说明这是一个新实例，需要重新加载
-                NSLog(@"在局🚨 [转场恢复] 检测到空白WebView实例，触发重新加载");
-                
-                // 优化：立即触发domainOperate重新创建WebView，无延迟
-                if ([viewController respondsToSelector:@selector(domainOperate)]) {
-                    NSLog(@"在局🚀 [转场恢复] 立即触发WebView重新加载");
-                    SEL domainOperateSel = NSSelectorFromString(@"domainOperate");
-                    NSMethodSignature *signature = [viewController methodSignatureForSelector:domainOperateSel];
-                    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
-                    [invocation setTarget:viewController];
-                    [invocation setSelector:domainOperateSel];
-                    [invocation invoke];
-                    
-                    NSLog(@"在局✅ [转场恢复] 已触发WebView重新加载");
-                }
-            } else if (webView) {
-                // WebView存在，恢复其状态
-                webView.hidden = NO;
-                webView.alpha = 1.0;
-                webView.userInteractionEnabled = YES;
-                
-                // 确保WebView在视图层级的正确位置
-                [viewController.view bringSubviewToFront:webView];
-                
-                NSLog(@"在局✅ [转场恢复] WebView状态已恢复 - frame: %@", NSStringFromCGRect(webView.frame));
-                
-                // 触发WebView恢复方法
-                if ([viewController respondsToSelector:@selector(restoreWebViewStateAfterInteractiveTransition)]) {
-                    SEL restoreSel = NSSelectorFromString(@"restoreWebViewStateAfterInteractiveTransition");
-                    NSMethodSignature *signature = [viewController methodSignatureForSelector:restoreSel];
-                    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
-                    [invocation setTarget:viewController];
-                    [invocation setSelector:restoreSel];
-                    [invocation invoke];
-                    
-                    NSLog(@"在局✅ [转场恢复] 已触发WebView状态恢复");
-                }
-            } else {
-                NSLog(@"在局⚠️ [转场恢复] 控制器缺少WebView和URL，无法恢复");
-            }
+            [self handleWebViewStateForViewController:viewController];
         });
         } // 结束 !isTabSwitch 条件判断
     }
@@ -726,7 +524,6 @@
         // 检查并移除不应该存在的视图
         for (UIViewController *vc in self.viewControllers) {
             if (vc != viewController && vc.view.superview && vc.view.superview != vc.navigationController.view) {
-                NSLog(@"在局⚠️ [XZNavigationController] 发现残留视图: %@", NSStringFromClass([vc class]));
                 [vc.view removeFromSuperview];
             }
         }
@@ -742,9 +539,6 @@
                                      toVC:(UIViewController *)toVC 
                                 operation:(UINavigationControllerOperation)operation {
     
-    NSLog(@"在局🔍 [转场判断] ========== 开始页面类型检测 ==========");
-    NSLog(@"在局🔍 [转场判断] FromVC类名: %@", NSStringFromClass([fromVC class]));
-    NSLog(@"在局🔍 [转场判断] ToVC类名: %@", NSStringFromClass([toVC class]));
     
     // 检查是否为WebView相关的页面
     BOOL fromIsWebView = [fromVC isKindOfClass:[CFJClientH5Controller class]] || 
@@ -752,23 +546,169 @@
     BOOL toIsWebView = [toVC isKindOfClass:[CFJClientH5Controller class]] || 
                       [toVC isKindOfClass:NSClassFromString(@"XZWKWebViewBaseController")];
     
-    NSLog(@"在局🔍 [转场判断] FromVC是否WebView: %@ (CFJClientH5Controller: %@, XZWKWebViewBaseController: %@)",
-          fromIsWebView ? @"YES" : @"NO",
-          [fromVC isKindOfClass:[CFJClientH5Controller class]] ? @"YES" : @"NO",
-          [fromVC isKindOfClass:NSClassFromString(@"XZWKWebViewBaseController")] ? @"YES" : @"NO");
-    
-    NSLog(@"在局🔍 [转场判断] ToVC是否WebView: %@ (CFJClientH5Controller: %@, XZWKWebViewBaseController: %@)",
-          toIsWebView ? @"YES" : @"NO",
-          [toVC isKindOfClass:[CFJClientH5Controller class]] ? @"YES" : @"NO",
-          [toVC isKindOfClass:NSClassFromString(@"XZWKWebViewBaseController")] ? @"YES" : @"NO");
     
     // 只要涉及WebView页面就使用自定义动画
     BOOL shouldUse = fromIsWebView || toIsWebView;
     
-    NSLog(@"在局🔍 [转场判断] 最终决定 - 使用自定义动画: %@", shouldUse ? @"YES" : @"NO");
-    NSLog(@"在局🔍 [转场判断] ========== 页面类型检测结束 ==========");
-    
     return shouldUse;
+}
+
+#pragma mark - 在局Claude Code[转场动画优化]+通知处理
+
+/**
+ * 处理交互式转场取消通知
+ */
+- (void)handleInteractiveTransitionCancelled:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    UIViewController *toVC = userInfo[@"toViewController"];
+    UIViewController *fromVC = userInfo[@"fromViewController"];
+    
+    if (toVC) {
+        [self restoreWebViewStateForViewController:toVC withDelay:0.1];
+    }
+    if (fromVC) {
+        [self restoreWebViewStateForViewController:fromVC withDelay:0.2];
+    }
+}
+
+#pragma mark - 在局Claude Code[转场动画优化]+WebView状态管理
+
+/**
+ * 恢复WebView状态（统一方法）
+ */
+- (void)restoreWebViewStateForViewController:(UIViewController *)viewController withDelay:(NSTimeInterval)delay {
+    if (![viewController respondsToSelector:@selector(webView)]) {
+        return;
+    }
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIView *webView = [viewController valueForKey:@"webView"];
+        if (webView) {
+            [self configureWebViewState:webView forViewController:viewController];
+            [self invokeWebViewRestoreMethodForViewController:viewController];
+        }
+    });
+}
+
+/**
+ * 配置WebView状态
+ */
+- (void)configureWebViewState:(UIView *)webView forViewController:(UIViewController *)viewController {
+    // 确保WebView可见和可交互
+    webView.hidden = NO;
+    webView.alpha = 1.0;
+    webView.userInteractionEnabled = YES;
+    
+    // 确保WebView在视图层级的正确位置
+    [viewController.view bringSubviewToFront:webView];
+    
+    // 重新设置WebView的frame，确保显示正确
+    if (CGRectEqualToRect(webView.frame, CGRectZero)) {
+        webView.frame = viewController.view.bounds;
+    }
+}
+
+/**
+ * 调用WebView恢复方法
+ */
+- (void)invokeWebViewRestoreMethodForViewController:(UIViewController *)viewController {
+    if (![viewController respondsToSelector:@selector(restoreWebViewStateAfterInteractiveTransition)]) {
+        return;
+    }
+    
+    SEL restoreSel = NSSelectorFromString(@"restoreWebViewStateAfterInteractiveTransition");
+    NSMethodSignature *signature = [viewController methodSignatureForSelector:restoreSel];
+    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
+    [invocation setTarget:viewController];
+    [invocation setSelector:restoreSel];
+    [invocation invoke];
+}
+
+/**
+ * 处理WebView状态（包括重新创建和恢复）
+ */
+- (void)handleWebViewStateForViewController:(UIViewController *)viewController {
+    if (![viewController respondsToSelector:@selector(webView)] || 
+        ![viewController respondsToSelector:@selector(pinUrl)]) {
+        return;
+    }
+    
+    UIView *webView = [viewController valueForKey:@"webView"];
+    NSString *pinUrl = [viewController valueForKey:@"pinUrl"];
+    
+    if (!webView && pinUrl && pinUrl.length > 0) {
+        // WebView不存在但有URL，说明这是一个新实例，需要重新加载
+        [self triggerWebViewReloadForViewController:viewController];
+    } else if (webView) {
+        // WebView存在，恢复其状态
+        [self configureWebViewState:webView forViewController:viewController];
+        [self invokeWebViewRestoreMethodForViewController:viewController];
+    }
+}
+
+/**
+ * 触发WebView重新加载
+ */
+- (void)triggerWebViewReloadForViewController:(UIViewController *)viewController {
+    if (![viewController respondsToSelector:@selector(domainOperate)]) {
+        return;
+    }
+    
+    SEL domainOperateSel = NSSelectorFromString(@"domainOperate");
+    NSMethodSignature *signature = [viewController methodSignatureForSelector:domainOperateSel];
+    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
+    [invocation setTarget:viewController];
+    [invocation setSelector:domainOperateSel];
+    [invocation invoke];
+}
+
+#pragma mark - 在局Claude Code[转场动画优化]+TabBar管理
+
+/**
+ * 配置TabBar显示状态（统一方法）
+ */
+- (void)configureTabBarVisibilityForViewController:(UIViewController *)viewController {
+    if (!viewController.tabBarController) {
+        return;
+    }
+    
+    BOOL shouldHideTabBar = [self shouldHideTabBarForViewController:viewController];
+    viewController.tabBarController.tabBar.hidden = shouldHideTabBar;
+    
+    if (!shouldHideTabBar) {
+        [self adjustTabBarFrameForViewController:viewController];
+    }
+}
+
+/**
+ * 判断是否应该隐藏TabBar
+ */
+- (BOOL)shouldHideTabBarForViewController:(UIViewController *)viewController {
+    BOOL shouldHideTabBar = viewController.hidesBottomBarWhenPushed;
+    
+    // 如果是导航控制器的根视图控制器，应该显示TabBar
+    if (self.viewControllers.count == 1) {
+        shouldHideTabBar = NO;
+    }
+    
+    return shouldHideTabBar;
+}
+
+/**
+ * 调整TabBar frame
+ */
+- (void)adjustTabBarFrameForViewController:(UIViewController *)viewController {
+    UITabBar *tabBar = viewController.tabBarController.tabBar;
+    UIView *containerView = viewController.tabBarController.view;
+    
+    CGRect tabBarFrame = tabBar.frame;
+    CGFloat tabBarHeight = CGRectGetHeight(tabBarFrame);
+    CGFloat screenHeight = CGRectGetHeight(containerView.bounds);
+    tabBarFrame.origin.y = screenHeight - tabBarHeight;
+    tabBar.frame = tabBarFrame;
+    
+    // 确保TabBar在视图层级的最前面
+    [containerView bringSubviewToFront:tabBar];
 }
 
 #pragma mark - Interactive Gesture
@@ -781,26 +721,18 @@
     CGFloat progress = translation.x / gesture.view.bounds.size.width;
     progress = MAX(0.0, MIN(1.0, progress));
     
-    NSLog(@"在局👆 [交互手势] 手势状态: %ld, 位移: (%.1f, %.1f), 进度: %.3f", 
-          (long)gesture.state, translation.x, translation.y, progress);
     
     switch (gesture.state) {
         case UIGestureRecognizerStateBegan: {
             // 只在开始时检查导航栈，后续状态不检查
             if (self.viewControllers.count <= 1) {
-                NSLog(@"在局❌ [交互手势] 导航栈只有%ld个控制器，无法返回", (long)self.viewControllers.count);
                 return;
             }
-            NSLog(@"在局👆 [交互手势] 开始边缘滑动");
-            NSLog(@"在局👆 [交互手势] 当前视图控制器栈: %ld", (long)self.viewControllers.count);
-            NSLog(@"在局👆 [交互手势] 当前顶部控制器: %@", NSStringFromClass([self.topViewController class]));
             
             // 确保delegate被正确设置
             if (self.delegate != self) {
-                NSLog(@"在局⚠️ [交互手势] 导航控制器delegate不是自己！当前delegate: %@", self.delegate);
                 self.delegate = self;
             } else {
-                NSLog(@"在局✅ [交互手势] 导航控制器delegate确认为自己");
             }
             
             // 原生导航栈返回
@@ -811,47 +743,29 @@
             // 关键修复：设置交互式转场的时长，确保动画跟随手指
             self.interactiveTransition.completionSpeed = 1.0;
             
-            NSLog(@"在局👆 [交互手势] 即将调用popViewControllerAnimated");
-            NSLog(@"在局👆 [交互手势] pop前导航栈数量: %ld", (long)self.viewControllers.count);
             
             // 在调用popViewControllerAnimated之前，确保delegate方法会被调用
             // 这是关键：确保系统知道这是一个交互式转场
-            NSLog(@"在局🔍 [交互手势] 验证delegate链: self.delegate = %@", self.delegate);
-            NSLog(@"在局🔍 [交互手势] 当前交互状态: isInteractive=%@, transition=%@", 
-                  self.isInteractiveTransition ? @"YES" : @"NO", 
-                  self.interactiveTransition);
             
             // 必须同步调用，否则交互式转场会失效
             UIViewController *poppedVC = [self popViewControllerAnimated:YES];
-            NSLog(@"在局👆 [交互手势] popViewControllerAnimated返回: %@", poppedVC ? NSStringFromClass([poppedVC class]) : @"nil");
-            NSLog(@"在局👆 [交互手势] pop后导航栈数量: %ld", (long)self.viewControllers.count);
-            NSLog(@"在局👆 [交互手势] 交互式转场对象: %@", self.interactiveTransition);
             
             if (!poppedVC) {
-                NSLog(@"在局❌ [交互手势] popViewControllerAnimated失败！");
                 self.isInteractiveTransition = NO;
                 self.interactiveTransition = nil;
                 self.interactiveTransitionStarted = NO;
             } else {
                 // 设置转场已开始标志
                 self.interactiveTransitionStarted = YES;
-                NSLog(@"在局✅ [交互手势] 交互式转场已开始");
             }
             break;
         }
         case UIGestureRecognizerStateChanged: {
-            NSLog(@"在局👆 [交互手势] 滑动变化 - 进度: %.2f, 位移: %.1f", progress, translation.x);
-            NSLog(@"在局👆 [交互手势] 转场状态 - started: %@, isInteractive: %@, transition: %@", 
-                  self.interactiveTransitionStarted ? @"YES" : @"NO",
-                  self.isInteractiveTransition ? @"YES" : @"NO",
-                  self.interactiveTransition ? @"存在" : @"nil");
             
             // 只有在转场已经开始的情况下才更新进度
             if (self.interactiveTransitionStarted && self.interactiveTransition) {
                 [self.interactiveTransition updateInteractiveTransition:progress];
-                NSLog(@"在局👆 [交互手势] 已更新交互进度: %.2f", progress);
             } else {
-                NSLog(@"在局❌ [交互手势] 转场未开始或interactiveTransition为nil，无法更新进度");
             }
             break;
         }
@@ -866,12 +780,9 @@
                 shouldComplete = NO;
             }
             
-            NSLog(@"在局👆 [交互手势] 结束 - 进度: %.2f, 速度: %.2f, 完成: %@", 
-                  progress, velocity, shouldComplete ? @"YES" : @"NO");
             
             if (self.interactiveTransition) {
                 if (shouldComplete) {
-                    NSLog(@"在局👆 [交互手势] 完成转场");
                     // 修复：设置合适的完成速度，确保动画流畅且不会过快
                     // 使用固定的速度避免动画突然加速
                     CGFloat completionSpeed = MIN(1.5, MAX(0.5, 1.0)); // 限制在0.5-1.5倍速之间
@@ -880,36 +791,30 @@
                     
                     // 🔧 关键修复：移除手势结束时的TabBar显示逻辑
                     // TabBar的显示应该完全由转场动画完成回调来控制，确保时机正确
-                    NSLog(@"在局👆 [交互手势] 手势完成，TabBar显示将由动画完成回调控制");
                         
                     // 添加额外的清理逻辑，确保视图被正确移除
                     if (self.viewControllers.count >= 2) {
                         UIViewController *fromVC = self.topViewController;
                         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                            NSLog(@"在局🧹 [交互手势] 执行视图清理检查");
                             // 确保fromVC的视图已从其父视图中移除
                             if (fromVC.view.superview && fromVC != self.topViewController) {
-                                NSLog(@"在局⚠️ [交互手势] 发现残留视图，执行清理");
                                 [fromVC.view removeFromSuperview];
                             }
                         });
                     }
                 } else {
-                    NSLog(@"在局👆 [交互手势] 取消转场");
                     // 修复：设置合适的取消速度，确保返回动画流畅且不会过快
                     CGFloat cancelSpeed = MIN(2.0, MAX(0.8, 1.2)); // 限制在0.8-2.0倍速之间
                     self.interactiveTransition.completionSpeed = cancelSpeed;
                     [self.interactiveTransition cancelInteractiveTransition];
                 }
             } else {
-                NSLog(@"在局❌ [交互手势] 结束时interactiveTransition为nil，无法处理手势结束");
             }
             
             // 清理交互状态
             self.isInteractiveTransition = NO;
             self.interactiveTransition = nil;
             self.interactiveTransitionStarted = NO;
-            NSLog(@"在局🧹 [交互手势] 已清理所有交互式转场状态");
             break;
         }
         default:
@@ -920,13 +825,9 @@
 #pragma mark - UIGestureRecognizerDelegate
 
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer {
-    NSLog(@"在局🔍 [手势代理] gestureRecognizerShouldBegin被调用");
-    NSLog(@"在局🔍 [手势代理] 手势类型: %@", NSStringFromClass([gestureRecognizer class]));
-    NSLog(@"在局🔍 [手势代理] 视图控制器栈数量: %ld", (long)self.viewControllers.count);
     
     // 只有在有多个视图控制器时才允许手势
     if (self.viewControllers.count <= 1) {
-        NSLog(@"在局❌ [手势代理] 只有一个视图控制器，不允许返回");
         return NO;
     }
     
@@ -934,20 +835,16 @@
     if ([gestureRecognizer isKindOfClass:[UIScreenEdgePanGestureRecognizer class]]) {
         // 获取手势位置
         CGPoint location = [gestureRecognizer locationInView:self.view];
-        NSLog(@"在局📍 [手势代理] 手势位置: %@", NSStringFromCGPoint(location));
         
         // 检查当前视图控制器是否允许返回手势
         UIViewController *topViewController = self.topViewController;
-        NSLog(@"在局🔍 [手势代理] 当前顶部控制器: %@", NSStringFromClass([topViewController class]));
         
         BOOL shouldAllow = [self shouldAllowInteractivePopForViewController:topViewController];
         
         if (!shouldAllow) {
-            NSLog(@"在局❌ [手势代理] 当前视图控制器禁用了返回手势");
             return NO;
         }
         
-        NSLog(@"在局✅ [手势代理] 允许边缘滑动手势");
         return YES;
     }
     
@@ -1001,6 +898,12 @@
         }
     }
     return NO;
+}
+
+- (void)dealloc {
+    // 移除通知观察者
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:@"InteractiveTransitionCancelled" object:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 @end

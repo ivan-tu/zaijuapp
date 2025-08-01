@@ -34,6 +34,8 @@
     NSDictionary *parameters = dataDic[@"data"] ?: @{};
     NSDictionary *headers = dataDic[@"header"] ?: @{};
     
+    NSLog(@"在局Claude Code[JavaScript桥接]+收到请求: URL=%@, Method=%@, Parameters=%@, Headers=%@", url, method, parameters, headers);
+    
     if (!url || url.length == 0) {
         if (callback) {
             callback([self formatCallbackResponse:@"request" data:@{} success:NO errorMessage:@"URL不能为空"]);
@@ -41,10 +43,11 @@
         return;
     }
     
-    // 使用ClientJsonRequestManager发起请求
+    // 使用ClientJsonRequestManager发起请求，传递headers参数
     if ([method.uppercaseString isEqualToString:@"GET"]) {
         [[ClientJsonRequestManager sharedClient] GET:url
                                            parameters:parameters
+                                              headers:headers
                                                 block:^(id responseObject, NSError *error) {
             if (callback) {
                 if (error) {
@@ -63,6 +66,7 @@
     } else if ([method.uppercaseString isEqualToString:@"POST"]) {
         [[ClientJsonRequestManager sharedClient] POST:url
                                             parameters:parameters
+                                               headers:headers
                                                  block:^(id responseObject, NSError *error) {
             if (callback) {
                 if (error) {

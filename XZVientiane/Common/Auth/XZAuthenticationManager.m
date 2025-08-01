@@ -102,7 +102,6 @@ static NSString * const kUserAvatarKey = @"avatarURLPath";
     self = [super init];
     if (self) {
         _authQueue = dispatch_queue_create("com.zaiju.auth", DISPATCH_QUEUE_SERIAL);
-        NSLog(@"在局🔐 [认证管理器] 初始化完成");
     }
     return self;
 }
@@ -134,7 +133,6 @@ static NSString * const kUserAvatarKey = @"avatarURLPath";
                                                                 object:self
                                                               userInfo:@{XZAuthenticationUserInfoKey: userInfo}];
             
-            NSLog(@"在局✅ [认证管理器] 用户登录成功: %@", userInfo.userId);
             
             if (completion) {
                 completion(YES, nil);
@@ -162,7 +160,6 @@ static NSString * const kUserAvatarKey = @"avatarURLPath";
                                                                 object:self
                                                               userInfo:nil];
             
-            NSLog(@"在局✅ [认证管理器] 用户退出登录");
             
             if (completion) {
                 completion(YES, nil);
@@ -250,9 +247,7 @@ static NSString * const kUserAvatarKey = @"avatarURLPath";
     
     [webView evaluateJavaScript:jsCode completionHandler:^(id result, NSError *error) {
         if (error) {
-            NSLog(@"在局❌ [认证管理器] 同步登录状态到WebView失败: %@", error);
         } else {
-            NSLog(@"在局✅ [认证管理器] 同步登录状态到WebView成功: %@", result);
         }
         if (completion) completion();
     }];
@@ -295,7 +290,6 @@ static NSString * const kUserAvatarKey = @"avatarURLPath";
             if (!self.isLoggedIn) {
                 // Native未登录但WebView已登录，需要同步
                 // 这里应该解析userSession获取完整用户信息
-                NSLog(@"在局⚠️ [认证管理器] 检测到WebView已登录但Native未登录，需要同步");
             }
         }
         
@@ -340,7 +334,6 @@ static NSString * const kUserAvatarKey = @"avatarURLPath";
             @try {
                 self.currentUser = [NSKeyedUnarchiver unarchiveObjectWithData:userData];
             } @catch (NSException *exception) {
-                NSLog(@"在局⚠️ [认证管理器] 解档用户信息失败: %@", exception);
                 
                 // 从独立的key读取
                 XZUserInfo *userInfo = [[XZUserInfo alloc] init];
@@ -359,7 +352,6 @@ static NSString * const kUserAvatarKey = @"avatarURLPath";
         }
     }
     
-    NSLog(@"在局🔐 [认证管理器] 从本地加载用户信息: %@", self.isLoggedIn ? @"已登录" : @"未登录");
 }
 
 - (void)clearAllAuthenticationInfo {

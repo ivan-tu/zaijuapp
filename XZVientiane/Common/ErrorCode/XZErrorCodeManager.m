@@ -33,7 +33,6 @@ static NSString * const XZErrorDomain = @"com.zaiju.error";
         [self setupErrorMessages];
         [self setupUserFriendlyMessages];
         
-        NSLog(@"在局✅ [XZErrorCodeManager] 错误码管理器初始化完成");
     }
     return self;
 }

@@ -97,7 +97,6 @@
         urlStr=[urlStr stringByAppendingString:@"="];
         urlStr=[urlStr stringByAppendingString:[NSString stringWithFormat:@"%@",dic[keyArr[i]]]];
     }
-    NSLog(@"在局%@",urlStr);
     urlStr=[urlStr stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
     urlStr=[urlStr stringByReplacingOccurrencesOfString:@":" withString:@"_"];
     urlStr=[urlStr stringByReplacingOccurrencesOfString:@"." withString:@"_"];

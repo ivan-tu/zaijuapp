@@ -122,7 +122,6 @@
 		A51DA3FC20EE2C8B00E40549 /* ShowAlertView.m in Sources */ = {isa = PBXBuildFile; fileRef = A51DA3F320EE2C8B00E40549 /* ShowAlertView.m */; };
 		A51DA3FD20EE2C8B00E40549 /* UIView+EasyShowExt.m in Sources */ = {isa = PBXBuildFile; fileRef = A51DA3F420EE2C8B00E40549 /* UIView+EasyShowExt.m */; };
 		A529A20221140A860066EB3E /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A529A20121140A860066EB3E /* CoreMotion.framework */; };
-		A53C27161FF3853D001B13B3 /* CFJWebViewBaseController.m in Sources */ = {isa = PBXBuildFile; fileRef = A53C27121FF3853A001B13B3 /* CFJWebViewBaseController.m */; };
 		A53C27411FF388D7001B13B3 /* ZZCACircleProgress.m in Sources */ = {isa = PBXBuildFile; fileRef = A53C27381FF388D7001B13B3 /* ZZCACircleProgress.m */; };
 		A53C27421FF388D7001B13B3 /* NSTimer+timerBlock.m in Sources */ = {isa = PBXBuildFile; fileRef = A53C27391FF388D7001B13B3 /* NSTimer+timerBlock.m */; };
 		A53C27431FF388D7001B13B3 /* ZZCircleProgress.bundle in Resources */ = {isa = PBXBuildFile; fileRef = A53C273A1FF388D7001B13B3 /* ZZCircleProgress.bundle */; };
@@ -468,7 +467,6 @@
 		A51DA3F720EE2C8B00E40549 /* EasyShowUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = EasyShowUtils.h; sourceTree = "<group>"; };
 		A51DA3F820EE2C8B00E40549 /* ShowAlertView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ShowAlertView.h; sourceTree = "<group>"; };
 		A529A20121140A860066EB3E /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = System/Library/Frameworks/CoreMotion.framework; sourceTree = SDKROOT; };
-		A53C27121FF3853A001B13B3 /* CFJWebViewBaseController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CFJWebViewBaseController.m; sourceTree = "<group>"; };
 		A53C27141FF3853C001B13B3 /* CFJWebViewBaseController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CFJWebViewBaseController.h; sourceTree = "<group>"; };
 		A53C27381FF388D7001B13B3 /* ZZCACircleProgress.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ZZCACircleProgress.m; sourceTree = "<group>"; };
 		A53C27391FF388D7001B13B3 /* NSTimer+timerBlock.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSTimer+timerBlock.m"; sourceTree = "<group>"; };
@@ -1155,7 +1153,6 @@
 				A505CAAF1FDE2A0A00FBD4A3 /* XZNavigationController.h */,
 				A505CAB11FDE2A0A00FBD4A3 /* XZNavigationController.m */,
 				A53C27141FF3853C001B13B3 /* CFJWebViewBaseController.h */,
-				A53C27121FF3853A001B13B3 /* CFJWebViewBaseController.m */,
 				A505CAB51FDE2A0B00FBD4A3 /* XZPicNavBar.h */,
 				A505CAAB1FDE2A0900FBD4A3 /* XZPicNavBar.m */,
 				A505CAB91FDE2A0B00FBD4A3 /* XZViewController.h */,
@@ -1965,7 +1962,6 @@
 				A579579120F857B800B74363 /* TZPhotoPreviewController.m in Sources */,
 				A5863387212192D3001C7CE2 /* UITabBar+badge.m in Sources */,
 				A505CAC91FDE2BCD00FBD4A3 /* HTMLCache.m in Sources */,
-				A53C27161FF3853D001B13B3 /* CFJWebViewBaseController.m in Sources */,
 				A505CDA71FDE597300FBD4A3 /* MOFSPickerManager.m in Sources */,
 				A508737C2484E355005AF8B8 /* UITableView+SCIndexView.m in Sources */,
 				A5E2AEAD210FF76F006C0DE3 /* LBProgressHUD.m in Sources */,

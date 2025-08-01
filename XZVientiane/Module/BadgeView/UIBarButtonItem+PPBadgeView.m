@@ -86,11 +86,9 @@
 
 - (UIView *)bottomView
 {
-    NSLog(@"在局🔧 [UIBarButtonItem+PPBadgeView] 获取Badge父视图");
     
     // 首先尝试获取customView
     if (self.customView) {
-        NSLog(@"在局✅ [UIBarButtonItem+PPBadgeView] 使用customView作为Badge父视图");
         self.customView.layer.masksToBounds = NO;
         return self.customView;
     }
@@ -99,12 +97,10 @@
     // 这是一个更安全的方法，但可能无法在所有情况下工作
     if (self.target && [self.target isKindOfClass:[UIView class]]) {
         UIView *targetView = (UIView *)self.target;
-        NSLog(@"在局✅ [UIBarButtonItem+PPBadgeView] 使用target视图作为Badge父视图");
         targetView.layer.masksToBounds = NO;
         return targetView;
     }
     
-    NSLog(@"在局❌ [UIBarButtonItem+PPBadgeView] 无法获取Badge父视图，返回nil");
     // 无法安全地获取视图，返回nil
     // 调用方需要处理这种情况
     return nil;

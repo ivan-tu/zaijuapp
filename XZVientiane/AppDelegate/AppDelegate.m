@@ -47,12 +47,11 @@
 
 @interface AppDelegate () <WXApiDelegate,UNUserNotificationCenterDelegate>
 
-@property (strong, nonatomic) Reachability *reachability;
-@property (strong, nonatomic) AFNetworkReachabilityManager *internetReachability;
+@property (strong, nonatomic) AFNetworkReachabilityManager *internetReachability;  // 统一使用AFNetworkReachabilityManager
 @property (strong, nonatomic) XZTabBarController *tabbarVC;
 @property (strong, nonatomic) NSDictionary *dataDic;
 @property (strong, nonatomic) NSDictionary *appInfoDic;
-@property (assign, nonatomic) BOOL mallConfigModel;
+@property (assign, nonatomic) BOOL isAppConfigured;  // 重命名为更清晰的名称
 @property (assign, nonatomic) UIBackgroundTaskIdentifier backgroundTaskIdentifier;
 // 高德定位管理器
 @property (strong, nonatomic) AMapLocationManager *locationManager;
@@ -93,9 +92,7 @@
     [self.internetReachability stopMonitoring];
     self.internetReachability = nil;
     
-    // 停止Reachability
-    [self.reachability stopNotifier];
-    self.reachability = nil;
+    // Reachability已被移除，无需停止
     
     // 清理定位管理器
     if (self.locationManager) {
@@ -132,18 +129,42 @@
     return _internetReachability;
 }
 
-- (Reachability *)reachability {
-    if (_reachability == nil) {
-        _reachability = [Reachability reachabilityForInternetConnection];
-    }
-    return _reachability;
+// 统一的网络状态监听配置
+- (void)configureNetworkMonitoring:(UIApplication *)application launchOptions:(NSDictionary *)launchOptions {
+    __weak typeof(self) weakSelf = self;
+    [self.internetReachability setReachabilityStatusChangeBlock:^(AFNetworkReachabilityStatus status) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [strongSelf handleNetworkStatusChange:status application:application launchOptions:launchOptions];
+        });
+    }];
+    [self.internetReachability startMonitoring];
 }
+
+// 处理网络状态变化
+- (void)handleNetworkStatusChange:(AFNetworkReachabilityStatus)status 
+                      application:(UIApplication *)application 
+                    launchOptions:(NSDictionary *)launchOptions {
+    switch (status) {
+        case AFNetworkReachabilityStatusNotReachable:
+        case AFNetworkReachabilityStatusReachableViaWiFi:
+        case AFNetworkReachabilityStatusReachableViaWWAN:
+            if (!self.isAppConfigured) {
+                [self getInfo_application:application didFinishLaunchingWithOptions:launchOptions];
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // 应用启动开始
     
-    // 启动网络监听
-    [self.reachability startNotifier];
+    // 网络监听将在网络权限检查后启动
     
     // 立即创建窗口并设置根视图控制器，避免场景更新超时
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
@@ -243,8 +264,6 @@
     self.locationManager.reGeocodeTimeout = 8;
     [self.locationManager requestLocationWithReGeocode:YES completionBlock:^(CLLocation *location, AMapLocationReGeocode *regeocode, NSError *error) {
         if (error) {
-            // 定位服务出错
-            NSLog(@"在局❌ [首页定位] 定位失败，错误码:%ld, 描述:%@", (long)error.code, error.localizedDescription);
             
             // 设置默认值，避免完全无定位信息
             NSUserDefaults *Defaults = [NSUserDefaults standardUserDefaults];
@@ -277,7 +296,6 @@
         [Defaults setObject:cityName forKey:@"currentCity"];
         [Defaults setObject:addressName forKey:@"currentAddress"];
 
-        NSLog(@"在局✅ [首页定位] 定位成功 - 纬度:%.6f, 经度:%.6f, 城市:%@", coordinate.latitude, coordinate.longitude, cityName);
         [Defaults synchronize];
     }];
 }
@@ -313,7 +331,6 @@
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application {
-    NSLog(@"在局 🔔 [AppDelegate] 应用即将失去活跃状态");
     
     // 发送通知让WebView暂停JavaScript执行
     [[NSNotificationCenter defaultCenter] postNotificationName:@"AppWillResignActiveNotification" object:nil];
@@ -362,7 +379,6 @@
 - (void)applicationDidBecomeActive:(UIApplication *)application {
     // 应用进入前台时检查是否需要初始化
     if (!self.hasInitialized && !self.isInitializing && self.window) {
-        NSLog(@"在局 applicationDidBecomeActive - 重新尝试初始化");
         // 延迟执行，确保UI完全准备好
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             if (!self.hasInitialized && !self.isInitializing) {
@@ -441,21 +457,17 @@
 }
 
 -(void) onResp:(BaseResp*)response {
-    NSLog(@"在局 🔔 [微信回调] 收到响应: %@, 错误码: %d", NSStringFromClass([response class]), response.errCode);
     
     if([response isKindOfClass:[PayResp class]]) {
         PayResp *res = (PayResp *)response;
-        NSLog(@"在局 💰 [微信支付回调] 错误码: %d", res.errCode);
         switch (res.errCode) {
             case WXSuccess:
             {
-                NSLog(@"在局 ✅ [微信支付] 支付成功");
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"weixinPay" object:@"true"];
             }
                 break;
             default:
             {
-                NSLog(@"在局 ❌ [微信支付] 支付失败或取消，错误码: %d", res.errCode);
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"weixinPay" object:@"false"];
             }
                 break;
@@ -466,12 +478,10 @@
     // 处理微信登录授权回调
     if([response isKindOfClass:[SendAuthResp class]]) {
         SendAuthResp *authResp = (SendAuthResp *)response;
-        NSLog(@"在局 🔑 [微信登录回调] 错误码: %d", authResp.errCode);
         
         NSDictionary *authResult = nil;
         switch (authResp.errCode) {
             case WXSuccess:
-                NSLog(@"在局 ✅ [微信登录] 授权成功，code: %@, state: %@", authResp.code, authResp.state);
                 authResult = @{
                     @"success": @"true",
                     @"code": authResp.code ?: @"",
@@ -480,7 +490,6 @@
                 };
                 break;
             case WXErrCodeUserCancel:
-                NSLog(@"在局 ⚠️ [微信登录] 用户取消授权");
                 authResult = @{
                     @"success": @"false", 
                     @"errorMessage": @"用户取消授权",
@@ -488,7 +497,6 @@
                 };
                 break;
             case WXErrCodeAuthDeny:
-                NSLog(@"在局 ❌ [微信登录] 授权被拒绝");
                 authResult = @{
                     @"success": @"false", 
                     @"errorMessage": @"微信授权被拒绝", 
@@ -496,7 +504,6 @@
                 };
                 break;
             default:
-                NSLog(@"在局 ❌ [微信登录] 授权失败，错误码: %d", authResp.errCode);
                 authResult = @{
                     @"success": @"false", 
                     @"errorMessage": [NSString stringWithFormat:@"微信登录失败(%d)", authResp.errCode],
@@ -513,39 +520,31 @@
     // 处理微信分享回调
     if([response isKindOfClass:[SendMessageToWXResp class]]) {
         SendMessageToWXResp *resp = (SendMessageToWXResp *)response;
-        NSLog(@"在局 📤 [微信分享回调] 错误码: %d", resp.errCode);
         
         NSString *resultMessage = @"";
         BOOL shareSuccess = NO;
         
         switch (resp.errCode) {
             case WXSuccess:
-                NSLog(@"在局 ✅ [微信分享] 分享成功");
                 resultMessage = @"分享成功";
                 shareSuccess = YES;
                 break;
             case WXErrCodeCommon:
-                NSLog(@"在局 ❌ [微信分享] 普通错误类型");
                 resultMessage = @"分享失败";
                 break;
             case WXErrCodeUserCancel:
-                NSLog(@"在局 ⚠️ [微信分享] 用户点击取消并返回");
                 resultMessage = @"分享已取消";
                 break;
             case WXErrCodeSentFail:
-                NSLog(@"在局 ❌ [微信分享] 发送失败");
                 resultMessage = @"分享发送失败";
                 break;
             case WXErrCodeAuthDeny:
-                NSLog(@"在局 ❌ [微信分享] 授权失败");
                 resultMessage = @"微信授权失败";
                 break;
             case WXErrCodeUnsupport:
-                NSLog(@"在局 ❌ [微信分享] 微信不支持");
                 resultMessage = @"微信版本过低";
                 break;
             default:
-                NSLog(@"在局 ❌ [微信分享] 未知错误，错误码: %d", resp.errCode);
                 resultMessage = [NSString stringWithFormat:@"分享失败(%d)", resp.errCode];
                 break;
         }
@@ -560,13 +559,11 @@
         return;
     }
     
-    NSLog(@"在局 ⚠️ [微信回调] 未处理的响应类型: %@", NSStringFromClass([response class]));
 }
 
 #pragma mark -  回调
 
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
-    NSLog(@"在局 🔗 [URL回调] 收到URL: %@, scheme: %@, host: %@", url.absoluteString, url.scheme, url.host);
     
     //6.3的新的API调用，是为了兼容国外平台(例如:新版facebookSDK,VK等)的调用[如果用6.2的api调用会没有回调],对国内平台没有影响。
     BOOL result = [[UMSocialManager defaultManager]  handleOpenURL:url options:options];
@@ -597,11 +594,9 @@
 
 
 - (void)getAppInfo {
-    NSLog(@"在局🎯 [AppDelegate] getAppInfo 开始");
     
     // 防止重复初始化
     if (self.hasInitialized || self.isInitializing) {
-        NSLog(@"在局⚠️ [AppDelegate] getAppInfo - 已经初始化或正在初始化，跳过");
         // 如果TabBar已经创建，只需要发送显示通知
         if (self.tabbarVC) {
             [[NSNotificationCenter defaultCenter] postNotificationName:@"showTabviewController" object:nil];
@@ -613,7 +608,6 @@
     
     // 检查窗口是否存在
     if (!self.window) {
-        NSLog(@"在局 getAppInfo - 窗口不存在，放弃初始化");
         self.isInitializing = NO;
         return;
     }
@@ -636,40 +630,29 @@
     self.isInitializing = NO;
     
     // 立即触发TabBar显示通知
-    NSLog(@"在局🎯 [AppDelegate] 发送showTabviewController通知");
     [[NSNotificationCenter defaultCenter] postNotificationName:@"showTabviewController" object:nil];
 }
 
 //获取分享和推送的设置信息
 - (void)getSharePushInfo {
-    // 在后台线程读取文件，避免阻塞主线程
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        NSData *JSONData = [NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"shareInfo" ofType:@"json"]];
-        NSDictionary *dataDic = [NSJSONSerialization JSONObjectWithData:JSONData options:NSJSONReadingAllowFragments error:nil];
+    [self loadConfigurationFile:@"shareInfo" completion:^(NSDictionary *dataDic) {
         self.dataDic = [dataDic objectForKey:@"data"];
-        
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self publicSetting:self.dataDic];
-        });
-    });
+        [self publicSetting:self.dataDic];
+    }];
 }
 
 - (void)reloadByTabbarController {
-    NSLog(@"在局🔄 [AppDelegate] reloadByTabbarController 开始");
     
     // 检查tabbarVC是否存在
     if (!self.tabbarVC) {
-        NSLog(@"在局 reloadByTabbarController - tabbarVC不存在，创建新实例");
         self.tabbarVC = [[XZTabBarController alloc] initWithNibName:nil bundle:nil];
         
         // 确保在主线程设置根视图控制器
         if ([NSThread isMainThread]) {
             self.window.rootViewController = self.tabbarVC;
-            NSLog(@"在局 reloadByTabbarController - 设置TabBar为根视图控制器");
         } else {
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.window.rootViewController = self.tabbarVC;
-                NSLog(@"在局 reloadByTabbarController - 设置TabBar为根视图控制器");
             });
         }
     }
@@ -685,7 +668,6 @@
             if ([strongSelf.tabbarVC respondsToSelector:@selector(reloadTabbarInterface)]) {
                 [strongSelf.tabbarVC reloadTabbarInterface];
             } else {
-                NSLog(@"在局 reloadByTabbarController - tabbarVC没有reloadTabbarInterface方法");
             }
         }
     };
@@ -854,30 +836,24 @@
 
 -(BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray * _Nullable))restorationHandler{
     
-    NSLog(@"在局📱 [Universal Links] 收到用户活动: %@", userActivity.activityType);
     
     // 处理Universal Links
     if ([userActivity.activityType isEqualToString:NSUserActivityTypeBrowsingWeb]) {
         NSURL *url = userActivity.webpageURL;
         if (url) {
-            NSLog(@"在局🔗 [Universal Links] 接收到URL: %@", url.absoluteString);
             
             // 处理Universal Link
             BOOL handled = [self handleUniversalLink:url];
             if (handled) {
-                NSLog(@"在局✅ [Universal Links] URL处理成功");
                 return YES;
             } else {
-                NSLog(@"在局❌ [Universal Links] URL处理失败，将使用Safari打开");
                 return NO;
             }
         } else {
-            NSLog(@"在局⚠️ [Universal Links] URL为空");
             return NO;
         }
     }
     
-    NSLog(@"在局📝 [Universal Links] 非网页活动类型: %@", userActivity.activityType);
     return NO;
 }
 
@@ -886,20 +862,24 @@
  获取网络权限状态
  */
 - (void)networkStatus:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    NSLog(@"在局📡 [AppDelegate] networkStatus 开始检查网络权限");
-    WEAK_SELF;
     if (@available(iOS 9.0, *)) {
-        // 创建一个信号量，确保权限检查完成后再继续
-        dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-        __block BOOL hasReceivedCallback = NO;
-        
-        // 确保在后台线程执行
-        void (^checkBlock)(void) = ^{
-            //2.根据权限执行相应的交互
-            CTCellularData *cellularData = [[CTCellularData alloc] init];
-        /*
-         此函数会在网络权限改变时再次调用
-         */
+        [self checkNetworkPermissionWithApplication:application launchOptions:launchOptions];
+    } else {
+        // iOS 9.0 以下直接初始化
+        [self addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
+    }
+}
+
+// 检查网络权限（iOS 9.0+）
+- (void)checkNetworkPermissionWithApplication:(UIApplication *)application launchOptions:(NSDictionary *)launchOptions {
+    WEAK_SELF;
+    
+    // 创建信号量确保权限检查完成后再继续
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+    __block BOOL hasReceivedCallback = NO;
+    
+    void (^checkBlock)(void) = ^{
+        CTCellularData *cellularData = [[CTCellularData alloc] init];
         cellularData.cellularDataRestrictionDidUpdateNotifier = ^(CTCellularDataRestrictedState state) {
             STRONG_SELF;
             
@@ -909,230 +889,202 @@
                 dispatch_semaphore_signal(semaphore);
             }
             
-            // 防止在短时间内重复弹窗
-            if (self.lastNetworkAlertDate && 
-                [[NSDate date] timeIntervalSinceDate:self.lastNetworkAlertDate] < 30.0) {
-                return;
-            }
-            
-            switch (state) {
-                case kCTCellularDataRestricted: {
-                    NSLog(@"在局⚠️ [AppDelegate] 网络权限受限");
-                    
-                    // 设置标记，表示网络受限
-                    self.networkRestricted = YES;
-                    
-                    // 使用弱引用避免循环引用
-                    __weak typeof(self) weakSelf = self;
-                    
-                    // 只在首次授权时才弹出提示
-                    if ([self isFirstAuthorizationNetwork]) {
-                        // 确保在主线程弹出提示
-                        dispatch_async(dispatch_get_main_queue(), ^{
-                            __strong typeof(weakSelf) strongSelf = weakSelf;
-                            if (!strongSelf) return;
-                            
-                            // 记录弹窗时间
-                            strongSelf.lastNetworkAlertDate = [NSDate date];
-                            strongSelf.hasShownNetworkPermissionAlert = YES;
-                            
-                            [JHSysAlertUtil presentAlertViewWithTitle:@"温馨提示" 
-                                message:@"若要网络功能正常使用,您可以在'设置'中为此应用打开网络权限" 
-                                cancelTitle:@"设置" 
-                                defaultTitle:@"好" 
-                                distinct:NO 
-                                cancel:^{
-                                    NSURL *url = [NSURL URLWithString:UIApplicationOpenSettingsURLString];
-                                    if ([[UIApplication sharedApplication] canOpenURL:url]) {
-                                        if (@available(iOS 10.0, *)) {
-                                            [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
-                                        } else {
-                                            [[UIApplication sharedApplication] openURL:url];
-                                        }
-                                    }
-                                } 
-                                confirm:^{
-                                    // 用户选择"好"，延迟初始化避免立即执行
-                                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                                        __strong typeof(weakSelf) strongSelf2 = weakSelf;
-                                        if (strongSelf2 && strongSelf2.window) {
-                                            [strongSelf2 addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
-                                        }
-                                    });
-                                }];
-                        });
-                    } else {
-                        // 非首次，延迟初始化
-                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                            __strong typeof(weakSelf) strongSelf = weakSelf;
-                            if (strongSelf && strongSelf.window) {
-                                [strongSelf addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
-                            }
-                        });
-                    }
-                    break;
-                }
-                case kCTCellularDataNotRestricted: {
-                    NSLog(@"在局✅ [AppDelegate] 网络权限已开启");
-                    
-                    // 重置标志
-                    self.hasShownNetworkPermissionAlert = NO;
-                    BOOL wasRestricted = self.networkRestricted;
-                    self.networkRestricted = NO;
-                    
-                    __weak typeof(self) weakSelf = self;
-                    // 延迟执行，确保权限状态已经完全更新
-                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                        __strong typeof(weakSelf) strongSelf = weakSelf;
-                        if (strongSelf && strongSelf.window) {
-                            NSLog(@"在局🔧 [AppDelegate] 网络权限恢复处理 - wasRestricted: %@", wasRestricted ? @"YES" : @"NO");
-                            
-                            //2.2已经开启网络权限 监听网络状态 - 无论之前状态如何都要初始化
-                            [strongSelf addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
-                            
-                            // 只有从受限状态恢复时才移除LoadingView
-                            if (wasRestricted && !strongSelf.isLoadingViewRemoved) {
-                                [strongSelf removeGlobalLoadingViewWithReason:@"网络权限从受限恢复"];
-                            }
-                            
-                            // 只有从受限状态恢复时才主动触发首页加载
-                            if (wasRestricted) {
-                                [strongSelf triggerFirstTabLoadIfNeeded];
-                            }
-                            
-                            // 网络权限恢复，强制重新初始化首页
-                            NSLog(@"在局🔥 [AppDelegate] 网络权限恢复，强制重新初始化首页");
-                            
-                            // 发送全局通知，告知所有页面网络权限已恢复
-                            [[NSNotificationCenter defaultCenter] postNotificationName:@"NetworkPermissionRestored" object:nil];
-                            
-                            // 延迟执行，确保UI已经完全准备好
-                            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                                if (strongSelf.tabbarVC) {
-                                    UINavigationController *nav = strongSelf.tabbarVC.viewControllers.firstObject;
-                                    if ([nav isKindOfClass:[UINavigationController class]]) {
-                                        UIViewController *vc = nav.viewControllers.firstObject;
-                                        
-                                        NSLog(@"在局🔍 [AppDelegate] 找到首页控制器: %@", NSStringFromClass([vc class]));
-                                        
-                                        // 多重检查和恢复机制
-                                        if ([vc respondsToSelector:@selector(domainOperate)]) {
-                                            NSLog(@"在局🔄 [AppDelegate] 方法1: 触发domainOperate重新加载");
-                                            [vc performSelector:@selector(domainOperate)];
-                                        }
-                                        
-                                        // 注意：不要调用 [webView reload]
-                                        // 因为WebView是通过loadHTMLString:baseURL:加载的
-                                        // reload会尝试加载baseURL（manifest目录），导致"file is directory"错误
-                                        
-                                        // 最后备用方案：强制重新初始化WebView
-                                        if ([vc respondsToSelector:@selector(reloadWebViewContent)]) {
-                                            NSLog(@"在局🔄 [AppDelegate] 方法3: 调用reloadWebViewContent");
-                                            [vc performSelector:@selector(reloadWebViewContent)];
-                                        }
-                                    }
-                                }
-                            });
-                        }
-                    });
-                    break;
-                }
-                case kCTCellularDataRestrictedStateUnknown: {
-                    NSLog(@"在局❓ [AppDelegate] 网络权限未知");
-                    //2.3未知情况 （还没有遇到推测是有网络但是连接不正常的情况下）
-                    // 不再重复调用getAppInfo，因为已经在启动时调用过了
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        [self addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
-                    });
-                    break;
-                }
-                    
-                default:
-                    break;
-            }
+            [self handleNetworkPermissionState:state application:application launchOptions:launchOptions];
         };
     };
     
     // 执行检查
     checkBlock();
     
-    // 在后台线程等待权限回调，设置超时时间为2秒
+    // 后台线程等待权限回调，超时2秒
+    [self waitForNetworkPermissionWithApplication:application launchOptions:launchOptions semaphore:semaphore];
+}
+
+// 处理网络权限状态
+- (void)handleNetworkPermissionState:(CTCellularDataRestrictedState)state 
+                         application:(UIApplication *)application 
+                       launchOptions:(NSDictionary *)launchOptions {
+    
+    // 防止短时间内重复弹窗
+    if ([self shouldSkipNetworkAlert]) {
+        return;
+    }
+    
+    switch (state) {
+        case kCTCellularDataRestricted:
+            [self handleNetworkRestricted:application launchOptions:launchOptions];
+            break;
+            
+        case kCTCellularDataNotRestricted:
+            [self handleNetworkNotRestricted:application launchOptions:launchOptions];
+            break;
+            
+        case kCTCellularDataRestrictedStateUnknown:
+            [self handleNetworkStateUnknown:application launchOptions:launchOptions];
+            break;
+            
+        default:
+            break;
+    }
+}
+
+// 处理网络受限状态
+- (void)handleNetworkRestricted:(UIApplication *)application launchOptions:(NSDictionary *)launchOptions {
+    self.networkRestricted = YES;
+    
+    if ([self isFirstAuthorizationNetwork]) {
+        [self showNetworkPermissionAlert:application launchOptions:launchOptions];
+    } else {
+        [self delayedInitialization:application launchOptions:launchOptions delay:0.3];
+    }
+}
+
+// 处理网络不受限状态
+- (void)handleNetworkNotRestricted:(UIApplication *)application launchOptions:(NSDictionary *)launchOptions {
+    self.hasShownNetworkPermissionAlert = NO;
+    BOOL wasRestricted = self.networkRestricted;
+    self.networkRestricted = NO;
+    
+    [self delayedInitialization:application launchOptions:launchOptions delay:0.3];
+    
+    // 从受限状态恢复时的特殊处理
+    if (wasRestricted) {
+        [self handleNetworkRecovery];
+    }
+}
+
+// 处理网络状态未知
+- (void)handleNetworkStateUnknown:(UIApplication *)application launchOptions:(NSDictionary *)launchOptions {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
+    });
+}
+
+// 显示网络权限提示弹窗
+- (void)showNetworkPermissionAlert:(UIApplication *)application launchOptions:(NSDictionary *)launchOptions {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.lastNetworkAlertDate = [NSDate date];
+        self.hasShownNetworkPermissionAlert = YES;
+        
+        __weak typeof(self) weakSelf = self;
+        [JHSysAlertUtil presentAlertViewWithTitle:@"温馨提示" 
+            message:@"若要网络功能正常使用,您可以在'设置'中为此应用打开网络权限" 
+            cancelTitle:@"设置" 
+            defaultTitle:@"好" 
+            distinct:NO 
+            cancel:^{
+                [weakSelf openAppSettings];
+            } 
+            confirm:^{
+                [weakSelf delayedInitialization:application launchOptions:launchOptions delay:0.5];
+            }];
+    });
+}
+
+// 网络恢复后的处理
+- (void)handleNetworkRecovery {
+    if (!self.isLoadingViewRemoved) {
+        [self removeGlobalLoadingViewWithReason:@"网络权限从受限恢复"];
+    }
+    
+    [self triggerFirstTabLoadIfNeeded];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"NetworkPermissionRestored" object:nil];
+    
+    // 延迟触发首页重新加载
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self triggerHomePageReload];
+    });
+}
+
+// 延迟初始化
+- (void)delayedInitialization:(UIApplication *)application 
+                launchOptions:(NSDictionary *)launchOptions 
+                        delay:(NSTimeInterval)delay {
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf && strongSelf.window) {
+            [strongSelf addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
+        }
+    });
+}
+
+// 等待网络权限回调
+- (void)waitForNetworkPermissionWithApplication:(UIApplication *)application 
+                                  launchOptions:(NSDictionary *)launchOptions
+                                      semaphore:(dispatch_semaphore_t)semaphore {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC));
         long result = dispatch_semaphore_wait(semaphore, timeout);
         
         if (result != 0) {
             // 超时处理，假设网络权限已开启
-            NSLog(@"在局⏱️ [AppDelegate] 网络权限检查超时，假设权限已开启");
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
             });
         }
     });
-    
-    } // 结束 if (@available(iOS 9.0, *))
+}
+
+// 检查是否应该跳过网络提示
+- (BOOL)shouldSkipNetworkAlert {
+    return self.lastNetworkAlertDate && 
+           [[NSDate date] timeIntervalSinceDate:self.lastNetworkAlertDate] < 30.0;
+}
+
+// 打开应用设置
+- (void)openAppSettings {
+    NSURL *url = [NSURL URLWithString:UIApplicationOpenSettingsURLString];
+    if ([[UIApplication sharedApplication] canOpenURL:url]) {
+        if (@available(iOS 10.0, *)) {
+            [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+        } else {
+            [[UIApplication sharedApplication] openURL:url];
+        }
+    }
+}
+
+// 触发首页重新加载
+- (void)triggerHomePageReload {
+    if (self.tabbarVC) {
+        UINavigationController *nav = self.tabbarVC.viewControllers.firstObject;
+        if ([nav isKindOfClass:[UINavigationController class]]) {
+            UIViewController *vc = nav.viewControllers.firstObject;
+            
+            if ([vc respondsToSelector:@selector(domainOperate)]) {
+                [vc performSelector:@selector(domainOperate)];
+            }
+            
+            if ([vc respondsToSelector:@selector(reloadWebViewContent)]) {
+                [vc performSelector:@selector(reloadWebViewContent)];
+            }
+        }
+    }
 }
 
 /**
  实时检查当前网络状态
  */
 - (void)addReachabilityManager:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    
-    // 防止重复初始化，但如果是网络权限恢复场景则允许重新初始化
-    if (self.mallConfigModel && !self.internetReachability) {
-        NSLog(@"在局🔧 [AppDelegate] mallConfigModel已存在但网络管理器为空，重新初始化");
-        // 继续执行初始化
-    } else if (self.mallConfigModel && self.internetReachability) {
-        NSLog(@"在局ℹ️ [AppDelegate] 网络管理器已初始化，跳过重复初始化");
-        
-        // 检查网络管理器是否在正常工作
-        if (![self.internetReachability isReachable]) {
-            NSLog(@"在局⚠️ [AppDelegate] 网络管理器显示不可达，重新启动监控");
-            [self.internetReachability stopMonitoring];
-            [self.internetReachability startMonitoring];
-        }
+    // 防止重复初始化
+    if (self.isAppConfigured && self.internetReachability) {
+        [self restartNetworkMonitoringIfNeeded];
         return;
     }
     
-    //这个可以放在需要侦听的页面
-    //    [[NSNotificationCenter defaultCenter]addObserver:self selector:@selector(afNetworkStatusChanged:) name:AFNetworkingReachabilityDidChangeNotification object:nil];
-    __weak typeof(self) weakSelf = self;
-    [self.internetReachability setReachabilityStatusChangeBlock:^(AFNetworkReachabilityStatus status) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) return;
-        
-        // 确保在主线程执行
-        dispatch_async(dispatch_get_main_queue(), ^{
-            switch (status) {
-                case AFNetworkReachabilityStatusNotReachable:{
-                    NSLog(@"在局 网络不通：%@",@(status) );
-                    [strongSelf getInfo_application:application didFinishLaunchingWithOptions:launchOptions];
-                    break;
-                }
-                case AFNetworkReachabilityStatusReachableViaWiFi:{
-                    NSLog(@"在局 网络通过WIFI连接：%@",@(status));
-                    if (!strongSelf.mallConfigModel) {
-                        [strongSelf getInfo_application:application didFinishLaunchingWithOptions:launchOptions];
-                    }
-                    break;
-                }
-                case AFNetworkReachabilityStatusReachableViaWWAN:{
-                    NSLog(@"在局 网络通过无线连接：%@",@(status) );
-                    if (!strongSelf.mallConfigModel) {
-                        [strongSelf getInfo_application:application didFinishLaunchingWithOptions:launchOptions];
-                    }
-                    break;
-                }
-                default:
-                    break;
-            }
-        });
-    }];
-    [self.internetReachability startMonitoring];  //开启网络监视器；
+    [self configureNetworkMonitoring:application launchOptions:launchOptions];
+}
+
+// 重启网络监控（如果需要）
+- (void)restartNetworkMonitoringIfNeeded {
+    if (![self.internetReachability isReachable]) {
+        [self.internetReachability stopMonitoring];
+        [self.internetReachability startMonitoring];
+    }
 }
 
 - (void)getInfo_application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    self.mallConfigModel = YES;
+    self.isAppConfigured = YES;
     //获取初始信息
     [self initData];
     WEAK_SELF;
@@ -1188,23 +1140,28 @@
 
 //解析本地appinfo json
 - (void)locAppInfoData {
-    // 将文件读取移到后台线程，避免阻塞主线程
+    [self loadConfigurationFile:@"appInfo" completion:^(NSDictionary *dataDic) {
+        self.appInfoDic = dataDic;
+    }];
+}
+
+// 统一的配置文件加载方法
+- (void)loadConfigurationFile:(NSString *)fileName completion:(void(^)(NSDictionary *dataDic))completion {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSError *error = nil;
-        NSData *JSONData = [NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"appInfo" ofType:@"json"]];
+        NSData *JSONData = [NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:fileName ofType:@"json"]];
+        
         if (!JSONData) {
-            NSLog(@"在局 locAppInfoData - 无法读取appInfo.json文件");
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (completion) completion(nil);
+            });
             return;
         }
         
         NSDictionary *dataDic = [NSJSONSerialization JSONObjectWithData:JSONData options:NSJSONReadingAllowFragments error:&error];
-        if (error) {
-            NSLog(@"在局 locAppInfoData - JSON解析错误: %@", error.localizedDescription);
-            return;
-        }
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            self.appInfoDic = dataDic;
+            if (completion) completion(error ? nil : dataDic);
         });
     });
 }
@@ -1223,10 +1180,8 @@
 
 // 修复权限授予后首页空白问题 - 检查并触发第一个Tab加载
 - (void)triggerFirstTabLoadIfNeeded {
-    NSLog(@"在局 🔍 [AppDelegate] 检查首页是否需要加载");
     
     if (!self.tabbarVC) {
-        NSLog(@"在局 ⚠️ [AppDelegate] TabBarController不存在，跳过");
         return;
     }
     
@@ -1251,14 +1206,11 @@
                         static NSDate *lastTriggerTime = nil;
                         NSDate *now = [NSDate date];
                         if (!lastTriggerTime || [now timeIntervalSinceDate:lastTriggerTime] > 3.0) {
-                            NSLog(@"在局 🚨 [AppDelegate] 检测到首页未加载，主动触发加载");
                             [rootVC performSelector:@selector(domainOperate)];
                             lastTriggerTime = now;
                         } else {
-                            NSLog(@"在局 ⏳ [AppDelegate] 触发过于频繁，跳过此次调用");
                         }
                     } else {
-                        NSLog(@"在局 ✅ [AppDelegate] 首页已加载或正在加载中");
                     }
                 }
             }
@@ -1318,38 +1270,30 @@
  * @return 是否成功处理
  */
 - (BOOL)handleUniversalLink:(NSURL *)url {
-    NSLog(@"在局🔄 [Universal Links] 开始解析URL: %@", url.absoluteString);
     
     // 验证域名
     NSString *host = url.host;
     if (![host isEqualToString:@"zaiju.com"] && ![host isEqualToString:@"hi3.tuiya.cc"]) {
-        NSLog(@"在局❌ [Universal Links] 不支持的域名: %@", host);
         return NO;
     }
     
     // 解析路径
     NSString *path = url.path;
-    NSLog(@"在局📍 [Universal Links] 解析路径: %@", path);
     
     // 检查是否是微信回调，如果是则转换为URL Scheme调用
     // 匹配所有微信回调：/app/wx开头且包含微信AppID的路径都是微信回调
     NSString *wxAppID = [[PublicSettingModel sharedInstance] weiXin_AppID];
     if ([path hasPrefix:@"/app/wx"] && wxAppID && [path containsString:wxAppID]) {
-        NSLog(@"在局🔄 [Universal Links] 检测到微信回调URL，转换为URL Scheme处理: %@", path);
         
         // 直接使用原始URL调用微信SDK，因为微信SDK内部会处理Universal Link
-        NSLog(@"在局🔄 [Universal Links] 直接使用原始URL调用微信SDK: %@", url.absoluteString);
-        
         // 手动调用微信SDK处理Universal Link
         dispatch_async(dispatch_get_main_queue(), ^{
             NSUserActivity *userActivity = [[NSUserActivity alloc] initWithActivityType:NSUserActivityTypeBrowsingWeb];
             userActivity.webpageURL = url;
             
             BOOL handled = [WXApi handleOpenUniversalLink:userActivity delegate:self];
-            NSLog(@"在局🔄 [Universal Links] 微信SDK处理结果: %@", handled ? @"成功" : @"失败");
             
             if (!handled) {
-                NSLog(@"在局🔄 [Universal Links] 微信SDK处理失败，尝试URL Scheme方式");
                 // 如果Universal Link处理失败，回退到URL Scheme
                 NSString *wxScheme = [NSString stringWithFormat:@"%@://platformapi/startapp", wxAppID];
                 if (url.query && url.query.length > 0) {
@@ -1368,7 +1312,6 @@
         return [self handleAppPath:path withQuery:url.query];
     }
     
-    NSLog(@"在局⚠️ [Universal Links] 不支持的路径格式: %@", path);
     return NO;
 }
 
@@ -1379,7 +1322,6 @@
  * @return 是否成功处理
  */
 - (BOOL)handleAppPath:(NSString *)path withQuery:(NSString *)query {
-    NSLog(@"在局🎯 [Universal Links] 处理App路径: %@, 查询参数: %@", path, query);
     
     // 移除/app/前缀
     NSString *appPath = [path substringFromIndex:5]; // 移除"/app/"
@@ -1418,7 +1360,6 @@
         }
     }
     
-    NSLog(@"在局📝 [Universal Links] 解析查询参数: %@", params);
     return params;
 }
 
@@ -1428,11 +1369,9 @@
  * @param params 参数字典
  */
 - (void)navigateToPath:(NSArray *)pathComponents withParams:(NSDictionary *)params {
-    NSLog(@"在局🧭 [Universal Links] 开始导航 - 路径组件: %@, 参数: %@", pathComponents, params);
     
     // 确保TabBar控制器存在
     if (!self.tabbarVC) {
-        NSLog(@"在局❌ [Universal Links] TabBar控制器不存在");
         return;
     }
     
@@ -1448,7 +1387,6 @@
         fullPath = [fullPath stringByAppendingFormat:@"?%@", [queryPairs componentsJoinedByString:@"&"]];
     }
     
-    NSLog(@"在局🎯 [Universal Links] 最终路径: %@", fullPath);
     
     // 通知WebView处理路由
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1461,7 +1399,6 @@
  * @param path 完整路径
  */
 - (void)notifyWebViewWithPath:(NSString *)path {
-    NSLog(@"在局📡 [Universal Links] 通知WebView处理路径: %@", path);
     
     // 发送通知给当前活跃的WebView控制器
     [[NSNotificationCenter defaultCenter] postNotificationName:@"UniversalLinkNavigation" 
@@ -1470,7 +1407,6 @@
     
     // 如果app在后台，需要激活到前台
     if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive) {
-        NSLog(@"在局🔄 [Universal Links] App不在前台，正在激活");
     }
 }
 
@@ -1478,11 +1414,9 @@
 
 - (void)showGlobalLoadingView {
     if (self.globalLoadingView || self.isLoadingViewRemoved) {
-        NSLog(@"在局 ⚠️ [LoadingView管理] LoadingView已存在或已被移除，跳过创建");
         return;
     }
     
-    NSLog(@"在局 🎯 [LoadingView管理] 创建全局LoadingView");
     LoadingView *loadingView = [[LoadingView alloc] initWithFrame:self.window.bounds];
     loadingView.tag = 2001;
     [self.window addSubview:loadingView];
@@ -1491,16 +1425,11 @@
     self.globalLoadingView = loadingView;
     self.isLoadingViewRemoved = NO;
     
-    NSLog(@"在局 ✅ [LoadingView管理] 全局LoadingView创建完成");
 }
 
 - (void)removeGlobalLoadingViewWithReason:(NSString *)reason {
-    NSLog(@"在局 🎯 [LoadingView管理] 请求移除LoadingView，原因: %@", reason);
-    NSLog(@"在局 🎯 [LoadingView管理] 当前时间: %@", [NSDate date]);
-    NSLog(@"在局 🎯 [LoadingView管理] 当前线程: %@", [NSThread isMainThread] ? @"主线程" : @"非主线程");
     
     if (self.isLoadingViewRemoved) {
-        NSLog(@"在局 ⚠️ [LoadingView管理] LoadingView已被移除，跳过");
         return;
     }
     
@@ -1509,7 +1438,6 @@
     
     UIView *loadingView = [self findGlobalLoadingView];
     if (loadingView) {
-        NSLog(@"在局 🎯 [LoadingView管理] 找到LoadingView，开始移除动画");
         
         dispatch_async(dispatch_get_main_queue(), ^{
             [UIView animateWithDuration:0.3 animations:^{
@@ -1517,41 +1445,48 @@
             } completion:^(BOOL finished) {
                 [loadingView removeFromSuperview];
                 self.globalLoadingView = nil;
-                NSLog(@"在局 ✅ [LoadingView管理] LoadingView移除完成，原因: %@", reason);
             }];
         });
     } else {
-        NSLog(@"在局 ❌ [LoadingView管理] 未找到LoadingView，可能已被移除");
         self.globalLoadingView = nil;
     }
 }
 
 - (UIView *)findGlobalLoadingView {
+    return [self findViewWithTag:2001 cacheInProperty:@"globalLoadingView"];
+}
+
+// 统一的视图查找方法
+- (UIView *)findViewWithTag:(NSInteger)tag cacheInProperty:(NSString *)propertyName {
     // 优先返回缓存的引用
-    if (self.globalLoadingView && self.globalLoadingView.superview) {
-        return self.globalLoadingView;
+    if (propertyName) {
+        UIView *cachedView = [self valueForKey:propertyName];
+        if (cachedView && cachedView.superview) {
+            return cachedView;
+        }
     }
     
-    // 在所有窗口中查找
-    UIView *loadingView = [[UIApplication sharedApplication].keyWindow viewWithTag:2001];
-    if (loadingView) {
-        self.globalLoadingView = loadingView;
-        return loadingView;
+    // 在keyWindow中查找
+    UIView *targetView = [[UIApplication sharedApplication].keyWindow viewWithTag:tag];
+    if (targetView) {
+        if (propertyName) [self setValue:targetView forKey:propertyName];
+        return targetView;
     }
     
-    loadingView = [self.window viewWithTag:2001];
-    if (loadingView) {
-        self.globalLoadingView = loadingView;
-        return loadingView;
+    // 在delegate的window中查找
+    targetView = [self.window viewWithTag:tag];
+    if (targetView) {
+        if (propertyName) [self setValue:targetView forKey:propertyName];
+        return targetView;
     }
     
     // 在所有window中查找
     NSArray *windows = [UIApplication sharedApplication].windows;
     for (UIWindow *window in windows) {
-        loadingView = [window viewWithTag:2001];
-        if (loadingView) {
-            self.globalLoadingView = loadingView;
-            return loadingView;
+        targetView = [window viewWithTag:tag];
+        if (targetView) {
+            if (propertyName) [self setValue:targetView forKey:propertyName];
+            return targetView;
         }
     }
     

@@ -42,7 +42,6 @@
         
         [self setupBaseConfiguration];
         
-        NSLog(@"在局🚀 [WebView性能管理器] 初始化完成");
     }
     return self;
 }
@@ -139,7 +138,6 @@
                     [self.webViewPool addObject:webView];
                 });
             }
-            NSLog(@"在局🚀 [WebView性能管理器] 预热WebView池完成，当前池大小: %lu", (unsigned long)self.webViewPool.count);
         });
         
         // 预加载常用JavaScript框架
@@ -164,7 +162,6 @@
         // 5秒后销毁
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [preloadWebView stopLoading];
-            NSLog(@"在局🚀 [WebView性能管理器] 预加载资源完成");
         });
     });
 }
@@ -176,7 +173,6 @@
         if (self.webViewPool.count > 0) {
             webView = [self.webViewPool firstObject];
             [self.webViewPool removeObjectAtIndex:0];
-            NSLog(@"在局♻️ [WebView性能管理器] 从池中获取WebView，剩余: %lu", (unsigned long)self.webViewPool.count);
         }
     });
     
@@ -184,7 +180,6 @@
         // 池中没有可用的，创建新的
         webView = [[WKWebView alloc] initWithFrame:CGRectZero
                                       configuration:[self optimizedConfiguration]];
-        NSLog(@"在局🆕 [WebView性能管理器] 创建新的WebView");
     }
     
     // 异步补充池
@@ -211,9 +206,7 @@
     dispatch_sync(self.poolQueue, ^{
         if (self.webViewPool.count < 3) { // 最多保留3个
             [self.webViewPool addObject:webView];
-            NSLog(@"在局♻️ [WebView性能管理器] 回收WebView到池中，当前池大小: %lu", (unsigned long)self.webViewPool.count);
         } else {
-            NSLog(@"在局🗑 [WebView性能管理器] 池已满，丢弃WebView");
         }
     });
 }
@@ -226,7 +219,6 @@
         [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:websiteDataTypes
                                                     modifiedSince:dateFrom
                                                 completionHandler:^{
-            NSLog(@"在局🧹 [WebView性能管理器] 清理缓存完成");
             if (completion) {
                 dispatch_async(dispatch_get_main_queue(), completion);
             }

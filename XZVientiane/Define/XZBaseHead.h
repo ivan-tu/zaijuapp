@@ -11,7 +11,6 @@
 //银联支付的环境 "00"代表正式环境，"01"代表测试环境
 #define kMode_Development @"00"
 
-// NSLog(@"在局 🔧 [XZBaseHead] 清理Release版本中的NSLog调试日志");
 // 条件编译NSLog - Release版本禁用调试日志
 #ifdef DEBUG
     #define ZJLog(...) NSLog(__VA_ARGS__)
@@ -43,7 +42,6 @@
 
 #define Domain @"https://zaiju.com"
 #define UploadDomain @"https://zaiju.com"
-// NSLog(@"在局 🔧 [XZBaseHead] 优化ATS配置 - 仅对必要域名配置例外完成");
 //响站请求id
 #define AppId @"xiangzhan$ios$g8u9t60p"
 #define AppSecret @"$yas6WwyP7By9agE"
