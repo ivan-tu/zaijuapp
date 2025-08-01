@@ -88,7 +88,7 @@
 
 - (void)handleSaveImage:(id)data controller:(UIViewController *)controller callback:(JSActionCallbackBlock)callback {
     PHAuthorizationStatus author = [PHPhotoLibrary authorizationStatus];
-    if (author == kCLAuthorizationStatusRestricted || author == kCLAuthorizationStatusDenied) {
+    if (author == PHAuthorizationStatusRestricted || author == PHAuthorizationStatusDenied) {
         NSString *tips = @"请在设备的设置-隐私-照片选项中，允许应用访问你的照片";
         [JHSysAlertUtil presentAlertViewWithTitle:@"温馨提示" message:tips confirmTitle:@"确定" handler:nil];
         return;

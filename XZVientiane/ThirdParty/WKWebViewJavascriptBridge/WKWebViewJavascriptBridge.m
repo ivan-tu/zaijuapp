@@ -134,7 +134,10 @@
 }
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
-    if (webView != _webView) { return; }
+    if (webView != _webView) { 
+        decisionHandler(WKNavigationActionPolicyAllow);
+        return; 
+    }
     NSURL *url = navigationAction.request.URL;
     __strong typeof(_webViewDelegate) strongDelegate = _webViewDelegate;
 

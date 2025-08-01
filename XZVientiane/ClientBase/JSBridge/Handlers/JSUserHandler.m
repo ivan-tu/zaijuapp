@@ -9,8 +9,8 @@
 #import "CFJClientH5Controller.h"
 #import "HTMLCache.h"
 #import "WKWebView+XZAddition.h"
-// TODO: 需要在Xcode中添加XZAuthenticationManager文件
-// #import "XZAuthenticationManager.h"
+#import "UITabBar+badge.h"
+#import "XZAuthenticationManager.h"
 
 @implementation JSUserHandler
 
@@ -48,8 +48,6 @@
         [cfController RequestWithJsDic:dataDic type:@"1"];
     }
     
-    // TODO: 需要在Xcode中添加XZAuthenticationManager文件后启用
-    /*
     // 创建用户信息对象
     XZUserInfo *userInfo = [[XZUserInfo alloc] init];
     
@@ -97,7 +95,6 @@
             NSLog(@"在局❌ [用户登录] 登录失败: %@", errorMessage);
         }
     }];
-    */
     
     // 临时保留原有逻辑
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"isLogin"];
@@ -107,8 +104,8 @@
     [[HTMLCache sharedCache] removeAllCache];
     
     // 处理IM数据
-    NSDictionary *imData = [dataDic objectForKey:@"imData"];
-    if (imData) {
+    NSDictionary *loginImData = [dataDic objectForKey:@"imData"];
+    if (loginImData) {
         // 这里可以处理IM相关的用户信息
     }
     
@@ -137,8 +134,6 @@
         [cfController RequestWithJsDic:dataDic type:@"2"];
     }
     
-    // TODO: 需要在Xcode中添加XZAuthenticationManager文件后启用
-    /*
     // 使用统一的认证管理器退出登录
     [[XZAuthenticationManager sharedManager] logoutWithCompletion:^(BOOL success, NSString *errorMessage) {
         if (success) {
@@ -169,7 +164,6 @@
             NSLog(@"在局❌ [用户退出] 退出登录失败: %@", errorMessage);
         }
     }];
-    */
     
     // 临时保留原有逻辑
     [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"isLogin"];
@@ -180,14 +174,17 @@
     [WKWebView cookieDeleteAllCookie];
     
     // 重置所有tab页面到初始状态
-    if ([controller isKindOfClass:[CFJClientH5Controller class]]) {
+    if ([controller isKindOfClass:[CFJClientH5Controller class]] && 
+        [controller respondsToSelector:@selector(resetAllTabsToInitialState)]) {
         CFJClientH5Controller *cfController = (CFJClientH5Controller *)controller;
         [cfController resetAllTabsToInitialState];
     }
     
     // 隐藏底部角标
     dispatch_async(dispatch_get_main_queue(), ^{
-        [controller.tabBarController.tabBar hideBadgeOnItemIndex:3];
+        if (controller.tabBarController && controller.tabBarController.tabBar) {
+            [controller.tabBarController.tabBar hideBadgeOnItemIndex:3];
+        }
     });
     
     [[NSUserDefaults standardUserDefaults] setInteger:0 forKey:@"clinetMessageNum"];

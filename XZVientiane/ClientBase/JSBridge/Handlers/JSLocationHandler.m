@@ -53,7 +53,7 @@
 }
 
 - (NSArray<NSString *> *)supportedActions {
-    return @[@"getLocation", @"selectLocation", @"selectLocationCity"];
+    return @[@"getLocation", @"selectLocation", @"selectLocationCity", @"showLocation"];
 }
 
 - (void)handleAction:(NSString *)action 
@@ -69,6 +69,8 @@
         [self handleSelectLocation:controller callback:callback];
     } else if ([action isEqualToString:@"selectLocationCity"]) {
         [self handleSelectLocationCity:controller callback:callback];
+    } else if ([action isEqualToString:@"showLocation"]) {
+        [self handleShowLocation:data controller:controller callback:callback];
     }
 }
 
@@ -512,7 +514,7 @@
             // iOS 14+ 检查精确定位权限
             if (@available(iOS 14.0, *)) {
                 CLAccuracyAuthorization accuracyAuth = [CLLocationManager new].accuracyAuthorization;
-                if (accuracyAuth == kCLAccuracyAuthorizationReducedAccuracy) {
+                if (accuracyAuth == CLAccuracyAuthorizationReducedAccuracy) {
                     NSLog(@"在局⚠️ [定位权限] iOS 14+ 精确定位权限受限，将使用模糊定位");
                 } else {
                     NSLog(@"在局✅ [定位权限] iOS 14+ 精确定位权限已授予");
@@ -522,6 +524,16 @@
             return YES;
         default:
             return NO;
+    }
+}
+
+#pragma mark - 显示位置
+
+- (void)handleShowLocation:(id)data controller:(UIViewController *)controller callback:(JSActionCallbackBlock)callback {
+    // 实现显示地图位置
+    // showLocation 通常用于在地图上显示某个位置，但在当前实现中只是简单返回成功
+    if (callback) {
+        callback([self formatCallbackResponse:@"showLocation" data:@{} success:YES errorMessage:nil]);
     }
 }
 

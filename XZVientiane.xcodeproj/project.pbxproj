@@ -10,6 +10,25 @@
 		2C09ADB62E2CC1960066854C /* WKWebViewJavascriptBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C09ADB52E2CC1960066854C /* WKWebViewJavascriptBridge.m */; };
 		2C09ADB72E2CC1960066854C /* WebViewJavascriptBridge_JS.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C09ADB12E2CC1960066854C /* WebViewJavascriptBridge_JS.m */; };
 		2C09ADB82E2CC1960066854C /* WebViewJavascriptBridgeBase.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C09ADB32E2CC1960066854C /* WebViewJavascriptBridgeBase.m */; };
+		2C14C37F2E3BAD2C00765E0F /* JSMediaHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C36A2E3BAD2C00765E0F /* JSMediaHandler.m */; };
+		2C14C3802E3BAD2C00765E0F /* JSLocationHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3682E3BAD2C00765E0F /* JSLocationHandler.m */; };
+		2C14C3812E3BAD2C00765E0F /* JSShareHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3742E3BAD2C00765E0F /* JSShareHandler.m */; };
+		2C14C3822E3BAD2C00765E0F /* JSFileHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3662E3BAD2C00765E0F /* JSFileHandler.m */; };
+		2C14C3832E3BAD2C00765E0F /* JSMiscHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C36E2E3BAD2C00765E0F /* JSMiscHandler.m */; };
+		2C14C3842E3BAD2C00765E0F /* JSUIHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3762E3BAD2C00765E0F /* JSUIHandler.m */; };
+		2C14C3852E3BAD2C00765E0F /* JSMessageHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C36C2E3BAD2C00765E0F /* JSMessageHandler.m */; };
+		2C14C3862E3BAD2C00765E0F /* JSPaymentHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3722E3BAD2C00765E0F /* JSPaymentHandler.m */; };
+		2C14C3872E3BAD2C00765E0F /* JSUserHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3782E3BAD2C00765E0F /* JSUserHandler.m */; };
+		2C14C3882E3BAD2C00765E0F /* JSDeviceHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3642E3BAD2C00765E0F /* JSDeviceHandler.m */; };
+		2C14C3892E3BAD2C00765E0F /* JSActionHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C37B2E3BAD2C00765E0F /* JSActionHandler.m */; };
+		2C14C38A2E3BAD2C00765E0F /* JSActionHandlerManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C37D2E3BAD2C00765E0F /* JSActionHandlerManager.m */; };
+		2C14C38B2E3BAD2C00765E0F /* JSNavigationHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3702E3BAD2C00765E0F /* JSNavigationHandler.m */; };
+		2C14C3992E3BB05900765E0F /* XZWebViewPerformanceManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3962E3BB05900765E0F /* XZWebViewPerformanceManager.m */; };
+		2C14C39A2E3BB05900765E0F /* XZErrorCodeManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3902E3BB05900765E0F /* XZErrorCodeManager.m */; };
+		2C14C39B2E3BB05900765E0F /* XZiOSVersionManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C3932E3BB05900765E0F /* XZiOSVersionManager.m */; };
+		2C14C39C2E3BB05900765E0F /* XZAuthenticationManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C38D2E3BB05900765E0F /* XZAuthenticationManager.m */; };
+		2C14C4292E3C709300765E0F /* JSNetworkHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C4262E3C709300765E0F /* JSNetworkHandler.m */; };
+		2C14C42A2E3C709300765E0F /* JSPageLifecycleHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C14C4282E3C709300765E0F /* JSPageLifecycleHandler.m */; };
 		2CECB7742E24989F0038FFFE /* XZWKWebViewBaseController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CECB7732E24989F0038FFFE /* XZWKWebViewBaseController.m */; };
 		2CECB77A2E24994D0038FFFE /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2CECB7792E24994D0038FFFE /* WebKit.framework */; };
 		A50230C1201EB8880059C305 /* Reachability.m in Sources */ = {isa = PBXBuildFile; fileRef = A50230BF201EB8870059C305 /* Reachability.m */; };
@@ -239,6 +258,44 @@
 		2C09ADB32E2CC1960066854C /* WebViewJavascriptBridgeBase.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WebViewJavascriptBridgeBase.m; sourceTree = "<group>"; };
 		2C09ADB42E2CC1960066854C /* WKWebViewJavascriptBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKWebViewJavascriptBridge.h; sourceTree = "<group>"; };
 		2C09ADB52E2CC1960066854C /* WKWebViewJavascriptBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WKWebViewJavascriptBridge.m; sourceTree = "<group>"; };
+		2C14C3632E3BAD2C00765E0F /* JSDeviceHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSDeviceHandler.h; sourceTree = "<group>"; };
+		2C14C3642E3BAD2C00765E0F /* JSDeviceHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSDeviceHandler.m; sourceTree = "<group>"; };
+		2C14C3652E3BAD2C00765E0F /* JSFileHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSFileHandler.h; sourceTree = "<group>"; };
+		2C14C3662E3BAD2C00765E0F /* JSFileHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSFileHandler.m; sourceTree = "<group>"; };
+		2C14C3672E3BAD2C00765E0F /* JSLocationHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSLocationHandler.h; sourceTree = "<group>"; };
+		2C14C3682E3BAD2C00765E0F /* JSLocationHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSLocationHandler.m; sourceTree = "<group>"; };
+		2C14C3692E3BAD2C00765E0F /* JSMediaHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSMediaHandler.h; sourceTree = "<group>"; };
+		2C14C36A2E3BAD2C00765E0F /* JSMediaHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSMediaHandler.m; sourceTree = "<group>"; };
+		2C14C36B2E3BAD2C00765E0F /* JSMessageHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSMessageHandler.h; sourceTree = "<group>"; };
+		2C14C36C2E3BAD2C00765E0F /* JSMessageHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSMessageHandler.m; sourceTree = "<group>"; };
+		2C14C36D2E3BAD2C00765E0F /* JSMiscHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSMiscHandler.h; sourceTree = "<group>"; };
+		2C14C36E2E3BAD2C00765E0F /* JSMiscHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSMiscHandler.m; sourceTree = "<group>"; };
+		2C14C36F2E3BAD2C00765E0F /* JSNavigationHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSNavigationHandler.h; sourceTree = "<group>"; };
+		2C14C3702E3BAD2C00765E0F /* JSNavigationHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSNavigationHandler.m; sourceTree = "<group>"; };
+		2C14C3712E3BAD2C00765E0F /* JSPaymentHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSPaymentHandler.h; sourceTree = "<group>"; };
+		2C14C3722E3BAD2C00765E0F /* JSPaymentHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSPaymentHandler.m; sourceTree = "<group>"; };
+		2C14C3732E3BAD2C00765E0F /* JSShareHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSShareHandler.h; sourceTree = "<group>"; };
+		2C14C3742E3BAD2C00765E0F /* JSShareHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSShareHandler.m; sourceTree = "<group>"; };
+		2C14C3752E3BAD2C00765E0F /* JSUIHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSUIHandler.h; sourceTree = "<group>"; };
+		2C14C3762E3BAD2C00765E0F /* JSUIHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSUIHandler.m; sourceTree = "<group>"; };
+		2C14C3772E3BAD2C00765E0F /* JSUserHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSUserHandler.h; sourceTree = "<group>"; };
+		2C14C3782E3BAD2C00765E0F /* JSUserHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSUserHandler.m; sourceTree = "<group>"; };
+		2C14C37A2E3BAD2C00765E0F /* JSActionHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSActionHandler.h; sourceTree = "<group>"; };
+		2C14C37B2E3BAD2C00765E0F /* JSActionHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSActionHandler.m; sourceTree = "<group>"; };
+		2C14C37C2E3BAD2C00765E0F /* JSActionHandlerManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSActionHandlerManager.h; sourceTree = "<group>"; };
+		2C14C37D2E3BAD2C00765E0F /* JSActionHandlerManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSActionHandlerManager.m; sourceTree = "<group>"; };
+		2C14C38C2E3BB05900765E0F /* XZAuthenticationManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XZAuthenticationManager.h; sourceTree = "<group>"; };
+		2C14C38D2E3BB05900765E0F /* XZAuthenticationManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = XZAuthenticationManager.m; sourceTree = "<group>"; };
+		2C14C38F2E3BB05900765E0F /* XZErrorCodeManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XZErrorCodeManager.h; sourceTree = "<group>"; };
+		2C14C3902E3BB05900765E0F /* XZErrorCodeManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = XZErrorCodeManager.m; sourceTree = "<group>"; };
+		2C14C3922E3BB05900765E0F /* XZiOSVersionManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XZiOSVersionManager.h; sourceTree = "<group>"; };
+		2C14C3932E3BB05900765E0F /* XZiOSVersionManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = XZiOSVersionManager.m; sourceTree = "<group>"; };
+		2C14C3952E3BB05900765E0F /* XZWebViewPerformanceManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XZWebViewPerformanceManager.h; sourceTree = "<group>"; };
+		2C14C3962E3BB05900765E0F /* XZWebViewPerformanceManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = XZWebViewPerformanceManager.m; sourceTree = "<group>"; };
+		2C14C4252E3C709300765E0F /* JSNetworkHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSNetworkHandler.h; sourceTree = "<group>"; };
+		2C14C4262E3C709300765E0F /* JSNetworkHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSNetworkHandler.m; sourceTree = "<group>"; };
+		2C14C4272E3C709300765E0F /* JSPageLifecycleHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSPageLifecycleHandler.h; sourceTree = "<group>"; };
+		2C14C4282E3C709300765E0F /* JSPageLifecycleHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = JSPageLifecycleHandler.m; sourceTree = "<group>"; };
 		2CECB7722E24989F0038FFFE /* XZWKWebViewBaseController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XZWKWebViewBaseController.h; sourceTree = "<group>"; };
 		2CECB7732E24989F0038FFFE /* XZWKWebViewBaseController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = XZWKWebViewBaseController.m; sourceTree = "<group>"; };
 		2CECB7792E24994D0038FFFE /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
@@ -648,6 +705,98 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2C14C3792E3BAD2C00765E0F /* Handlers */ = {
+			isa = PBXGroup;
+			children = (
+				2C14C4252E3C709300765E0F /* JSNetworkHandler.h */,
+				2C14C4262E3C709300765E0F /* JSNetworkHandler.m */,
+				2C14C4272E3C709300765E0F /* JSPageLifecycleHandler.h */,
+				2C14C4282E3C709300765E0F /* JSPageLifecycleHandler.m */,
+				2C14C3632E3BAD2C00765E0F /* JSDeviceHandler.h */,
+				2C14C3642E3BAD2C00765E0F /* JSDeviceHandler.m */,
+				2C14C3652E3BAD2C00765E0F /* JSFileHandler.h */,
+				2C14C3662E3BAD2C00765E0F /* JSFileHandler.m */,
+				2C14C3672E3BAD2C00765E0F /* JSLocationHandler.h */,
+				2C14C3682E3BAD2C00765E0F /* JSLocationHandler.m */,
+				2C14C3692E3BAD2C00765E0F /* JSMediaHandler.h */,
+				2C14C36A2E3BAD2C00765E0F /* JSMediaHandler.m */,
+				2C14C36B2E3BAD2C00765E0F /* JSMessageHandler.h */,
+				2C14C36C2E3BAD2C00765E0F /* JSMessageHandler.m */,
+				2C14C36D2E3BAD2C00765E0F /* JSMiscHandler.h */,
+				2C14C36E2E3BAD2C00765E0F /* JSMiscHandler.m */,
+				2C14C36F2E3BAD2C00765E0F /* JSNavigationHandler.h */,
+				2C14C3702E3BAD2C00765E0F /* JSNavigationHandler.m */,
+				2C14C3712E3BAD2C00765E0F /* JSPaymentHandler.h */,
+				2C14C3722E3BAD2C00765E0F /* JSPaymentHandler.m */,
+				2C14C3732E3BAD2C00765E0F /* JSShareHandler.h */,
+				2C14C3742E3BAD2C00765E0F /* JSShareHandler.m */,
+				2C14C3752E3BAD2C00765E0F /* JSUIHandler.h */,
+				2C14C3762E3BAD2C00765E0F /* JSUIHandler.m */,
+				2C14C3772E3BAD2C00765E0F /* JSUserHandler.h */,
+				2C14C3782E3BAD2C00765E0F /* JSUserHandler.m */,
+			);
+			path = Handlers;
+			sourceTree = "<group>";
+		};
+		2C14C37E2E3BAD2C00765E0F /* JSBridge */ = {
+			isa = PBXGroup;
+			children = (
+				2C14C3792E3BAD2C00765E0F /* Handlers */,
+				2C14C37A2E3BAD2C00765E0F /* JSActionHandler.h */,
+				2C14C37B2E3BAD2C00765E0F /* JSActionHandler.m */,
+				2C14C37C2E3BAD2C00765E0F /* JSActionHandlerManager.h */,
+				2C14C37D2E3BAD2C00765E0F /* JSActionHandlerManager.m */,
+			);
+			path = JSBridge;
+			sourceTree = "<group>";
+		};
+		2C14C38E2E3BB05900765E0F /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				2C14C38C2E3BB05900765E0F /* XZAuthenticationManager.h */,
+				2C14C38D2E3BB05900765E0F /* XZAuthenticationManager.m */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		2C14C3912E3BB05900765E0F /* ErrorCode */ = {
+			isa = PBXGroup;
+			children = (
+				2C14C38F2E3BB05900765E0F /* XZErrorCodeManager.h */,
+				2C14C3902E3BB05900765E0F /* XZErrorCodeManager.m */,
+			);
+			path = ErrorCode;
+			sourceTree = "<group>";
+		};
+		2C14C3942E3BB05900765E0F /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				2C14C3922E3BB05900765E0F /* XZiOSVersionManager.h */,
+				2C14C3932E3BB05900765E0F /* XZiOSVersionManager.m */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		2C14C3972E3BB05900765E0F /* WebView */ = {
+			isa = PBXGroup;
+			children = (
+				2C14C3952E3BB05900765E0F /* XZWebViewPerformanceManager.h */,
+				2C14C3962E3BB05900765E0F /* XZWebViewPerformanceManager.m */,
+			);
+			path = WebView;
+			sourceTree = "<group>";
+		};
+		2C14C3982E3BB05900765E0F /* Common */ = {
+			isa = PBXGroup;
+			children = (
+				2C14C38E2E3BB05900765E0F /* Auth */,
+				2C14C3912E3BB05900765E0F /* ErrorCode */,
+				2C14C3942E3BB05900765E0F /* Utilities */,
+				2C14C3972E3BB05900765E0F /* WebView */,
+			);
+			path = Common;
+			sourceTree = "<group>";
+		};
 		A505CACA1FDE2C2000FBD4A3 /* BaseModel */ = {
 			isa = PBXGroup;
 			children = (
@@ -902,6 +1051,7 @@
 		A5550D1E1FB9A94000B010C4 /* XZVientiane */ = {
 			isa = PBXGroup;
 			children = (
+				2C14C3982E3BB05900765E0F /* Common */,
 				A588A7D423216727005CA94B /* manifest */,
 				A5FD2F7A202D6A3D003CB2EC /* XZVientiane.entitlements */,
 				A5550D511FB9A95D00B010C4 /* AppDelegate */,
@@ -1019,6 +1169,7 @@
 		A5550D581FB9AA1C00B010C4 /* ClientBase */ = {
 			isa = PBXGroup;
 			children = (
+				2C14C37E2E3BAD2C00765E0F /* JSBridge */,
 				A505CD4A1FDE329B00FBD4A3 /* BaseManager */,
 				A505CD421FDE309200FBD4A3 /* BaseModel */,
 				A505CD371FDE305100FBD4A3 /* BaseDefine */,
@@ -1718,6 +1869,8 @@
 				A505CDED1FDE631800FBD4A3 /* XZTabBarController.m in Sources */,
 				A508737B2484E355005AF8B8 /* SCIndexView.m in Sources */,
 				A508736B2484E30E005AF8B8 /* JFAreaDataManager.m in Sources */,
+				2C14C4292E3C709300765E0F /* JSNetworkHandler.m in Sources */,
+				2C14C42A2E3C709300765E0F /* JSPageLifecycleHandler.m in Sources */,
 				A5E2AEA2210FF68A006C0DE3 /* LBLoadingView.m in Sources */,
 				A505CE041FDE63F900FBD4A3 /* CFJClientH5Controller.m in Sources */,
 				A505CDAE1FDE59E500FBD4A3 /* JHSysAlertUtil.m in Sources */,
@@ -1768,6 +1921,19 @@
 				A579579320F857B800B74363 /* TZProgressView.m in Sources */,
 				A5550D801FB9ADBA00B010C4 /* NSString+addition.m in Sources */,
 				A5550DA51FB9B05D00B010C4 /* XZIcomoonDefine.m in Sources */,
+				2C14C37F2E3BAD2C00765E0F /* JSMediaHandler.m in Sources */,
+				2C14C3802E3BAD2C00765E0F /* JSLocationHandler.m in Sources */,
+				2C14C3812E3BAD2C00765E0F /* JSShareHandler.m in Sources */,
+				2C14C3822E3BAD2C00765E0F /* JSFileHandler.m in Sources */,
+				2C14C3832E3BAD2C00765E0F /* JSMiscHandler.m in Sources */,
+				2C14C3842E3BAD2C00765E0F /* JSUIHandler.m in Sources */,
+				2C14C3852E3BAD2C00765E0F /* JSMessageHandler.m in Sources */,
+				2C14C3862E3BAD2C00765E0F /* JSPaymentHandler.m in Sources */,
+				2C14C3872E3BAD2C00765E0F /* JSUserHandler.m in Sources */,
+				2C14C3882E3BAD2C00765E0F /* JSDeviceHandler.m in Sources */,
+				2C14C3892E3BAD2C00765E0F /* JSActionHandler.m in Sources */,
+				2C14C38A2E3BAD2C00765E0F /* JSActionHandlerManager.m in Sources */,
+				2C14C38B2E3BAD2C00765E0F /* JSNavigationHandler.m in Sources */,
 				A505CD3F1FDE306D00FBD4A3 /* ClientNetInterface.m in Sources */,
 				A51DA3FB20EE2C8B00E40549 /* EasyShowLabel.m in Sources */,
 				A505CE211FDE6B5F00FBD4A3 /* UIButton+EnlargeTouchArea.m in Sources */,
@@ -1824,6 +1990,10 @@
 				A505CD1A1FDE2CE800FBD4A3 /* RNCachingURLProtocol.m in Sources */,
 				A5E2AEA6210FF68A006C0DE3 /* LBZoomScrollView.m in Sources */,
 				A505CD411FDE306D00FBD4A3 /* CLUserDefaultDefine.m in Sources */,
+				2C14C3992E3BB05900765E0F /* XZWebViewPerformanceManager.m in Sources */,
+				2C14C39A2E3BB05900765E0F /* XZErrorCodeManager.m in Sources */,
+				2C14C39B2E3BB05900765E0F /* XZiOSVersionManager.m in Sources */,
+				2C14C39C2E3BB05900765E0F /* XZAuthenticationManager.m in Sources */,
 				A579579920F857B800B74363 /* TZGifPhotoPreviewController.m in Sources */,
 				A5E2AEAA210FF743006C0DE3 /* LBAlbumManager.m in Sources */,
 				A50230F1201F245B0059C305 /* CustomTabBar.m in Sources */,

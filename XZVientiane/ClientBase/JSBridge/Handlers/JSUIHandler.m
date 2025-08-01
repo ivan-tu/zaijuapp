@@ -10,6 +10,11 @@
 #import "SVStatusHUD.h"
 #import "MOFSPickerManager.h"
 #import "UITabBar+badge.h"
+#import "JFCityViewController.h"
+
+@interface JSUIHandler ()
+@property (nonatomic, copy) JSActionCallbackBlock currentAreaSelectCallback;
+@end
 
 @implementation JSUIHandler
 
@@ -103,34 +108,56 @@
 }
 
 - (void)handleShowToast:(id)data controller:(UIViewController *)controller callback:(JSActionCallbackBlock)callback {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSDictionary *dataDic = (NSDictionary *)data;
-        NSString *title = [dataDic objectForKey:@"title"] ?: @"";
-        NSString *icon = [dataDic objectForKey:@"icon"] ?: @"none";
-        NSTimeInterval duration = [[dataDic objectForKey:@"duration"] doubleValue] / 1000.0 ?: 1.0;
-        
-        if (title.length > 0) {
+    NSDictionary *dataDic = (NSDictionary *)data;
+    
+    // 兼容多种字段名：title, message, text, content
+    NSString *message = dataDic[@"title"] ?: dataDic[@"message"] ?: dataDic[@"text"] ?: dataDic[@"content"];
+    
+    // 获取显示时长，默认2秒
+    NSNumber *durationNumber = dataDic[@"duration"];
+    NSTimeInterval duration = durationNumber ? [durationNumber doubleValue] / 1000.0 : 2.0; // JS传毫秒，转换为秒
+    
+    // 获取Toast类型
+    NSString *icon = dataDic[@"icon"];
+    
+    if (message && message.length > 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
             if ([icon isEqualToString:@"success"]) {
-                UIImage *successImage = [UIImage imageNamed:@"success_icon"] ?: [UIImage systemImageNamed:@"checkmark.circle.fill"];
-                [SVStatusHUD showWithImage:successImage status:title duration:duration];
+                // 成功图标 - 使用绿色对勾图标
+                UIImage *successImage = [UIImage imageNamed:@"success"] ?: [self createSuccessIcon];
+                [SVStatusHUD showWithImage:successImage status:message duration:duration];
+            } else if ([icon isEqualToString:@"error"] || [icon isEqualToString:@"fail"]) {
+                // 错误图标 - 使用红色错误图标
+                UIImage *errorImage = [UIImage imageNamed:@"error"] ?: [self createErrorIcon];
+                [SVStatusHUD showWithImage:errorImage status:message duration:duration];
             } else if ([icon isEqualToString:@"loading"]) {
-                [SVStatusHUD showWithMessage:title];
-            } else {
-                [SVStatusHUD showWithMessage:title];
+                // 加载状态 - 只显示文字，不需要图标
+                [SVStatusHUD showWithMessage:message];
+                // 加载状态需要手动关闭，设置定时器
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(duration * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                    // 自动消失
+                    // SVStatusHUD没有dismiss方法，显示空消息来清除
+                    [SVStatusHUD showWithMessage:@""];
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        // 通过显示空白来隐藏
+                        [SVStatusHUD showWithImage:nil status:@"" duration:0.1];
+                    });
+                });
+            } else {
+                // 默认显示普通消息 - 由于没有duration参数的方法，显示后延时隐藏
+                [SVStatusHUD showWithMessage:message];
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(duration * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [SVStatusHUD showWithImage:nil status:@"" duration:0.1];
                 });
             }
-        }
-    });
-    
-    if (callback) {
-        callback(@{
-            @"success": @"true",
-            @"data": @{},
-            @"errorMessage": @"",
-            @"code": @0
         });
+        
+        if (callback) {
+            callback([self formatCallbackResponse:@"showToast" data:@{} success:YES errorMessage:nil]);
+        }
+    } else {
+        if (callback) {
+            callback([self formatCallbackResponse:@"showToast" data:@{} success:NO errorMessage:@"Toast消息不能为空"]);
+        }
     }
 }
 
@@ -243,26 +270,25 @@
 
 - (void)handleAreaSelect:(id)data controller:(UIViewController *)controller callback:(JSActionCallbackBlock)callback {
     NSDictionary *dataDic = (NSDictionary *)data;
-    NSString *string = [dataDic objectForKey:@"id"] ?: @"";
     
-    __weak typeof(self) weakSelf = self;
-    [[MOFSPickerManager shareManger] showMOFSAddressPickerWithDefaultZipcode:string 
-                                                                       title:@"" 
-                                                                 cancelTitle:@"取消" 
-                                                                 commitTitle:@"确定" 
-                                                                 commitBlock:^(NSString *address, NSString *zipcode) {
-        NSDictionary *response = [weakSelf formatCallbackResponse:@"areaSelect" 
-                                                             data:@{@"code": zipcode ?: @"", @"value": address ?: @""} 
-                                                          success:YES 
-                                                     errorMessage:nil];
-        callback(response);
-    } cancelBlock:^{
-        NSDictionary *response = [weakSelf formatCallbackResponse:@"areaSelect" 
-                                                             data:@{@"code": @"-1", @"value": @""} 
-                                                          success:NO 
-                                                     errorMessage:@"用户取消"];
-        callback(response);
-    }];
+    // 保存回调
+    self.currentAreaSelectCallback = callback;
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 创建地区选择控制器
+        JFCityViewController *cityVC = [[JFCityViewController alloc] init];
+        cityVC.delegate = self;
+        cityVC.hidesBottomBarWhenPushed = YES;
+        
+        // 如果有预设的名称，可以在这里设置
+        NSString *currentName = dataDic[@"name"];
+        if (currentName && currentName.length > 0) {
+            // 这里可以设置当前选中的城市名称
+            NSLog(@"[areaSelect] 当前预设城市: %@", currentName);
+        }
+        
+        [controller.navigationController pushViewController:cityVC animated:YES];
+    });
 }
 
 - (void)handleAreaSecondarySelect:(id)data controller:(UIViewController *)controller callback:(JSActionCallbackBlock)callback {
@@ -381,6 +407,112 @@
     [dateFormatter setDateFormat:format];
     NSDate *date = [dateFormatter dateFromString:dateString];
     return date;
+}
+
+#pragma mark - 辅助方法：创建图标
+
+- (UIImage *)createSuccessIcon {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(20, 20), NO, 0.0);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    
+    // 绘制绿色圆形背景
+    CGContextSetFillColorWithColor(context, [UIColor colorWithRed:0.0 green:0.8 blue:0.0 alpha:1.0].CGColor);
+    CGContextFillEllipseInRect(context, CGRectMake(0, 0, 20, 20));
+    
+    // 绘制白色对勾
+    CGContextSetStrokeColorWithColor(context, [UIColor whiteColor].CGColor);
+    CGContextSetLineWidth(context, 2.0);
+    CGContextMoveToPoint(context, 5, 10);
+    CGContextAddLineToPoint(context, 8, 13);
+    CGContextAddLineToPoint(context, 15, 6);
+    CGContextStrokePath(context);
+    
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
+
+- (UIImage *)createErrorIcon {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(20, 20), NO, 0.0);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    
+    // 绘制红色圆形背景
+    CGContextSetFillColorWithColor(context, [UIColor colorWithRed:1.0 green:0.2 blue:0.2 alpha:1.0].CGColor);
+    CGContextFillEllipseInRect(context, CGRectMake(0, 0, 20, 20));
+    
+    // 绘制白色X
+    CGContextSetStrokeColorWithColor(context, [UIColor whiteColor].CGColor);
+    CGContextSetLineWidth(context, 2.0);
+    CGContextMoveToPoint(context, 6, 6);
+    CGContextAddLineToPoint(context, 14, 14);
+    CGContextMoveToPoint(context, 14, 6);
+    CGContextAddLineToPoint(context, 6, 14);
+    CGContextStrokePath(context);
+    
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
+
+#pragma mark - JFCityViewControllerDelegate
+
+- (void)cityName:(NSString *)name cityCode:(id)code {
+    // 类型安全检查和转换
+    NSString *safeCode = nil;
+    if (code) {
+        if ([code isKindOfClass:[NSString class]]) {
+            safeCode = (NSString *)code;
+        } else if ([code isKindOfClass:[NSNumber class]]) {
+            safeCode = [(NSNumber *)code stringValue];
+        } else {
+            safeCode = [NSString stringWithFormat:@"%@", code];
+        }
+    }
+    
+    // 类型安全检查和转换 - 确保name也是字符串类型
+    NSString *safeName = nil;
+    if (name) {
+        if ([name isKindOfClass:[NSString class]]) {
+            safeName = name;
+        } else {
+            safeName = [NSString stringWithFormat:@"%@", name];
+        }
+    }
+    
+    // 保存选择的城市到本地存储
+    if (safeName && safeName.length > 0) {
+        [[NSUserDefaults standardUserDefaults] setObject:safeName forKey:@"SelectCity"];
+        [[NSUserDefaults standardUserDefaults] setObject:safeName forKey:@"currentCity"];
+        [[NSUserDefaults standardUserDefaults] setObject:safeName forKey:@"locationCity"]; // 同时更新locationCity
+        if (safeCode && safeCode.length > 0) {
+            [[NSUserDefaults standardUserDefaults] setObject:safeCode forKey:@"currentCityCode"];
+        }
+        [[NSUserDefaults standardUserDefaults] synchronize];
+    }
+    
+    if (self.currentAreaSelectCallback) {
+        // 为不同的JavaScript调用提供不同的返回格式
+        NSDictionary *areaSelectData = @{@"cityTitle": safeName ?: @"", @"cityCode": safeCode ?: @""};
+        NSDictionary *citySelectData = @{@"name": safeName ?: @"", @"code": safeCode ?: @"", @"city": safeName ?: @""};
+        
+        // 默认使用areaSelect格式，同时支持selectLocationCity格式
+        NSDictionary *response = [self formatCallbackResponse:@"areaSelect" 
+                                                         data:areaSelectData 
+                                                      success:YES 
+                                                 errorMessage:nil];
+        
+        // 添加额外的城市信息供兼容
+        NSMutableDictionary *mutableResponse = [response mutableCopy];
+        NSMutableDictionary *mutableData = [mutableResponse[@"data"] mutableCopy];
+        [mutableData addEntriesFromDictionary:citySelectData];
+        mutableResponse[@"data"] = mutableData;
+        
+        self.currentAreaSelectCallback(mutableResponse);
+        self.currentAreaSelectCallback = nil;
+        
+        // 发送城市变更通知
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"CityChanged" object:nil userInfo:@{@"cityName": safeName ?: @"", @"cityCode": safeCode ?: @""}];
+    }
 }
 
 @end

@@ -20,5 +20,20 @@ typedef void(^CallBackToNative)(id aResponseObject,NSString *function);
 // 兼容性属性 - 用于JavaScript回调
 @property (nonatomic, copy) XZWebViewJSCallbackBlock webviewBackCallBack;
 
+// 导航栏按钮标识属性
+@property (assign, nonatomic) BOOL leftMessage;
+@property (assign, nonatomic) BOOL rightMessage;
+@property (assign, nonatomic) BOOL leftShop;
+@property (assign, nonatomic) BOOL rightShop;
+
+// JSBridge需要调用的方法
+- (void)RequestWithJsDic:(NSDictionary *)dataDic type:(NSString *)type;
+- (void)resetAllTabsToInitialState;
+- (void)performWechatDirectLogin;
+- (void)shareContent:(NSDictionary *)dic presentedVC:(UIViewController *)vc;
+
+// 文件处理方法
+- (void)pushTZImagePickerControllerWithDic:(NSDictionary *)dataDic;
+- (void)QiNiuUploadImageWithData:(NSDictionary *)dataDic;
 
 @end

@@ -27,26 +27,16 @@
 #import "CustomHybridProcessor.h"
 #import <objc/runtime.h>
 #import "AppDelegate.h"
+#import "XZiOSVersionManager.h"
+#import "XZErrorCodeManager.h"
 
 // 导入WebViewJavascriptBridge
 #import "../../ThirdParty/WKWebViewJavascriptBridge/WKWebViewJavascriptBridge.h"
 #import "../../ThirdParty/WKWebViewJavascriptBridge/WebViewJavascriptBridge_JS.h"
 
-// iPhone X系列检测
+// 使用XZiOSVersionManager替代分散的版本检查
 static inline BOOL isIPhoneXSeries() {
-    BOOL iPhoneXSeries = NO;
-    if (UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPhone) {
-        return iPhoneXSeries;
-    }
-    
-    if (@available(iOS 11.0, *)) {
-        UIWindow *mainWindow = [[[UIApplication sharedApplication] delegate] window];
-        if (mainWindow.safeAreaInsets.bottom > 0.0) {
-            iPhoneXSeries = YES;
-        }
-    }
-    
-    return iPhoneXSeries;
+    return [[XZiOSVersionManager sharedManager] isIPhoneXSeries];
 }
 
 // 兼容性常量定义（避免重复定义）
@@ -146,7 +136,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleUniversalLinkNavigation:) name:@"UniversalLinkNavigation" object:nil];
     
     // 添加场景更新通知监听，iOS 13+
-    if (@available(iOS 13.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isiOS13Later]) {
         [[NSNotificationCenter defaultCenter] addObserver:self 
                                                  selector:@selector(sceneWillDeactivate:) 
                                                      name:UISceneWillDeactivateNotification 
@@ -862,17 +852,17 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // WKWebView使用loadHTMLString:baseURL:加载HTML内容，baseURL用于指定资源路径
     
     // 根据资料建议，配置默认网页首选项
-    if (@available(iOS 14.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isiOS14Later]) {
         configuration.defaultWebpagePreferences.allowsContentJavaScript = YES;
     }
     
     // 配置安全设置，允许混合内容
-    if (@available(iOS 10.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:10.0]) {
         configuration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
     }
     
     // 允许任意加载（开发环境）
-    if (@available(iOS 9.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:9.0]) {
         configuration.allowsAirPlayForMediaPlayback = YES;
         configuration.allowsPictureInPictureMediaPlayback = YES;
     }
@@ -902,15 +892,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     
     // 修复左滑返回手势冲突：禁用WKWebView的左滑后退手势
-    if (@available(iOS 9.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:9.0]) {
         self.webView.allowsBackForwardNavigationGestures = NO;
     }
     
     // 配置滚动视图 - 修复iOS 12键盘弹起后布局问题
-    if (@available(iOS 12.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:12.0]) {
         // iOS 12及以上版本使用Automatic，避免键盘弹起后视图不恢复的问题
         self.webView.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentAutomatic;
-    } else if (@available(iOS 11.0, *)) {
+    } else if ([[XZiOSVersionManager sharedManager] isiOS11Later]) {
         // iOS 11使用Never
         self.webView.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
     } else {
@@ -1058,26 +1048,13 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 调整进度条位置到导航栏下方，确保贴紧标题栏底部
     if (self.navigationController && !self.navigationController.navigationBar.hidden) {
-        // 使用Safe Area或传统方式计算导航栏底部位置
-        CGFloat navBarBottom;
-        if (@available(iOS 11.0, *)) {
-            // iOS 11+ 使用Safe Area计算更准确的位置
-            navBarBottom = self.view.safeAreaInsets.top;
-        } else {
-            // iOS 11以下使用传统计算方式
-            CGFloat statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
-            CGFloat navBarHeight = self.navigationController.navigationBar.frame.size.height;
-            navBarBottom = statusBarHeight + navBarHeight;
-        }
+        // 使用XZiOSVersionManager获取统一的状态栏和导航栏高度
+        XZiOSVersionManager *versionManager = [XZiOSVersionManager sharedManager];
+        CGFloat navBarBottom = versionManager.statusBarHeight + versionManager.navigationBarHeight;
         self.progressView.frame = CGRectMake(0, navBarBottom, self.view.bounds.size.width, 3);
     } else {
         // 如果没有导航栏，放在状态栏下方
-        CGFloat statusBarHeight;
-        if (@available(iOS 11.0, *)) {
-            statusBarHeight = self.view.safeAreaInsets.top;
-        } else {
-            statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
-        }
+        CGFloat statusBarHeight = [[XZiOSVersionManager sharedManager] statusBarHeight];
         self.progressView.frame = CGRectMake(0, statusBarHeight, self.view.bounds.size.width, 3);
     }
     
@@ -1455,7 +1432,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             [self.webView mas_makeConstraints:^(MASConstraintMaker *make) {
                 make.left.equalTo(self.view).priority(999);
                 make.right.equalTo(self.view).priority(999);
-                if (@available(iOS 11.0, *)) {
+                if ([[XZiOSVersionManager sharedManager] isiOS11Later]) {
                     make.bottom.equalTo(self.view.mas_safeAreaLayoutGuideBottom).priority(999);
                 } else {
                     make.bottom.equalTo(self.view).priority(999);
@@ -1867,11 +1844,14 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             return;
         }
         
-        // 检查WebView的navigation delegate状态（但不强制重新设置）
+        // 检查WebView的navigation delegate状态并自动修复
         if (!self.webView.navigationDelegate) {
-            NSLog(@"在局❌ [直接数据模式] navigationDelegate丢失！这是严重问题");
+            NSLog(@"在局❌ [直接数据模式] navigationDelegate丢失！开始自动修复");
             if (self.bridge) {
-                NSLog(@"在局🔧 [直接数据模式] Bridge存在但delegate丢失，可能是时序问题");
+                NSLog(@"在局🔧 [直接数据模式] Bridge存在，重新设置navigationDelegate");
+                // 🔧 关键修复：重新设置Bridge为navigationDelegate
+                self.webView.navigationDelegate = self.bridge;
+                NSLog(@"在局✅ [直接数据模式] navigationDelegate已恢复: %@", self.webView.navigationDelegate);
             } else {
                 NSLog(@"在局❌ [直接数据模式] Bridge不存在，无法恢复delegate");
                 return;
@@ -2072,11 +2052,14 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     return;
                 }
                 
-                // 检查WebView的navigation delegate状态（但不强制重新设置）
+                // 检查WebView的navigation delegate状态并自动修复
                 if (!self.webView.navigationDelegate) {
-                    NSLog(@"在局❌ [CustomHybridProcessor] navigationDelegate丢失！这是严重问题");
+                    NSLog(@"在局❌ [CustomHybridProcessor] navigationDelegate丢失！开始自动修复");
                     if (self.bridge) {
-                        NSLog(@"在局🔧 [CustomHybridProcessor] Bridge存在但delegate丢失，可能是时序问题");
+                        NSLog(@"在局🔧 [CustomHybridProcessor] Bridge存在，重新设置navigationDelegate");
+                        // 🔧 关键修复：重新设置Bridge为navigationDelegate
+                        self.webView.navigationDelegate = self.bridge;
+                        NSLog(@"在局✅ [CustomHybridProcessor] navigationDelegate已恢复: %@", self.webView.navigationDelegate);
                     } else {
                         NSLog(@"在局❌ [CustomHybridProcessor] Bridge不存在，无法恢复delegate");
                         return;
@@ -2660,22 +2643,60 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     [self safelyEvaluateJavaScript:@"(function(){"
                         "try {"
+                            "var result = {};"
+                            "result.timestamp = new Date().getTime();"
+                            "result.documentReady = document.readyState;"
+                            "result.bodyExists = !!document.body;"
+                            "result.htmlExists = !!document.documentElement;"
+                            ""
+                            "// 检查页面基本结构"
+                            "if (!document.body) {"
+                                "result.error = 'document.body不存在';"
+                                "return JSON.stringify(result);"
+                            "}"
+                            ""
                             "// 强制重新渲染页面"
                             "document.body.style.display = 'none';"
                             "document.body.offsetHeight;" // 强制重排
                             "document.body.style.display = 'block';"
+                            "result.displayToggled = true;"
+                            ""
                             "// 检查并触发任何可能的页面初始化函数"
-                            "if (typeof window.pageInit === 'function') { window.pageInit(); }"
-                            "if (typeof window.initPage === 'function') { window.initPage(); }"
-                            "if (typeof app !== 'undefined' && typeof app.init === 'function') { app.init(); }"
+                            "if (typeof window.pageInit === 'function') { "
+                                "window.pageInit(); "
+                                "result.pageInitCalled = true;"
+                            "}"
+                            "if (typeof window.initPage === 'function') { "
+                                "window.initPage(); "
+                                "result.initPageCalled = true;"
+                            "}"
+                            "if (typeof app !== 'undefined' && typeof app.init === 'function') { "
+                                "app.init(); "
+                                "result.appInitCalled = true;"
+                            "}"
+                            ""
                             "// 触发resize事件"
                             "window.dispatchEvent(new Event('resize'));"
-                            "return '页面刷新完成';"
+                            "result.resizeEventDispatched = true;"
+                            ""
+                            "result.success = true;"
+                            "result.message = '页面刷新完成';"
+                            "return JSON.stringify(result);"
                         "} catch(e) {"
-                            "return '刷新失败: ' + e.message;"
+                            "var errorResult = {"
+                                "success: false,"
+                                "error: e.message,"
+                                "stack: e.stack,"
+                                "timestamp: new Date().getTime()"
+                            "};"
+                            "return JSON.stringify(errorResult);"
                         "}"
                     "})()" completionHandler:^(id result, NSError *error) {
-                        NSLog(@"在局🔄 [pageReady] 页面强制刷新结果: %@", result ?: @"失败");
+                        if (error) {
+                            NSLog(@"在局❌ [pageReady] 页面强制刷新执行错误: %@", error.localizedDescription);
+                        } else {
+                            NSLog(@"在局🔄 [pageReady] 页面强制刷新结果: %@", result ?: @"失败");
+                        }
                     }];
                 });
             }
@@ -3708,7 +3729,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     if ([scheme isEqualToString:@"tel"]) {
         NSLog(@"在局📞 [WKWebView] 检测到电话链接: %@", url.absoluteString);
         // 在iOS 10.0以上使用新的API
-        if (@available(iOS 10.0, *)) {
+        if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:10.0]) {
             [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:^(BOOL success) {
                 if (success) {
                     NSLog(@"在局✅ [WKWebView] 电话拨打成功");
@@ -3851,13 +3872,14 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         return YES;
     }
     
-    // 检查navigation delegate是否正常
+    // 检查navigation delegate是否正常并自动修复
     if (!self.webView.navigationDelegate) {
-        NSLog(@"在局❌ [健康检查] navigationDelegate丢失！这表明Bridge有严重问题");
+        NSLog(@"在局❌ [健康检查] navigationDelegate丢失！开始自动修复");
         if (self.bridge) {
-            NSLog(@"在局⚠️ [健康检查] Bridge存在但delegate丢失，这不应该发生");
-            // 不要手动设置delegate，Bridge应该自己管理
-            // 记录这个异常情况，但让Bridge自己处理
+            NSLog(@"在局🔧 [健康检查] Bridge存在，重新设置navigationDelegate");
+            // 🔧 关键修复：重新设置Bridge为navigationDelegate
+            self.webView.navigationDelegate = self.bridge;
+            NSLog(@"在局✅ [健康检查] navigationDelegate已恢复: %@", self.webView.navigationDelegate);
         } else {
             NSLog(@"在局❌ [健康检查] Bridge不存在，需要重新创建桥接");
             [self setupJavaScriptBridge];
@@ -5697,16 +5719,16 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     configuration.preferences.javaScriptCanOpenWindowsAutomatically = YES;
     
     // iOS 14+ 配置
-    if (@available(iOS 14.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isiOS14Later]) {
         configuration.defaultWebpagePreferences.allowsContentJavaScript = YES;
     }
     
     // 媒体配置
-    if (@available(iOS 10.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:10.0]) {
         configuration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
     }
     
-    if (@available(iOS 9.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:9.0]) {
         configuration.allowsAirPlayForMediaPlayback = YES;
         configuration.allowsPictureInPictureMediaPlayback = YES;
     }

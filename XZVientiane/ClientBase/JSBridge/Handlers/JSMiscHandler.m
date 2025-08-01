@@ -9,6 +9,8 @@
 #import "HTMLCache.h"
 #import "ManageCenter.h"
 #import "CFJClientH5Controller.h"
+#import "UIBarButtonItem+PPBadgeView.h"
+#import <AFNetworking/AFNetworking.h>
 
 @implementation JSMiscHandler
 
@@ -34,11 +36,8 @@
 
 - (void)handleReload:(UIViewController *)controller {
     // 检查网络状态
-    if ([controller respondsToSelector:@selector(NoReachable)]) {
-        BOOL noReachable = [[controller valueForKey:@"NoReachable"] boolValue];
-        if (noReachable) {
-            return;
-        }
+    if (NoReachable) {
+        return;
     }
     
     // 清除缓存

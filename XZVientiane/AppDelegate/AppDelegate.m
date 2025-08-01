@@ -13,8 +13,7 @@
 #import "PublicSettingModel.h"
 #import "ClientSettingModel.h"
 #import "XZWKWebViewBaseController.h" // 导入WebView基类以使用预加载方法
-// TODO: 需要在Xcode中添加XZWebViewPerformanceManager文件到项目后取消注释
-// #import "XZWebViewPerformanceManager.h" // WebView性能优化管理器
+#import "XZWebViewPerformanceManager.h" // WebView性能优化管理器
 // 友盟分享相关导入 - 使用正确路径
 #import <UMShare/UMShare.h>
 #import <UMShare/UMSociallogMacros.h>
@@ -166,8 +165,7 @@
     [XZWKWebViewBaseController preloadHTMLTemplates];
     
     // 初始化WebView性能管理器并预热资源
-    // TODO: 需要在Xcode中添加XZWebViewPerformanceManager文件到项目后取消注释
-    // [[XZWebViewPerformanceManager sharedManager] preloadWebViewResources];
+    [[XZWebViewPerformanceManager sharedManager] preloadWebViewResources];
     
     // 立即初始化TabBar，不等待网络权限检查
     // 直接创建TabBar控制器，避免延迟
@@ -1159,7 +1157,9 @@
         // 设置隐私政策配置 - 解决AMapFoundationErrorPrivacyShowUnknow错误
         [AMapServices sharedServices].enableHTTPS = YES;
         // 设置隐私权政策同意状态，这里设置为已同意
-        [[AMapServices sharedServices] setApiKey:@"071329e3bbb36c12947b544db8d20cfa"];
+        // [[AMapServices sharedServices] setApiKey:@"071329e3bbb36c12947b544db8d20cfa"];	//cc.tuiya.hi3
+        [[AMapServices sharedServices] setApiKey:@"5db21be74335137ce5636710c8ea9087"];		//com.zaiju
+		
         
         // 使用正确的隐私政策设置API - 必须在AMapLocationManager实例化之前调用
         [AMapLocationManager updatePrivacyShow:AMapPrivacyShowStatusDidShow privacyInfo:AMapPrivacyInfoStatusDidContain];

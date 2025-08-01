@@ -6,10 +6,11 @@
 //
 
 #import "JSActionHandler.h"
+#import "JFCityViewController.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface JSUIHandler : JSActionHandler
+@interface JSUIHandler : JSActionHandler <JFCityViewControllerDelegate>
 
 @end
 

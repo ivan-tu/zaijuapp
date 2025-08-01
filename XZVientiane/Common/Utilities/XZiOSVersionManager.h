@@ -2,7 +2,7 @@
 //  XZiOSVersionManager.h
 //  XZVientiane
 //
-//  iOS版本统一管理器
+//  iOS版本统一管理器 - 解决项目中分散的版本判断问题
 //
 
 #import <Foundation/Foundation.h>
@@ -25,37 +25,37 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * 是否为iOS 11及以上
  */
-@property (nonatomic, readonly) BOOL iOS11Later;
+@property (nonatomic, readonly) BOOL isiOS11Later;
 
 /**
  * 是否为iOS 13及以上
  */
-@property (nonatomic, readonly) BOOL iOS13Later;
+@property (nonatomic, readonly) BOOL isiOS13Later;
 
 /**
  * 是否为iOS 14及以上
  */
-@property (nonatomic, readonly) BOOL iOS14Later;
+@property (nonatomic, readonly) BOOL isiOS14Later;
 
 /**
  * 是否为iOS 15及以上
  */
-@property (nonatomic, readonly) BOOL iOS15Later;
+@property (nonatomic, readonly) BOOL isiOS15Later;
 
 /**
  * 是否为iOS 16及以上
  */
-@property (nonatomic, readonly) BOOL iOS16Later;
+@property (nonatomic, readonly) BOOL isiOS16Later;
 
 /**
  * 是否为iOS 17及以上
  */
-@property (nonatomic, readonly) BOOL iOS17Later;
+@property (nonatomic, readonly) BOOL isiOS17Later;
 
 /**
  * 是否为iOS 18及以上
  */
-@property (nonatomic, readonly) BOOL iOS18Later;
+@property (nonatomic, readonly) BOOL isiOS18Later;
 
 /**
  * 判断是否为指定版本或更高版本
@@ -66,12 +66,12 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * 判断是否为iPhone X系列（有刘海的机型）
  */
-@property (nonatomic, readonly) BOOL isiPhoneXSeries;
+@property (nonatomic, readonly) BOOL isIPhoneXSeries;
 
 /**
  * 判断是否为iPad
  */
-@property (nonatomic, readonly) BOOL isiPad;
+@property (nonatomic, readonly) BOOL isIPad;
 
 /**
  * 获取安全区域底部高度（iPhone X系列为34，其他为0）
@@ -79,7 +79,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) CGFloat safeAreaBottomHeight;
 
 /**
- * 获取状态栏高度（iPhone X系列为44，其他为20）
+ * 获取状态栏高度（动态获取，兼容各版本）
  */
 @property (nonatomic, readonly) CGFloat statusBarHeight;
 

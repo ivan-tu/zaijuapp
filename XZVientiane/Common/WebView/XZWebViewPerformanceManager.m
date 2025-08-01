@@ -6,6 +6,7 @@
 //
 
 #import "XZWebViewPerformanceManager.h"
+#import "XZiOSVersionManager.h"
 
 @interface XZWebViewPerformanceManager ()
 
@@ -61,12 +62,12 @@
     _baseConfiguration.allowsInlineMediaPlayback = YES;
     
     // iOS 10+ 自动播放视频
-    if (@available(iOS 10.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:10.0]) {
         _baseConfiguration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
     }
     
     // 设置数据存储
-    if (@available(iOS 9.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:9.0]) {
         _baseConfiguration.websiteDataStore = [WKWebsiteDataStore defaultDataStore];
     }
     
@@ -218,7 +219,7 @@
 }
 
 - (void)clearWebViewCache:(nullable void(^)(void))completion {
-    if (@available(iOS 9.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:9.0]) {
         NSSet *websiteDataTypes = [WKWebsiteDataStore allWebsiteDataTypes];
         NSDate *dateFrom = [NSDate dateWithTimeIntervalSince1970:0];
         
@@ -260,7 +261,7 @@
 }
 
 - (void)getCacheSize:(void(^)(NSUInteger size))completion {
-    if (@available(iOS 9.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isSystemVersionGreaterThanOrEqualTo:9.0]) {
         [[WKWebsiteDataStore defaultDataStore] fetchDataRecordsOfTypes:[WKWebsiteDataStore allWebsiteDataTypes]
                                                       completionHandler:^(NSArray<WKWebsiteDataRecord *> * _Nonnull records) {
             NSUInteger totalSize = 0;
@@ -281,7 +282,7 @@
 }
 
 - (void)configureCookies:(NSArray<NSHTTPCookie *> *)cookies completion:(nullable void(^)(void))completion {
-    if (@available(iOS 11.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isiOS11Later]) {
         WKHTTPCookieStore *cookieStore = _baseConfiguration.websiteDataStore.httpCookieStore;
         
         __block NSInteger pendingCookies = cookies.count;

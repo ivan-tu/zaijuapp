@@ -6,17 +6,19 @@
 //
 
 #import "JSActionHandlerManager.h"
-#import "JSNavigationHandler.h"
-#import "JSUIHandler.h"
-#import "JSPaymentHandler.h"
-#import "JSShareHandler.h"
-#import "JSUserHandler.h"
-#import "JSDeviceHandler.h"
-#import "JSLocationHandler.h"
-#import "JSMediaHandler.h"
-#import "JSFileHandler.h"
-#import "JSMessageHandler.h"
-#import "JSMiscHandler.h"
+#import "Handlers/JSNavigationHandler.h"
+#import "Handlers/JSUIHandler.h"
+#import "Handlers/JSPaymentHandler.h"
+#import "Handlers/JSShareHandler.h"
+#import "Handlers/JSUserHandler.h"
+#import "Handlers/JSDeviceHandler.h"
+#import "Handlers/JSLocationHandler.h"
+#import "Handlers/JSMediaHandler.h"
+#import "Handlers/JSFileHandler.h"
+#import "Handlers/JSMessageHandler.h"
+#import "Handlers/JSMiscHandler.h"
+#import "Handlers/JSNetworkHandler.h"
+#import "Handlers/JSPageLifecycleHandler.h"
 
 @interface JSActionHandlerManager ()
 
@@ -59,6 +61,8 @@
     [self registerHandler:[[JSFileHandler alloc] init]];
     [self registerHandler:[[JSMessageHandler alloc] init]];
     [self registerHandler:[[JSMiscHandler alloc] init]];
+    [self registerHandler:[[JSNetworkHandler alloc] init]];
+    [self registerHandler:[[JSPageLifecycleHandler alloc] init]];
 }
 
 - (void)registerHandler:(JSActionHandler *)handler {

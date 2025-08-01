@@ -6,6 +6,8 @@
 //  Copyright © 2017年 TuWeiA. All rights reserved.
 //
 #import "CFJClientH5Controller.h"
+#import "XZiOSVersionManager.h"
+#import "XZErrorCodeManager.h"
 #import "WKWebView+XZAddition.h"
 #import "HTMLWebViewController.h"
 #import "../../ThirdParty/WKWebViewJavascriptBridge/WKWebViewJavascriptBridge.h"
@@ -64,10 +66,9 @@
 #import <JavaScriptCore/JavaScriptCore.h>
 #import "CustomHybridProcessor.h"
 //JSBridge
-// TODO: 需要在Xcode中添加以下文件到项目
-// #import "JSActionHandlerManager.h"
-// #import "XZiOSVersionManager.h"
-// #import "XZAuthenticationManager.h"
+#import "JSActionHandlerManager.h"
+// 使用XZiOSVersionManager统一管理iOS版本和布局相关属性
+#import "XZAuthenticationManager.h"
 #define JDomain  [NSString stringWithFormat:@"https://%@",[[NSUserDefaults standardUserDefaults] objectForKey:@"kUserDefaults_domainStr"]]
 #define ScreenWidth [UIScreen mainScreen].bounds.size.width
 #define TITLES @[@"登录", @"注册"]
@@ -97,10 +98,6 @@
 @property (assign, nonatomic) NSInteger lastPosition;
 @property (strong, nonatomic) NSArray *viewImageAry;
 @property (strong, nonatomic) NSLock *lock;
-@property (assign, nonatomic) BOOL leftMessage;
-@property (assign, nonatomic) BOOL rightMessage;
-@property (assign, nonatomic) BOOL leftShop;
-@property (assign, nonatomic) BOOL rightShop;
 @property (copy, nonatomic) NSString *backStr;
 @property (nonatomic, strong) QNUpCancellationSignal cancelSignal;
 @property (nonatomic, assign) BOOL isCancel;
@@ -547,7 +544,7 @@
 // 隐藏导航栏底部黑线的辅助方法
 - (void)hideNavigationBarBottomLine {
     // 隐藏导航条黑线 - 兼容不同iOS版本
-    if (@available(iOS 13.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isiOS13Later]) {
         UINavigationBarAppearance *appearance = self.navigationController.navigationBar.standardAppearance;
         if (appearance) {
             appearance.shadowColor = [UIColor clearColor];
@@ -1238,14 +1235,7 @@
         });
     };
     
-    // 网络请求
-    if ([function isEqualToString:@"request"]) {
-        // request需要字典类型的数据
-        NSDictionary *dataDic = [dataObject isKindOfClass:[NSDictionary class]] ? (NSDictionary *)dataObject : @{};
-        [self rpcRequestWithJsDic:dataDic completion:safeCompletion];
-        return;
-    }
-    
+    // 只处理控制器特有的action
     // 原生数据获取
     if ([function isEqualToString:@"nativeGet"]) {
         // nativeGet可以接受任何类型的数据
@@ -1256,205 +1246,9 @@
     // 为大部分方法准备字典类型的数据
     NSDictionary *dataDic = [dataObject isKindOfClass:[NSDictionary class]] ? (NSDictionary *)dataObject : @{};
     
-    // 微信相关
-    if ([function isEqualToString:@"hasWx"]) {
-        [self handleHasWx:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 设备检测
-    if ([function isEqualToString:@"isiPhoneX"]) {
-        [self handleIsIPhoneX:dataDic completion:safeCompletion];
-        return;
-    }
-    
     // 消息相关
     if ([function isEqualToString:@"readMessage"]) {
         [self handleReadMessage:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // TabBar相关
-    if ([function isEqualToString:@"setTabBarBadge"]) {
-        [self handleSetTabBarBadge:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"removeTabBarBadge"]) {
-        [self handleRemoveTabBarBadge:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"showTabBarRedDot"]) {
-        [self handleShowTabBarRedDot:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"hideTabBarRedDot"]) {
-        [self handleHideTabBarRedDot:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 导航相关 - navigateTo需要传递原始的dataObject，不是dataDic
-    if ([function isEqualToString:@"navigateTo"]) {
-        [self handleNavigateTo:dataObject completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"navigateBack"]) {
-        [self handleNavigateBack:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"reLaunch"]) {
-        [self handleReLaunch:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 定位相关
-    if ([function isEqualToString:@"getLocation"]) {
-        [self handleGetLocation:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"showLocation"]) {
-        [self handleShowLocation:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"selectLocation"]) {
-        [self handleSelectLocation:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"selectLocationCity"]) {
-        [self handleSelectLocationCity:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 页面生命周期
-    if ([function isEqualToString:@"pageShow"]) {
-        [self handlePageShow:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"pageHide"]) {
-        [self handlePageHide:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"pageUnload"]) {
-        [self handlePageUnload:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 工具功能
-    if ([function isEqualToString:@"copyLink"]) {
-        [self handleCopyLink:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"share"]) {
-        [self handleShare:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"saveImage"]) {
-        [self handleSaveImage:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 导航栏控制
-    if ([function isEqualToString:@"setNavigationBarTitle"]) {
-        [self handleSetNavigationBarTitle:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"hideNavationbar"]) {
-        [self handleHideNavigationBar:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"showNavationbar"]) {
-        [self handleShowNavigationBar:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 第三方登录和支付
-    if ([function isEqualToString:@"weixinLogin"]) {
-        [self handleWeixinLogin:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"weixinPay"]) {
-        [self handleWeixinPay:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"aliPay"]) {
-        [self handleAliPay:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 文件操作
-    if ([function isEqualToString:@"chooseFile"]) {
-        [self handleChooseFile:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"uploadFile"]) {
-        [self handleUploadFile:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"previewImage"]) {
-        [self handlePreviewImage:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 扫码
-    if ([function isEqualToString:@"QRScan"]) {
-        [self handleQRScan:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 用户相关
-    if ([function isEqualToString:@"userLogin"]) {
-        [self handleUserLogin:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"userLogout"]) {
-        [self handleUserLogout:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // Tab切换
-    if ([function isEqualToString:@"switchTab"]) {
-        [self handleSwitchTab:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // UI组件
-    if ([function isEqualToString:@"showModal"]) {
-        [self handleShowModal:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"showToast"]) {
-        [self handleShowToast:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"showActionSheet"]) {
-        [self handleShowActionSheet:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 选择器
-    if ([function isEqualToString:@"areaSelect"]) {
-        [self handleAreaSelect:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"dateSelect"]) {
-        [self handleDateSelect:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"timeSelect"]) {
-        [self handleTimeSelect:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"fancySelect"]) {
-        [self handleFancySelect:dataDic completion:safeCompletion];
-        return;
-    }
-    if ([function isEqualToString:@"dateAndTimeSelect"]) {
-        [self handleDateAndTimeSelect:dataDic completion:safeCompletion];
-        return;
-    }
-    
-    // 其他功能
-    if ([function isEqualToString:@"closePresentWindow"]) {
-        [self handleClosePresentWindow:dataDic completion:safeCompletion];
         return;
     }
     if ([function isEqualToString:@"changeMessageNum"]) {
@@ -1465,12 +1259,14 @@
         [self handleNoticeMessageSetNumber:dataDic completion:safeCompletion];
         return;
     }
-    if ([function isEqualToString:@"reloadOtherPages"]) {
-        [self handleReloadOtherPages:dataDic completion:safeCompletion];
+    
+    // 其他控制器特有功能
+    if ([function isEqualToString:@"closePresentWindow"]) {
+        [self handleClosePresentWindow:dataDic completion:safeCompletion];
         return;
     }
-    if ([function isEqualToString:@"stopPullDownRefresh"]) {
-        [self handleStopPullDownRefresh:dataDic completion:safeCompletion];
+    if ([function isEqualToString:@"reloadOtherPages"]) {
+        [self handleReloadOtherPages:dataDic completion:safeCompletion];
         return;
     }
     
@@ -1619,6 +1415,16 @@
 
 // 微信直接登录方法
 - (void)performWechatDirectLogin {
+    
+    NSLog(@"在局🚀 [微信直接登录] 开始微信登录流程");
+    
+    // 保存当前的webviewBackCallBack，防止在等待过程中被其他操作清空
+    if (self.webviewBackCallBack) {
+        objc_setAssociatedObject(self, @"WechatLoginCallback", self.webviewBackCallBack, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        NSLog(@"在局✅ [微信直接登录] 已保存回调函数");
+    } else {
+        NSLog(@"在局⚠️ [微信直接登录] webviewBackCallBack为空，可能导致回调失败");
+    }
     
     // 检查微信可用性
     if (![self checkWechatAvailabilityWithAction:@"weixinLogin"]) {
@@ -1794,8 +1600,7 @@
         NSLog(@"在局📤 [微信用户详情] 向JavaScript返回完整数据: %@", responseData);
         
         // 保存微信登录信息到统一认证管理器
-        // TODO: 需要在Xcode中添加XZAuthenticationManager文件后启用
-        /*
+        
         XZUserInfo *userInfo = [[XZUserInfo alloc] init];
         userInfo.nickname = nickname;
         userInfo.headpic = headimgurl;
@@ -1810,7 +1615,7 @@
         
         // 保存到认证管理器（暂时不设置token和userId，等待后端返回）
         [[XZAuthenticationManager sharedManager] updateUserInfo:userInfo];
-        */
+        
         
         // 等待App进入前台后再执行回调
         [self waitForAppActiveStateAndExecuteCallback:responseData];
@@ -1918,13 +1723,23 @@
 // 执行微信登录回调
 - (void)executeWechatLoginCallback:(NSDictionary *)responseData {
     
-    if (self.webviewBackCallBack) {
+    // 优先使用保存的微信登录回调
+    XZWebViewJSCallbackBlock savedCallback = objc_getAssociatedObject(self, @"WechatLoginCallback");
+    
+    if (savedCallback) {
+        NSLog(@"在局✅ [微信登录调试] 使用保存的微信登录回调");
+        savedCallback(responseData);
+        
+        // 清空保存的回调
+        objc_setAssociatedObject(self, @"WechatLoginCallback", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else if (self.webviewBackCallBack) {
+        NSLog(@"在局✅ [微信登录调试] 使用当前webviewBackCallBack");
         self.webviewBackCallBack(responseData);
         
         // 清空回调，防止重复调用
         self.webviewBackCallBack = nil;
     } else {
-        NSLog(@"在局❌ [微信登录调试] webviewBackCallBack为空，无法返回数据！");
+        NSLog(@"在局❌ [微信登录调试] 没有可用的回调函数，无法返回数据！");
     }
 }
 
@@ -2959,9 +2774,7 @@
         make.left.equalTo(self.view);
         make.right.equalTo(self.view);
         make.bottom.equalTo(self.view);
-        // TODO: 需要在Xcode中添加XZiOSVersionManager文件后使用
-        // make.top.equalTo(self.view.mas_top).offset([XZiOSVersionManager sharedManager].statusBarHeight);
-        make.top.equalTo(self.view.mas_top).offset(20); // 临时使用固定值
+        make.top.equalTo(self.view.mas_top).offset([[XZiOSVersionManager sharedManager] statusBarHeight]);
     }];
     [self.view layoutIfNeeded];
 }
@@ -3512,23 +3325,14 @@
 - (void)jsCallObjc:(NSDictionary *)jsData jsCallBack:(WVJBResponseCallback)jsCallBack {
     NSString *action = jsData[@"action"];
     
-    
-    // 定义子类特有的action列表 (注意：不包括pageReady，它由父类处理)
-    NSSet *childActions = [NSSet setWithArray:@[
-        @"request", @"nativeGet", @"hasWx", @"isiPhoneX", @"readMessage", @"setTabBarBadge", 
-        @"removeTabBarBadge", @"showTabBarRedDot", @"hideTabBarRedDot", @"navigateTo", @"getLocation",
-        @"pageShow", @"pageHide", @"pageUnload", @"showLocation", @"changeMessageNum",
-        @"copyLink", @"share", @"saveImage", @"closePresentWindow", @"setNavigationBarTitle",
-        @"weixinLogin", @"weixinPay", @"aliPay", @"chooseFile", @"uploadFile", @"QRScan",
-        @"previewImage", @"userLogin", @"userLogout", @"switchTab", @"hideNavationbar",
-        @"showNavationbar", @"noticemsg_setNumber", @"showModal", @"showToast", @"selectLocation",
-        @"selectLocationCity", @"navigateBack", @"reLaunch", @"showActionSheet", @"areaSelect",
-        @"dateSelect", @"timeSelect", @"fancySelect", @"dateAndTimeSelect",
-        @"reloadOtherPages", @"stopPullDownRefresh"
+    // 定义只能在CFJClientH5Controller中处理的action列表
+    NSSet *controllerOnlyActions = [NSSet setWithArray:@[
+        @"nativeGet", @"readMessage", @"changeMessageNum",
+        @"closePresentWindow", @"noticemsg_setNumber", @"reloadOtherPages"
     ]];
     
-    // 如果是子类特有的action，直接调用子类处理
-    if ([childActions containsObject:action]) {
+    // 如果是控制器特有的action，直接调用控制器处理
+    if ([controllerOnlyActions containsObject:action]) {
         [self handleJavaScriptCall:jsData completion:^(id result) {
             if (jsCallBack) {
                 jsCallBack(result);
@@ -3537,8 +3341,20 @@
         return;
     }
     
-    // 否则调用父类处理
-    [super jsCallObjc:jsData jsCallBack:jsCallBack];
+    // 检查JSActionHandlerManager是否能处理此action
+    if ([[JSActionHandlerManager sharedManager] canHandleAction:action]) {
+        // 使用JSActionHandlerManager处理
+        [[JSActionHandlerManager sharedManager] handleJavaScriptCall:jsData
+                                                          controller:self
+                                                          completion:^(id result) {
+            if (jsCallBack) {
+                jsCallBack(result);
+            }
+        }];
+    } else {
+        // 否则调用父类处理
+        [super jsCallObjc:jsData jsCallBack:jsCallBack];
+    }
 }
 
 // 保留原有的completion方法作为兼容
@@ -3747,6 +3563,7 @@
     }
 }
 
+/* 已迁移到JSBridge Handler
 // 检查是否有微信
 - (void)handleHasWx:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     BOOL hasWx = [WXApi isWXAppInstalled];
@@ -3764,12 +3581,15 @@
     
     completion([self formatCallbackResponse:@"hasWx" data:wxStatus success:YES errorMessage:nil]);
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // iPhone X检测
 - (void)handleIsIPhoneX:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     BOOL isIPhoneX = [self isIPhoneX];
     completion([self formatCallbackResponse:@"isiPhoneX" data:@{@"isiPhoneX": @(isIPhoneX)} success:YES errorMessage:nil]);
 }
+*/
 
 // 消息已读
 - (void)handleReadMessage:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
@@ -3777,6 +3597,7 @@
     completion([self formatCallbackResponse:@"readMessage" data:@{} success:YES errorMessage:nil]);
 }
 
+/* 已迁移到JSBridge Handler
 // TabBar Badge相关
 - (void)handleSetTabBarBadge:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     NSString *text = data[@"text"];
@@ -3826,7 +3647,9 @@
     }
     completion([self formatCallbackResponse:@"hideTabBarRedDot" data:@{} success:YES errorMessage:nil]);
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // 导航相关
 - (void)handleNavigateTo:(id)data completion:(XZWebViewJSCallbackBlock)completion {
     NSString *url = nil;
@@ -3925,7 +3748,9 @@
         completion([self formatCallbackResponse:@"reLaunch" data:@{} success:NO errorMessage:@"URL不能为空"]);
     }
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // 定位相关
 - (void)handleGetLocation:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     NSLog(@"在局🔧 [getLocation] 开始处理定位请求，参数: %@", data);
@@ -4093,7 +3918,9 @@
         NSLog(@"在局✅ [selectLocationCity] 已打开城市选择页面");
     });
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // 页面生命周期
 - (void)handlePageShow:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     completion([self formatCallbackResponse:@"pageShow" data:@{} success:YES errorMessage:nil]);
@@ -4106,7 +3933,9 @@
 - (void)handlePageUnload:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     completion([self formatCallbackResponse:@"pageUnload" data:@{} success:YES errorMessage:nil]);
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // 工具功能
 - (void)handleCopyLink:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     NSLog(@"在局🔧 [handleCopyLink] 处理复制链接请求，数据: %@", data);
@@ -4173,6 +4002,7 @@
         completion([self formatCallbackResponse:@"saveImage" data:@{} success:NO errorMessage:@"无法获取图片"]);
     }
 }
+*/
 
 // 导航栏控制
 - (void)handleSetNavigationBarTitle:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
@@ -4200,6 +4030,7 @@
     completion([self formatCallbackResponse:@"showNavationbar" data:@{} success:YES errorMessage:nil]);
 }
 
+/* 已迁移到JSBridge Handler
 // 第三方登录和支付
 - (void)handleWeixinLogin:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     self.webviewBackCallBack = completion;
@@ -4215,7 +4046,9 @@
     self.webviewBackCallBack = completion;
     [self payRequest:data withPayType:@"alipay"];
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // 文件操作
 - (void)handleChooseFile:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     self.webviewBackCallBack = completion;
@@ -4278,7 +4111,9 @@
     // 图片预览是异步操作，立即返回成功
     completion([self formatCallbackResponse:@"previewImage" data:@{} success:YES errorMessage:nil]);
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // 扫码
 - (void)handleQRScan:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -4288,7 +4123,9 @@
     });
     completion([self formatCallbackResponse:@"QRScan" data:@{} success:YES errorMessage:nil]);
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // 用户相关
 - (void)handleUserLogin:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     // 实现用户登录逻辑
@@ -4299,7 +4136,9 @@
     // 实现用户登出逻辑
     completion([self formatCallbackResponse:@"userLogout" data:@{} success:YES errorMessage:nil]);
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // Tab切换
 - (void)handleSwitchTab:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     NSNumber *index = data[@"index"];
@@ -4313,7 +4152,9 @@
         completion([self formatCallbackResponse:@"switchTab" data:@{} success:NO errorMessage:@"缺少index参数"]);
     }
 }
+*/
 
+/* 已迁移到JSBridge Handler
 // UI组件
 - (void)handleShowModal:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     NSString *title = data[@"title"];
@@ -4428,28 +4269,65 @@
         completion([self formatCallbackResponse:@"showActionSheet" data:@{} success:NO errorMessage:@"itemList不能为空"]);
     }
 }
+*/
 
 // 选择器
 - (void)handleAreaSelect:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     NSLog(@"在局🔧 [areaSelect] 开始处理地区选择: %@", data);
     
-    // 保存回调
-    self.webviewBackCallBack = completion;
-    
+    // 使用原有的MOFSPickerManager地址选择器
     dispatch_async(dispatch_get_main_queue(), ^{
-        // 创建地区选择控制器
-        JFCityViewController *cityVC = [[JFCityViewController alloc] init];
-        cityVC.delegate = self;
-        cityVC.hidesBottomBarWhenPushed = YES;
+        MOFSPickerManager *pickerManager = [MOFSPickerManager shareManger];
         
-        // 如果有预设的名称，可以在这里设置
-        NSString *currentName = data[@"name"];
-        if (currentName && currentName.length > 0) {
-            // 这里可以设置当前选中的城市名称
-            NSLog(@"在局🔍 [areaSelect] 当前预设城市: %@", currentName);
-        }
+        NSString *defaultAddress = data[@"name"] ?: @"";
         
-        [self.navigationController pushViewController:cityVC animated:YES];
+        [pickerManager showCFJAddressPickerWithDefaultZipcode:@"" 
+                                                       title:@"选择地区" 
+                                                 cancelTitle:@"取消" 
+                                                 commitTitle:@"确定" 
+                                                 commitBlock:^(NSString *address, NSString *zipcode) {
+            NSLog(@"在局✅ [areaSelect] 地址选择完成: %@, zipcode: %@", address, zipcode);
+            
+            // 处理地址字符串，提取城市名称
+            NSArray *components = [address componentsSeparatedByString:@"-"];
+            NSString *cityName = components.count > 1 ? components[1] : address;
+            
+            // 保存选择的城市
+            [[NSUserDefaults standardUserDefaults] setObject:cityName forKey:@"SelectCity"];
+            if (zipcode && zipcode.length > 0) {
+                [[NSUserDefaults standardUserDefaults] setObject:zipcode forKey:@"currentCityCode"];
+            }
+            [[NSUserDefaults standardUserDefaults] synchronize];
+            
+            // 构建返回数据
+            NSDictionary *responseData = @{
+                @"success": @YES,
+                @"data": @{
+                    @"value": address,
+                    @"code": zipcode ?: @"",
+                    @"name": cityName,
+                    @"cityTitle": cityName,
+                    @"cityCode": zipcode ?: @""
+                }
+            };
+            
+            if (completion) {
+                completion(responseData);
+            }
+            
+        } cancelBlock:^{
+            NSLog(@"在局❌ [areaSelect] 地址选择取消");
+            
+            if (completion) {
+                NSDictionary *cancelData = @{
+                    @"success": @NO,
+                    @"data": @{}
+                };
+                completion(cancelData);
+            }
+        }];
+        
+        NSLog(@"在局✅ [areaSelect] 已显示地址选择器");
     });
 }
 
@@ -4733,6 +4611,7 @@
     completion([self formatCallbackResponse:@"reloadOtherPages" data:@{} success:YES errorMessage:nil]);
 }
 
+/* 已迁移到JSBridge Handler
 - (void)handleStopPullDownRefresh:(NSDictionary *)data completion:(XZWebViewJSCallbackBlock)completion {
     NSLog(@"在局🔧 [stopPullDownRefresh] 开始处理停止下拉刷新");
     
@@ -4778,6 +4657,7 @@
         }
     });
 }
+*/
 
 // 辅助方法：创建成功图标
 - (UIImage *)createSuccessIcon {
@@ -4835,7 +4715,7 @@
         return result;
     }
     
-    if (@available(iOS 11.0, *)) {
+    if ([[XZiOSVersionManager sharedManager] isiOS11Later]) {
         UIWindow *window = [UIApplication sharedApplication].delegate.window;
         if (window.safeAreaInsets.bottom > 0) {
             return YES;
