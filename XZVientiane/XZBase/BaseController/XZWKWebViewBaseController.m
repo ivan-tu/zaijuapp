@@ -29,6 +29,7 @@
 #import "AppDelegate.h"
 #import "XZiOSVersionManager.h"
 #import "XZErrorCodeManager.h"
+#import "XZWebViewPerformanceManager.h"
 
 // 导入WebViewJavascriptBridge
 #import "../../ThirdParty/WKWebViewJavascriptBridge/WKWebViewJavascriptBridge.h"
@@ -67,6 +68,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 @property (nonatomic, strong) NSString *currentTempFileName; // 当前临时文件名
 @property (nonatomic, strong) NSOperationQueue *jsOperationQueue; // JavaScript操作队列
 @property (nonatomic, strong) NSTimer *healthCheckTimer; // WebView健康检查定时器
+@property (nonatomic, assign) BOOL isKVORegistered; // 在局Claude Code[KVO崩溃修复]+标记KVO观察者是否已注册
 
 @end
 
@@ -105,8 +107,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 创建网络状态提示视图
     [self setupNetworkNoteView];
     
-    // 延迟WebView创建到需要时，避免阻塞Tab切换动画
-    
     // 创建加载指示器
     [self setupLoadingIndicators];
     
@@ -119,8 +119,26 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 【性能优化】初始化优化相关属性和队列
     [self initializePerformanceOptimizations];
     
-    // 【性能优化】预创建WebView（异步，不阻塞主线程）
-    [self preCreateWebViewIfNeeded];
+    // 🚀【性能优化】在viewDidLoad中提前创建WebView
+    // 判断是否为首页（第一个tab）
+    BOOL isFirstTab = NO;
+    if (self.tabBarController && self.isTabbarShow) {
+        NSInteger currentIndex = [self.tabBarController.viewControllers indexOfObject:self.navigationController];
+        isFirstTab = (currentIndex == 0);
+    }
+    
+    if (isFirstTab) {
+        NSLog(@"在局Claude Code[性能优化]+首页在viewDidLoad中提前创建WebView");
+        // 立即创建WebView，不等待viewDidAppear
+        [self createWebViewImmediately];
+    } else {
+        // 在局Claude Code[首次安装优化]+非首页也提前创建WebView以减少切换延迟
+        NSLog(@"在局Claude Code[首次安装优化]+非首页也提前创建WebView以减少切换延迟");
+        // 延迟很短时间后创建，避免阻塞主线程但又能减少切换延迟
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self createWebViewImmediately];
+        });
+    }
     
     // 添加应用生命周期通知监听
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(appWillTerminate:) name:@"AppWillTerminateNotification" object:nil];
@@ -142,9 +160,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                                                      name:UISceneDidEnterBackgroundNotification 
                                                    object:nil];
     }
-    
-    // 开始操作
-    [self domainOperate];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -166,7 +181,18 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 记录这一次选中的索引
     self.lastSelectedIndex = self.tabBarController.selectedIndex;
     
-    [self setupAndLoadWebViewIfNeeded];
+    // 🚀【性能优化】检查WebView是否已在viewDidLoad中创建
+    if (self.webView && self.isWebViewPreCreated) {
+        NSLog(@"在局Claude Code[性能优化]+WebView已在viewDidLoad中创建，跳过重复创建");
+        // WebView已创建，只需要检查是否需要加载内容
+        if (![self hasValidWebViewContent] && self.pinUrl && self.pinUrl.length > 0) {
+            NSLog(@"在局Claude Code[性能优化]+WebView已创建但无内容，执行domainOperate");
+            [self domainOperate];
+        }
+    } else {
+        // WebView未创建，使用原有逻辑
+        [self setupAndLoadWebViewIfNeeded];
+    }
     
     // 启动网络监控
 //    [self listenToTimer];
@@ -256,6 +282,14 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             // 触发页面显示事件
             NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageShow" data:nil];
             [self objcCallJs:callJsDic];
+            
+            // 在局Claude Code[Tab空白修复]+pageShow后检查页面是否真的显示
+            if (self.isTabbarShow) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [self checkAndFixPageVisibility];
+                });
+            }
+            
             return; // 避免任何重新加载
         }
         
@@ -430,12 +464,23 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         
         // 使用优化的WebView创建流程
         dispatch_async(dispatch_get_main_queue(), ^{
-            // 创建优化的WebView配置
-            WKWebViewConfiguration *configuration = [self createOptimizedWebViewConfiguration];
+            // 🚀【性能优化】优先从WebView池获取预热的实例
+            XZWebViewPerformanceManager *performanceManager = [XZWebViewPerformanceManager sharedManager];
+            WKWebView *pooledWebView = [performanceManager getPrewarmedWebView];
             
-            // 创建WebView实例
-            self.webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration];
-            self.webView.backgroundColor = [UIColor whiteColor];
+            if (pooledWebView) {
+                NSLog(@"在局Claude Code[性能优化]+使用预热的WebView");
+                self.webView = pooledWebView;
+                self.webView.backgroundColor = [UIColor whiteColor];
+            } else {
+                NSLog(@"在局Claude Code[性能优化]+WebView池为空，创建新实例");
+                // 创建优化的WebView配置
+                WKWebViewConfiguration *configuration = [self createOptimizedWebViewConfiguration];
+                
+                // 创建WebView实例
+                self.webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration];
+                self.webView.backgroundColor = [UIColor whiteColor];
+            }
             
             // 🔧 关键修复：立即设置桥接，确保navigationDelegate不会为nil
             [self setupUnifiedJavaScriptBridge];
@@ -595,10 +640,16 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         self.webView.UIDelegate = nil;
         
         // 根据资料建议，移除KVO观察者
-        @try {
-            [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
-            [self.webView removeObserver:self forKeyPath:@"title"];
-        } @catch (NSException *exception) {
+        // 在局Claude Code[KVO崩溃修复]+使用标志位防止重复移除
+        if (self.isKVORegistered) {
+            @try {
+                [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
+                [self.webView removeObserver:self forKeyPath:@"title"];
+                self.isKVORegistered = NO;
+                NSLog(@"在局Claude Code[KVO崩溃修复]+已移除KVO观察者");
+            } @catch (NSException *exception) {
+                NSLog(@"在局Claude Code[KVO崩溃修复]+移除KVO观察者异常: %@", exception);
+            }
         }
         
         // 移除WebView
@@ -868,8 +919,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     
     // 根据资料建议，添加进度监听
-    [self.webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:NULL];
-    [self.webView addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:NULL];
+    // 在局Claude Code[KVO崩溃修复]+使用标志位防止重复添加观察者
+    if (!self.isKVORegistered) {
+        [self.webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:NULL];
+        [self.webView addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:NULL];
+        self.isKVORegistered = YES;
+        NSLog(@"在局Claude Code[KVO崩溃修复]+已注册KVO观察者");
+    } else {
+        NSLog(@"在局Claude Code[KVO崩溃修复]+KVO观察者已存在，跳过重复注册");
+    }
     
     // 配置滚动视图属性
     self.webView.scrollView.scrollsToTop = YES;
@@ -1527,7 +1585,26 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     
                     // 创建网络请求
                     NSURL *url = [NSURL URLWithString:self.pinUrl];
-                    NSURLRequest *request = [NSURLRequest requestWithURL:url];
+                    
+                    // 🚀【性能优化】为首页URL设置特殊的缓存策略
+                    NSURLRequest *request;
+                    if ([self.pinUrl containsString:@"zaiju.com/p/home/index/index"]) {
+                        NSLog(@"在局Claude Code[性能优化]+检测到首页URL，使用激进缓存策略");
+                        // 首页使用缓存优先策略，减少网络请求
+                        NSMutableURLRequest *mutableRequest = [NSMutableURLRequest requestWithURL:url];
+                        mutableRequest.cachePolicy = NSURLRequestReturnCacheDataElseLoad; // 优先使用缓存，缓存不存在才请求网络
+                        mutableRequest.timeoutInterval = 60.0; // 首页超时时间设置为60秒
+                        
+                        // 添加缓存控制头
+                        [mutableRequest setValue:@"max-age=300" forHTTPHeaderField:@"Cache-Control"]; // 缓存5分钟
+                        request = [mutableRequest copy];
+                    } else {
+                        NSLog(@"在局Claude Code[性能优化]+非首页URL，使用默认缓存策略");
+                        // 其他页面使用默认缓存策略
+                        request = [NSURLRequest requestWithURL:url 
+                                            cachePolicy:NSURLRequestUseProtocolCachePolicy 
+                                        timeoutInterval:45.0];
+                    }
                     
                     // 加载网络URL
                     [self.webView loadRequest:request];
@@ -2453,7 +2530,13 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                            [javaScriptString containsString:@"typeof app"];
     
     BOOL isInteractiveRestore = [javaScriptString containsString:@"document.body.style.display"] ||
-                               [javaScriptString containsString:@"window.dispatchEvent"];
+                               [javaScriptString containsString:@"window.dispatchEvent"] ||
+                               [javaScriptString containsString:@"reloadOtherPages"] ||
+                               [javaScriptString containsString:@"getCurrentPages"] ||
+                               [javaScriptString containsString:@"window.scrollTo"] ||
+                               [javaScriptString containsString:@"visibilitychange"] ||
+                               [javaScriptString containsString:@"document.readyState"] ||
+                               [javaScriptString containsString:@"mainElementsCount"];
     
     // 应用状态检查
     UIApplicationState appState = [[UIApplication sharedApplication] applicationState];
@@ -2852,11 +2935,20 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     [self safelyEvaluateJavaScript:javascriptCode completionHandler:^(id result, NSError *error) {
         if (result && !error) {
             
-            // 解析结果，如果初始化失败，可能需要重试
-            NSError *jsonError;
-            NSDictionary *resultDict = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&jsonError];
+            // 在局Claude Code[JavaScript桥接修复]+安全地解析初始化结果
+            NSDictionary *resultDict = nil;
+            NSError *jsonError = nil;
             
-            if (!jsonError && [resultDict[@"error"] isEqualToString:@"environment_not_ready"]) {
+            if ([result isKindOfClass:[NSString class]]) {
+                NSData *jsonData = [(NSString *)result dataUsingEncoding:NSUTF8StringEncoding];
+                if (jsonData) {
+                    resultDict = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:&jsonError];
+                }
+            } else if ([result isKindOfClass:[NSDictionary class]]) {
+                resultDict = (NSDictionary *)result;
+            }
+            
+            if (!jsonError && resultDict && [resultDict[@"error"] isEqualToString:@"environment_not_ready"]) {
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     [self performJavaScriptBridgeInitialization];
                 });
@@ -2868,6 +2960,17 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 // 强制检查并触发pageReady事件的方法
 - (void)forceCheckAndTriggerPageReady {
+    [self forceCheckAndTriggerPageReadyWithRetryCount:0];
+}
+
+// 带重试次数的强制检查页面就绪方法
+- (void)forceCheckAndTriggerPageReadyWithRetryCount:(NSInteger)retryCount {
+    static const NSInteger MAX_RETRY_COUNT = 5; // 最大重试次数
+    
+    if (retryCount >= MAX_RETRY_COUNT) {
+        NSLog(@"在局Claude Code[强制页面就绪]+已达到最大重试次数(%ld)，停止重试", (long)MAX_RETRY_COUNT);
+        return;
+    }
     
     // 检查页面是否真正准备就绪
     NSString *checkPageReadyScript = @"(function() {"
@@ -2888,11 +2991,21 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         }
         
         
-        // 解析检查结果
-        NSError *jsonError;
-        NSDictionary *statusDict = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&jsonError];
+        // 在局Claude Code[JavaScript桥接修复]+安全地解析页面准备状态结果
+        NSDictionary *statusDict = nil;
+        NSError *jsonError = nil;
+        
+        if ([result isKindOfClass:[NSString class]]) {
+            NSData *jsonData = [(NSString *)result dataUsingEncoding:NSUTF8StringEncoding];
+            if (jsonData) {
+                statusDict = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:&jsonError];
+            }
+        } else if ([result isKindOfClass:[NSDictionary class]]) {
+            statusDict = (NSDictionary *)result;
+        }
         
         if (jsonError || !statusDict) {
+            NSLog(@"在局Claude Code[强制页面就绪]+检查结果解析失败: %@", jsonError.localizedDescription);
             return;
         }
         
@@ -2946,9 +3059,10 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         } else if (pageReadyAlreadyCalled) {
             [self triggerNetworkRecoveryIfNeeded];
         } else {
-            // 条件不满足，延迟重试
+            // 条件不满足，延迟重试（带重试次数控制）
+            NSLog(@"在局Claude Code[强制页面就绪]+条件不满足，延迟重试，当前重试次数: %ld", (long)retryCount);
             [self scheduleJavaScriptTask:^{
-                [self forceCheckAndTriggerPageReady];
+                [self forceCheckAndTriggerPageReadyWithRetryCount:retryCount + 1];
             } afterDelay:1.0];
         }
     }];
@@ -3012,15 +3126,18 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     
     
-    // 延迟处理JavaScript桥接初始化，确保页面完全加载
+    // 在局Claude Code[首次安装优化]+减少JavaScript桥接初始化延迟
     [self scheduleJavaScriptTask:^{
         [self performJavaScriptBridgeInitialization];
         
-        // 关键修复：强制检查并触发pageReady事件
+        // 在局Claude Code[修复输入框双击聚焦问题]+页面加载完成后重新确保输入框聚焦优化
+        [self reinjectInputFocusOptimization];
+        
+        // 关键修复：强制检查并触发pageReady事件（减少延迟）
         [self scheduleJavaScriptTask:^{
             [self forceCheckAndTriggerPageReady];
-        } afterDelay:0.8];
-    } afterDelay:0.5];
+        } afterDelay:0.3];
+    } afterDelay:0.2];
     
     if (!self.isWebViewLoading) {
         // 处理loading视图
@@ -3155,6 +3272,39 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 #pragma mark - WKUIDelegate
 
+// 在局Claude Code[修复输入框双击聚焦问题]+实现WKUIDelegate方法处理输入框聚焦
+- (nullable WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures {
+    // 处理新窗口请求，返回nil在当前窗口打开
+    if (!navigationAction.targetFrame.isMainFrame) {
+        [webView loadRequest:navigationAction.request];
+    }
+    return nil;
+}
+
+- (void)webViewDidClose:(WKWebView *)webView {
+    // 处理WebView关闭事件
+}
+
+- (void)webView:(WKWebView *)webView runJavaScriptTextInputPanelWithPrompt:(NSString *)prompt defaultText:(nullable NSString *)defaultText initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(NSString * _Nullable result))completionHandler {
+    // 处理JavaScript prompt，对输入框聚焦很重要
+    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"输入" message:prompt preferredStyle:UIAlertControllerStyleAlert];
+    
+    [alertController addTextFieldWithConfigurationHandler:^(UITextField * _Nonnull textField) {
+        textField.text = defaultText;
+    }];
+    
+    [alertController addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        UITextField *textField = alertController.textFields.firstObject;
+        completionHandler(textField.text ?: @"");
+    }]];
+    
+    [alertController addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:^(UIAlertAction *action) {
+        completionHandler(nil);
+    }]];
+    
+    [self presentViewController:alertController animated:YES completion:nil];
+}
+
 - (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(void))completionHandler {
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"提示" message:message preferredStyle:UIAlertControllerStyleAlert];
     [alertController addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
@@ -3181,6 +3331,24 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         float progress = [[change objectForKey:NSKeyValueChangeNewKey] floatValue];
         
         dispatch_async(dispatch_get_main_queue(), ^{
+            // 在局Claude Code[首次安装优化]+当加载进度达到20%时就开始移除LoadingView，减少用户等待时间
+            if (progress >= 0.2 && self.isTabbarShow && [self isShowingOnKeyWindow]) {
+                static BOOL hasTriggeredEarlyRemoval = NO;
+                if (!hasTriggeredEarlyRemoval) {
+                    hasTriggeredEarlyRemoval = YES;
+                    NSLog(@"在局Claude Code[首次安装优化]+WebView加载进度达到%.0f%%，提前移除LoadingView", progress * 100);
+                    
+                    // 发送通知移除LoadingView
+                    [[NSNotificationCenter defaultCenter] postNotificationName:@"showTabviewController" object:self];
+                    
+                    // 直接尝试移除LoadingView
+                    AppDelegate *appDelegate = (AppDelegate *)[UIApplication sharedApplication].delegate;
+                    if ([appDelegate respondsToSelector:@selector(removeGlobalLoadingViewWithReason:)]) {
+                        [appDelegate removeGlobalLoadingViewWithReason:@"WebView加载进度达到20%"];
+                    }
+                }
+            }
+            
             if (progress > 0.0 && progress < 1.0) {
                 // 显示进度条并更新进度
                 // self.progressView.hidden = NO; // 已禁用进度条
@@ -3367,10 +3535,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         [self.webView stopLoading];
         
         // 移除KVO观察者
-        @try {
-            [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
-            [self.webView removeObserver:self forKeyPath:@"title"];
-        } @catch (NSException *exception) {
+        // 在局Claude Code[KVO崩溃修复]+清理WebView时移除观察者
+        if (self.isKVORegistered) {
+            @try {
+                [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
+                [self.webView removeObserver:self forKeyPath:@"title"];
+                self.isKVORegistered = NO;
+            } @catch (NSException *exception) {
+                NSLog(@"在局Claude Code[KVO崩溃修复]+清理时移除KVO异常: %@", exception);
+            }
         }
         
         // 清理代理
@@ -3516,10 +3689,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     if (self.webView) {
         
         // 移除所有观察者
-        @try {
-            [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
-            [self.webView removeObserver:self forKeyPath:@"title"];
-        } @catch (NSException *exception) {
+        // 在局Claude Code[KVO崩溃修复]+强制刷新时移除观察者
+        if (self.isKVORegistered) {
+            @try {
+                [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
+                [self.webView removeObserver:self forKeyPath:@"title"];
+                self.isKVORegistered = NO;
+            } @catch (NSException *exception) {
+                NSLog(@"在局Claude Code[KVO崩溃修复]+强制刷新时移除KVO异常: %@", exception);
+            }
         }
         
         // 清理JavaScript桥接
@@ -4327,6 +4505,56 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 /**
+ * 立即创建WebView - 专门为首页优化
+ * 在viewDidLoad中同步创建，减少延迟
+ */
+- (void)createWebViewImmediately {
+    if (self.webView || self.isWebViewPreCreated) {
+        return;
+    }
+    
+    NSLog(@"在局Claude Code[性能优化]+开始立即创建WebView");
+    
+    // 🚀【性能优化】优先从WebView池获取预热的实例
+    XZWebViewPerformanceManager *performanceManager = [XZWebViewPerformanceManager sharedManager];
+    WKWebView *pooledWebView = [performanceManager getPrewarmedWebView];
+    
+    if (pooledWebView) {
+        NSLog(@"在局Claude Code[性能优化]+使用预热的WebView（viewDidLoad）");
+        self.webView = pooledWebView;
+        self.webView.backgroundColor = [UIColor whiteColor];
+    } else {
+        NSLog(@"在局Claude Code[性能优化]+WebView池为空，创建新实例（viewDidLoad）");
+        // 创建优化的WebView配置
+        WKWebViewConfiguration *configuration = [self createOptimizedWebViewConfiguration];
+        
+        // 创建WebView实例
+        self.webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration];
+        self.webView.backgroundColor = [UIColor whiteColor];
+    }
+    
+    // 🔧 关键修复：立即设置桥接，确保navigationDelegate不会为nil
+    [self setupUnifiedJavaScriptBridge];
+    
+    // 添加到视图层级
+    [self addWebView];
+    
+    // 标记为已预创建
+    self.isWebViewPreCreated = YES;
+    
+    NSLog(@"在局Claude Code[性能优化]+WebView创建完成（viewDidLoad）");
+    
+    // 如果已经有URL，可以开始加载
+    if (self.pinUrl && self.pinUrl.length > 0) {
+        NSLog(@"在局Claude Code[性能优化]+检测到pinUrl，准备domainOperate: %@", self.pinUrl);
+        // 延迟一点执行，确保视图层级完全建立
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self domainOperate];
+        });
+    }
+}
+
+/**
  * 预创建WebView - 在viewDidLoad中异步调用
  * 优化目标：减少WebView创建时间，提升首次显示速度100ms
  */
@@ -4437,6 +4665,290 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         forMainFrameOnly:NO];
     [self.userContentController addUserScript:debugUserScript];
     #endif
+    
+    // 在局Claude Code[修复输入框双击聚焦问题]+注入极致敏感的输入框轻触聚焦优化JavaScript
+    NSString *inputFocusOptimizationScript = @""
+    "(function() {"
+    "    "
+    "    // 全局标志，避免重复处理"
+    "    if (window.inputFocusOptimized) {"
+    "        return;"
+    "    }"
+    "    window.inputFocusOptimized = true;"
+    "    "
+    "    // 极致敏感输入框聚焦处理 - 移除所有延迟"
+    "    function extremelySensitiveFocus(inputElement, eventType) {"
+    "        if (!inputElement || inputElement.disabled || inputElement.readOnly) {"
+    "            return false;"
+    "        }"
+    "        "
+    "        var tagName = inputElement.tagName.toUpperCase();"
+    "        if (tagName !== 'INPUT' && tagName !== 'TEXTAREA') {"
+    "            return false;"
+    "        }"
+    "        "
+    "        try {"
+    "            "
+    "            // 🔥 关键修改1：立即多次调用focus()，确保生效"
+    "            inputElement.focus();"
+    "            inputElement.focus(); // 双重保险"
+    "            "
+    "            // 🔥 关键修改2：强制点击激活（模拟用户重点击）"
+    "            if (eventType === 'touchstart' || eventType === 'touchend') {"
+    "                var clickEvent = new MouseEvent('click', {"
+    "                    bubbles: true,"
+    "                    cancelable: true,"
+    "                    view: window,"
+    "                    detail: 1"
+    "                });"
+    "                inputElement.dispatchEvent(clickEvent);"
+    "            }"
+    "            "
+    "            // 🔥 关键修改3：强制触发所有焦点相关事件"
+    "            var events = ['focusin', 'focus'];"
+    "            events.forEach(function(eventName) {"
+    "                var focusEvent = new FocusEvent(eventName, {"
+    "                    bubbles: true,"
+    "                    cancelable: false"
+    "                });"
+    "                inputElement.dispatchEvent(focusEvent);"
+    "            });"
+    "            "
+    "            // 🔥 关键修改4：立即设置光标和选择"
+    "            if (inputElement.setSelectionRange && inputElement.type !== 'number' && inputElement.type !== 'email' && inputElement.type !== 'tel') {"
+    "                var len = inputElement.value ? inputElement.value.length : 0;"
+    "                inputElement.setSelectionRange(len, len);"
+    "            }"
+    "            "
+    "            // 🔥 关键修改5：强制属性设置"
+    "            inputElement.setAttribute('data-focused', 'true');"
+    "            "
+    "            // 🔥 关键修改6：使用requestAnimationFrame确保DOM更新"
+    "            requestAnimationFrame(function() {"
+    "                inputElement.focus();"
+    "            });"
+    "            "
+    "            return true;"
+    "        } catch(e) {"
+    "            return false;"
+    "        }"
+    "    }"
+    "    "
+    "    // 极致敏感事件处理函数 - 放宽触发条件"
+    "    function handleExtremelySensitiveTouch(e) {"
+    "        var target = e.target;"
+    "        var inputElement = null;"
+    "        "
+    "        // 🔥 关键修改7：更激进的输入框查找策略"
+    "        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {"
+    "            inputElement = target;"
+    "        } else {"
+    "            // 查找各种可能的输入框位置"
+    "            inputElement = target.closest('input, textarea');"
+    "            "
+    "            if (!inputElement) {"
+    "                inputElement = target.querySelector('input, textarea');"
+    "            }"
+    "            "
+    "            // 🔥 关键修改8：扩展到更大的搜索半径"
+    "            if (!inputElement) {"
+    "                var containers = ['div', 'form', 'label', 'span', 'p', 'li', 'td', 'th'];"
+    "                for (var j = 0; j < containers.length; j++) {"
+    "                    var container = target.closest(containers[j]);"
+    "                    if (container) {"
+    "                        var inputs = container.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]), textarea');"
+    "                        if (inputs.length > 0) {"
+    "                            // 简化逻辑：直接选择第一个可见的输入框"
+    "                            for (var k = 0; k < inputs.length; k++) {"
+    "                                var input = inputs[k];"
+    "                                var style = window.getComputedStyle(input);"
+    "                                if (style.display !== 'none' && style.visibility !== 'hidden' && !input.disabled) {"
+    "                                    inputElement = input;"
+    "                                    break;"
+    "                                }"
+    "                            }"
+    "                            if (inputElement) break;"
+    "                        }"
+    "                    }"
+    "                }"
+    "            }"
+    "        }"
+    "        "
+    "        if (inputElement) {"
+    "            "
+    "            // 🔥 关键修改9：不阻止任何默认行为，让原生处理流程正常执行"
+    "            // 移除了所有的preventDefault()和stopPropagation()"
+    "            "
+    "            // 极致敏感聚焦"
+    "            var focusResult = extremelySensitiveFocus(inputElement, e.type);"
+    "            "
+    "            // 🔥 关键修改10：如果首次聚焦失败，立即重试"
+    "            if (!focusResult && e.type === 'touchstart') {"
+    "                setTimeout(function() {"
+    "                    extremelySensitiveFocus(inputElement, 'retry');"
+    "                }, 10); // 极短延迟重试"
+    "            }"
+    "        }"
+    "    }"
+    "    "
+    "    // 🔥 关键修改11：监听更多触摸事件，提高触发概率"
+    "    var touchEvents = ['touchstart', 'touchmove', 'touchend'];"
+    "    touchEvents.forEach(function(eventType) {"
+    "        document.addEventListener(eventType, handleExtremelySensitiveTouch, {"
+    "            capture: true,"
+    "            passive: true  // 改为passive以避免阻塞滚动"
+    "        });"
+    "    });"
+    "    "
+    "    // 🔥 关键修改12：保留传统事件作为后备，但使用新的处理函数"
+    "    var fallbackEvents = ['mousedown', 'click'];"
+    "    fallbackEvents.forEach(function(eventType) {"
+    "        document.addEventListener(eventType, handleExtremelySensitiveTouch, {"
+    "            capture: true,"
+    "            passive: true"
+    "        });"
+    "    });"
+    "    "
+    "    // 🔥 关键修改13：增强的focusin处理，立即激活"
+    "    document.addEventListener('focusin', function(e) {"
+    "        var target = e.target;"
+    "        if ((target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && "
+    "            !target.disabled && !target.readOnly) {"
+    "            "
+    "            // 🔥 立即多重focus确保激活"
+    "            target.focus();"
+    "            target.focus();"
+    "            "
+    "            // 立即设置光标位置"
+    "            if (target.setSelectionRange && target.type !== 'number' && target.type !== 'email' && target.type !== 'tel') {"
+    "                var len = target.value ? target.value.length : 0;"
+    "                target.setSelectionRange(len, len);"
+    "            }"
+    "            "
+    "            // 设置激活标记"
+    "            target.setAttribute('data-focused', 'true');"
+    "        }"
+    "    }, true);"
+    "    "
+    "    // 🔥 关键修改14：增强的MutationObserver，为动态输入框添加极致敏感支持"
+    "    if (window.MutationObserver) {"
+    "        var observer = new MutationObserver(function(mutations) {"
+    "            mutations.forEach(function(mutation) {"
+    "                if (mutation.type === 'childList') {"
+    "                    mutation.addedNodes.forEach(function(node) {"
+    "                        if (node.nodeType === 1) {"
+    "                            var inputs = node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' ? [node] : node.querySelectorAll('input, textarea');"
+    "                            if (inputs.length > 0) {"
+    "                                inputs.forEach(function(input) {"
+    "                                    if (!input.disabled && !input.readOnly) {"
+    "                                        // 🔥 为新输入框添加所有触摸事件"
+    "                                        touchEvents.forEach(function(eventType) {"
+    "                                            input.addEventListener(eventType, handleExtremelySensitiveTouch, {"
+    "                                                capture: true,"
+    "                                                passive: true"
+    "                                            });"
+    "                                        });"
+    "                                    }"
+    "                                });"
+    "                            }"
+    "                        }"
+    "                    });"
+    "                }"
+    "            });"
+    "        });"
+    "        "
+    "        observer.observe(document.body || document.documentElement, {"
+    "            childList: true,"
+    "            subtree: true"
+    "        });"
+    "    }"
+    "    "
+    "    // 🔥 关键修改15：页面加载完成后立即激活所有现有输入框"
+    "    function activateAllExistingInputs() {"
+    "        var allInputs = document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]), textarea');"
+    "        "
+    "        allInputs.forEach(function(input) {"
+    "            if (!input.disabled && !input.readOnly) {"
+    "                // 预设置优化属性"
+    "                input.setAttribute('data-touch-optimized', 'true');"
+    "                "
+    "                // 添加直接事件监听器（更快响应）"
+    "                touchEvents.forEach(function(eventType) {"
+    "                    input.addEventListener(eventType, function(e) {"
+    "                        extremelySensitiveFocus(input, eventType);"
+    "                    }, {"
+    "                        capture: true,"
+    "                        passive: true"
+    "                    });"
+    "                });"
+    "            }"
+    "        });"
+    "    }"
+    "    "
+    "    // 🔥 关键修改16：立即执行 + DOM就绪时再次执行"
+    "    activateAllExistingInputs();"
+    "    "
+    "    if (document.readyState === 'loading') {"
+    "        document.addEventListener('DOMContentLoaded', activateAllExistingInputs);"
+    "    } else {"
+    "        setTimeout(activateAllExistingInputs, 100); // 延迟一点再次激活"
+    "    }"
+    "    "
+    "})();";
+    
+    WKUserScript *inputFocusScript = [[WKUserScript alloc] 
+        initWithSource:inputFocusOptimizationScript
+        injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+        forMainFrameOnly:NO];
+    [self.userContentController addUserScript:inputFocusScript];
+    
+    // 在局Claude Code[修复输入框双击聚焦问题]+额外在DocumentEnd阶段再次注入，确保覆盖
+    NSString *additionalInputFocusScript = @""
+    "(function() {"
+    "    "
+    "    // 覆盖可能存在的输入框处理逻辑"
+    "    var originalAddEventListener = EventTarget.prototype.addEventListener;"
+    "    EventTarget.prototype.addEventListener = function(type, listener, options) {"
+    "        // 如果是输入框相关事件，优先处理我们的逻辑"
+    "        if ((type === 'click' || type === 'touchend' || type === 'mousedown') && "
+    "            (this.tagName === 'INPUT' || this.tagName === 'TEXTAREA')) {"
+    "            "
+    "            var enhancedListener = function(e) {"
+    "                "
+    "                // 立即聚焦"
+    "                var target = e.target || e.currentTarget;"
+    "                if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && "
+    "                    !target.disabled && !target.readOnly) {"
+    "                    "
+    "                    target.focus();"
+    "                    "
+    "                    // 延迟再次聚焦确保生效"
+    "                    setTimeout(function() {"
+    "                        target.focus();"
+    "                    }, 10);"
+    "                }"
+    "                "
+    "                // 调用原始监听器"
+    "                if (typeof listener === 'function') {"
+    "                    listener.call(this, e);"
+    "                } else if (listener && typeof listener.handleEvent === 'function') {"
+    "                    listener.handleEvent(e);"
+    "                }"
+    "            };"
+    "            "
+    "            return originalAddEventListener.call(this, type, enhancedListener, options);"
+    "        }"
+    "        "
+    "        return originalAddEventListener.call(this, type, listener, options);"
+    "    };"
+    "    "
+    "})();";
+    
+    WKUserScript *additionalScript = [[WKUserScript alloc] 
+        initWithSource:additionalInputFocusScript
+        injectionTime:WKUserScriptInjectionTimeAtDocumentEnd
+        forMainFrameOnly:NO];
+    [self.userContentController addUserScript:additionalScript];
     
     return configuration;
 }
@@ -4721,15 +5233,66 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     if (self.isExist && self.isLoading) {
         NSLog(@"在局Claude Code[WebView内容检查]+页面已存在且已加载: isExist=%@, isLoading=%@", 
               self.isExist ? @"YES" : @"NO", self.isLoading ? @"YES" : @"NO");
+        
+        // 在局Claude Code[Tab空白修复]+额外检查WebView的视图状态
+        if (self.isTabbarShow && self.webView) {
+            NSLog(@"在局Claude Code[Tab空白修复]+WebView视图状态检查: hidden=%@, alpha=%.2f, superview=%@", 
+                  self.webView.hidden ? @"YES" : @"NO", 
+                  self.webView.alpha,
+                  self.webView.superview ? @"YES" : @"NO");
+            
+            // 确保WebView可见
+            if (self.webView.hidden || self.webView.alpha < 1.0 || !self.webView.superview) {
+                NSLog(@"在局Claude Code[Tab空白修复]+WebView状态异常，强制修复");
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self.webView.hidden = NO;
+                    self.webView.alpha = 1.0;
+                    if (!self.webView.superview) {
+                        [self addWebView];
+                    }
+                    [self.webView setNeedsLayout];
+                    [self.webView layoutIfNeeded];
+                });
+                return NO; // 返回NO触发重新加载
+            }
+        }
+        
         return YES;
     }
     
-    // 对于tab页面，如果WebView存在且已经接收过pageReady事件（isExist为YES），就认为有效
-    // 即使isLoading可能被重置，isExist会保持页面的历史状态
-    if (self.isTabbarShow && self.isExist) {
-        NSLog(@"在局Claude Code[WebView内容检查]+Tab页面已存在: isTabbarShow=%@, isExist=%@", 
-              self.isTabbarShow ? @"YES" : @"NO", self.isExist ? @"YES" : @"NO");
-        return YES;
+    // 对于tab页面，需要更严格的检查
+    if (self.isTabbarShow) {
+        // 检查是否为新创建的控制器（通过检查WebView的URL）
+        NSURL *currentURL = self.webView.URL;
+        NSString *urlString = currentURL ? currentURL.absoluteString : @"";
+        
+        // 如果URL为空或about:blank，说明是新创建的控制器或WebView未加载
+        if (!currentURL || [urlString isEqualToString:@"about:blank"] || urlString.length == 0) {
+            NSLog(@"在局Claude Code[WebView内容检查]+Tab页面WebView未加载: URL=%@", urlString);
+            return NO;
+        }
+        
+        // 如果isExist为NO，说明页面还没有收到pageReady事件
+        if (!self.isExist) {
+            NSLog(@"在局Claude Code[WebView内容检查]+Tab页面未收到pageReady: isExist=NO");
+            return NO;
+        }
+        
+        // 如果URL是manifest路径，说明只加载了基础HTML，还需要加载真实内容
+        if ([urlString containsString:@"manifest/"]) {
+            NSLog(@"在局Claude Code[WebView内容检查]+Tab页面只有基础HTML，需要加载真实内容: URL=%@", urlString);
+            return NO;
+        }
+        
+        // 如果URL是有效的网络地址且isExist为YES，认为有效
+        if (self.isExist && ([urlString hasPrefix:@"http://"] || [urlString hasPrefix:@"https://"])) {
+            NSLog(@"在局Claude Code[WebView内容检查]+Tab页面有效: URL=%@, isExist=YES", urlString);
+            return YES;
+        }
+        
+        NSLog(@"在局Claude Code[WebView内容检查]+Tab页面需要重新加载: URL=%@, isExist=%@", 
+              urlString, self.isExist ? @"YES" : @"NO");
+        return NO;
     }
     
     // 检查URL - 只有当URL完全无效时才返回NO
@@ -4808,6 +5371,432 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     
     return isReturn;
+}
+
+// 在局Claude Code[修复输入框双击聚焦问题]+页面加载完成后重新注入输入框聚焦优化
+- (void)reinjectInputFocusOptimization {
+    NSString *reinjectScript = @""
+    "(function() {"
+    "    try {"
+    "        "
+    "        // 检查是否已经注入过"
+    "        if (window.inputFocusOptimizedReinjected) {"
+    "            return {success: true, message: 'already_injected'};"
+    "        }"
+    "        window.inputFocusOptimizedReinjected = true;"
+    "        "
+    "        // 简化的输入框处理函数"
+    "        function optimizeInputFocus(input) {"
+    "            if (!input || input.disabled || input.readOnly) {"
+    "                return false;"
+    "            }"
+    "            "
+    "            // 简化的聚焦处理"
+    "            var focusHandler = function(e) {"
+    "                try {"
+    "                    input.focus();"
+    "                    setTimeout(function() {"
+    "                        try {"
+    "                            if (input && typeof input.focus === 'function') {"
+    "                                input.focus();"
+    "                            }"
+    "                        } catch (err) {}"
+    "                    }, 50);"
+    "                } catch (err) {"
+    "                }"
+    "            };"
+    "            "
+    "            // 安全地添加事件监听器"
+    "            try {"
+    "                input.addEventListener('click', focusHandler, true);"
+    "                input.addEventListener('touchend', focusHandler, true);"
+    "                return true;"
+    "            } catch (err) {"
+    "                return false;"
+    "            }"
+    "        }"
+    "        "
+    "        // 处理现有输入框"
+    "        var processedCount = 0;"
+    "        try {"
+    "            var inputs = document.querySelectorAll('input, textarea');"
+    "            "
+    "            for (var i = 0; i < inputs.length; i++) {"
+    "                if (optimizeInputFocus(inputs[i])) {"
+    "                    processedCount++;"
+    "                }"
+    "            }"
+    "        } catch (err) {"
+    "        }"
+    "        "
+    "        // 监听动态添加的输入框（使用MutationObserver）"
+    "        try {"
+    "            if (typeof MutationObserver !== 'undefined') {"
+    "                var observer = new MutationObserver(function(mutations) {"
+    "                    mutations.forEach(function(mutation) {"
+    "                        if (mutation.type === 'childList') {"
+    "                            for (var i = 0; i < mutation.addedNodes.length; i++) {"
+    "                                var node = mutation.addedNodes[i];"
+    "                                if (node.nodeType === 1) {"
+    "                                    if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {"
+    "                                        optimizeInputFocus(node);"
+    "                                    } else if (node.querySelectorAll) {"
+    "                                        var newInputs = node.querySelectorAll('input, textarea');"
+    "                                        for (var j = 0; j < newInputs.length; j++) {"
+    "                                            optimizeInputFocus(newInputs[j]);"
+    "                                        }"
+    "                                    }"
+    "                                }"
+    "                            }"
+    "                        }"
+    "                    });"
+    "                });"
+    "                observer.observe(document.body, { childList: true, subtree: true });"
+    "            }"
+    "        } catch (err) {"
+    "        }"
+    "        "
+    "        return {success: true, processed: processedCount};"
+    "    } catch (e) {"
+    "        return {success: false, error: e.message};"
+    "    }"
+    "})();";
+    
+    [self safelyEvaluateJavaScript:reinjectScript completionHandler:^(id result, NSError *error) {
+        if (error) {
+        } else {
+        }
+    }];
+}
+
+// 在局Claude Code[Tab空白修复]+检查并修复页面可见性问题
+- (void)checkAndFixPageVisibility {
+    if (!self.webView || _isDisappearing) {
+        return;
+    }
+    
+    // 确保WebView基本状态正确
+    if (self.webView.hidden || self.webView.alpha < 1.0) {
+        NSLog(@"在局Claude Code[页面可见性修复]+WebView基本状态异常，先修复基本状态");
+        self.webView.hidden = NO;
+        self.webView.alpha = 1.0;
+        [self.webView setNeedsLayout];
+        [self.webView layoutIfNeeded];
+    }
+    
+    // 通过JavaScript检查页面内容是否真正可见
+    NSString *visibilityCheckScript = @"(function() {"
+        "try {"
+            "var result = {"
+                "timestamp: Date.now(),"
+                "documentReady: document.readyState,"
+                "bodyExists: !!document.body,"
+                "bodyVisible: false,"
+                "bodyHeight: 0,"
+                "bodyDisplay: '',"
+                "bodyVisibility: '',"
+                "bodyOpacity: '',"
+                "hasContent: false,"
+                "mainElements: 0,"
+                "visibleElements: 0"
+            "};"
+            
+            "if (!document.body) {"
+                "result.error = 'document.body不存在';"
+                "return JSON.stringify(result);"
+            "}"
+            
+            "// 检查body的基本样式"
+            "var computedStyle = window.getComputedStyle(document.body);"
+            "result.bodyDisplay = computedStyle.display;"
+            "result.bodyVisibility = computedStyle.visibility;"
+            "result.bodyOpacity = computedStyle.opacity;"
+            "result.bodyHeight = document.body.offsetHeight;"
+            "result.bodyVisible = (result.bodyDisplay !== 'none' && result.bodyVisibility !== 'hidden' && parseFloat(result.bodyOpacity) > 0);"
+            
+            "// 检查是否有实际内容"
+            "var textContent = document.body.textContent || document.body.innerText || '';"
+            "result.hasContent = textContent.trim().length > 0;"
+            
+            "// 统计主要元素数量"
+            "var mainElements = document.querySelectorAll('div, section, main, article, p, h1, h2, h3, h4, h5, h6');"
+            "result.mainElements = mainElements.length;"
+            
+            "// 统计可见元素数量"
+            "var visibleCount = 0;"
+            "for (var i = 0; i < mainElements.length; i++) {"
+                "var elem = mainElements[i];"
+                "var style = window.getComputedStyle(elem);"
+                "if (style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity) > 0) {"
+                    "visibleCount++;"
+                "}"
+            "}"
+            "result.visibleElements = visibleCount;"
+            
+            "result.needsFix = !result.bodyVisible || result.visibleElements === 0;"
+            "result.success = true;"
+            "return JSON.stringify(result);"
+        "} catch(e) {"
+            "return JSON.stringify({success: false, error: e.message, timestamp: Date.now()});"
+        "}"
+    "})()";
+    
+    [self safelyEvaluateJavaScript:visibilityCheckScript completionHandler:^(id result, NSError *error) {
+        if (error) {
+            NSLog(@"在局Claude Code[页面可见性修复]+检查脚本执行失败: %@", error.localizedDescription);
+            // 🔧 关键修复：JavaScript检查失败时，直接执行强制页面修复
+            NSLog(@"在局Claude Code[页面可见性修复]+JavaScript检查失败，执行强制修复");
+            [self performPageVisibilityFix];
+            return;
+        }
+        
+        // 在局Claude Code[页面可见性修复]+安全地解析JavaScript返回结果
+        NSDictionary *checkResult = nil;
+        NSError *jsonError = nil;
+        
+        if ([result isKindOfClass:[NSString class]]) {
+            // 如果返回的是字符串，尝试JSON解析
+            NSData *jsonData = [(NSString *)result dataUsingEncoding:NSUTF8StringEncoding];
+            if (jsonData) {
+                checkResult = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:&jsonError];
+            }
+        } else if ([result isKindOfClass:[NSDictionary class]]) {
+            // 如果返回的已经是字典，直接使用
+            checkResult = (NSDictionary *)result;
+        } else {
+            NSLog(@"在局Claude Code[页面可见性修复]+意外的返回类型: %@, 内容: %@", NSStringFromClass([result class]), result);
+            return;
+        }
+        
+        if (jsonError || !checkResult) {
+            NSLog(@"在局Claude Code[页面可见性修复]+检查结果解析失败: %@", jsonError.localizedDescription);
+            return;
+        }
+        
+        NSLog(@"在局Claude Code[页面可见性修复]+检查结果: %@", checkResult);
+        
+        BOOL needsFix = [checkResult[@"needsFix"] boolValue];
+        BOOL hasContent = [checkResult[@"hasContent"] boolValue];
+        NSInteger visibleElements = [checkResult[@"visibleElements"] integerValue];
+        
+        // 如果页面需要修复
+        if (needsFix || (!hasContent && visibleElements == 0)) {
+            NSLog(@"在局Claude Code[页面可见性修复]+检测到页面显示异常，开始修复");
+            [self performPageVisibilityFix];
+        } else {
+            NSLog(@"在局Claude Code[页面可见性修复]+页面显示正常，无需修复");
+        }
+    }];
+}
+
+// 在局Claude Code[Tab空白修复]+执行页面可见性修复
+- (void)performPageVisibilityFix {
+    NSString *fixScript = @"(function() {"
+        "try {"
+            "var result = {timestamp: Date.now(), actions: []};"
+            
+            "// 1. 强制显示body"
+            "if (document.body) {"
+                "document.body.style.display = 'block';"
+                "document.body.style.visibility = 'visible';"
+                "document.body.style.opacity = '1';"
+                "document.body.style.height = 'auto';"
+                "document.body.style.minHeight = '100vh';"
+                "result.actions.push('body_fixed');"
+            "}"
+            
+            "// 2. 修复可能被隐藏的主要容器"
+            "var containers = document.querySelectorAll('main, .main, #main, .app, #app, .container, #container, .page, #page');"
+            "var fixedContainers = 0;"
+            "for (var i = 0; i < containers.length; i++) {"
+                "var container = containers[i];"
+                "var style = window.getComputedStyle(container);"
+                "if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) < 0.1) {"
+                    "container.style.display = 'block';"
+                    "container.style.visibility = 'visible';"
+                    "container.style.opacity = '1';"
+                    "fixedContainers++;"
+                "}"
+            "}"
+            "result.fixedContainers = fixedContainers;"
+            
+            "// 3. 移除可能的loading遮罩"
+            "var masks = document.querySelectorAll('.loading, .mask, .overlay, .spinner, .loading-mask, .loading-overlay');"
+            "var removedMasks = 0;"
+            "for (var i = 0; i < masks.length; i++) {"
+                "var mask = masks[i];"
+                "if (!mask.classList.contains('keep-visible')) {"
+                    "mask.style.display = 'none';"
+                    "removedMasks++;"
+                "}"
+            "}"
+            "result.removedMasks = removedMasks;"
+            
+            "// 4. 检查并修复可能被隐藏的内容元素"
+            "var contentElements = document.querySelectorAll('div, section, article, p');"
+            "var fixedElements = 0;"
+            "for (var i = 0; i < contentElements.length; i++) {"
+                "var elem = contentElements[i];"
+                "var style = window.getComputedStyle(elem);"
+                "if (style.display === 'none' && !elem.classList.contains('hidden') && !elem.classList.contains('d-none')) {"
+                    "// 只修复那些不应该被隐藏的元素"
+                    "if (elem.textContent && elem.textContent.trim().length > 0) {"
+                        "elem.style.display = 'block';"
+                        "fixedElements++;"
+                    "}"
+                "}"
+            "}"
+            "result.fixedElements = fixedElements;"
+            
+            "// 5. 强制重新渲染"
+            "if (document.body) {"
+                "document.body.offsetHeight;" // 触发重排
+                "document.body.style.transform = 'translateZ(0)';" // 触发GPU合成
+                "setTimeout(function() {"
+                    "document.body.style.transform = '';"
+                "}, 10);"
+                "result.actions.push('forced_rerender');"
+            "}"
+            
+            "// 6. 触发布局相关事件"
+            "window.dispatchEvent(new Event('resize'));"
+            "window.dispatchEvent(new Event('orientationchange'));"
+            "result.actions.push('events_triggered');"
+            
+            "// 7. 如果有应用级别的刷新方法，调用它"
+            "if (typeof app !== 'undefined' && typeof app.refreshDisplay === 'function') {"
+                "app.refreshDisplay();"
+                "result.actions.push('app_refresh_called');"
+            "}"
+            
+            "result.success = true;"
+            "return JSON.stringify(result);"
+        "} catch(e) {"
+            "return JSON.stringify({success: false, error: e.message, timestamp: Date.now()});"
+        "}"
+    "})()";
+    
+    [self safelyEvaluateJavaScript:fixScript completionHandler:^(id result, NSError *error) {
+        if (error) {
+            NSLog(@"在局Claude Code[页面可见性修复]+修复脚本执行失败: %@", error.localizedDescription);
+        } else {
+            NSLog(@"在局Claude Code[页面可见性修复]+修复脚本执行完成: %@", result);
+        }
+        
+        // 修复完成后，再次验证页面状态
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self verifyPageVisibilityAfterFix];
+        });
+    }];
+}
+
+// 在局Claude Code[Tab空白修复]+修复后验证页面状态
+- (void)verifyPageVisibilityAfterFix {
+    NSString *verifyScript = @"(function() {"
+        "try {"
+            "var result = {"
+                "timestamp: Date.now(),"
+                "bodyVisible: false,"
+                "hasContent: false,"
+                "visibleElements: 0"
+            "};"
+            
+            "if (document.body) {"
+                "var style = window.getComputedStyle(document.body);"
+                "result.bodyVisible = (style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity) > 0);"
+                
+                "var textContent = document.body.textContent || document.body.innerText || '';"
+                "result.hasContent = textContent.trim().length > 0;"
+                
+                "var elements = document.querySelectorAll('div, section, main, article, p');"
+                "var visibleCount = 0;"
+                "for (var i = 0; i < elements.length; i++) {"
+                    "var elem = elements[i];"
+                    "var elemStyle = window.getComputedStyle(elem);"
+                    "if (elemStyle.display !== 'none' && elemStyle.visibility !== 'hidden' && parseFloat(elemStyle.opacity) > 0) {"
+                        "visibleCount++;"
+                    "}"
+                "}"
+                "result.visibleElements = visibleCount;"
+            "}"
+            
+            "result.success = true;"
+            "return JSON.stringify(result);"
+        "} catch(e) {"
+            "return JSON.stringify({success: false, error: e.message});"
+        "}"
+    "})()";
+    
+    [self safelyEvaluateJavaScript:verifyScript completionHandler:^(id result, NSError *error) {
+        if (error) {
+            NSLog(@"在局Claude Code[页面可见性修复]+验证脚本执行失败: %@", error.localizedDescription);
+            return;
+        }
+        
+        // 在局Claude Code[页面可见性修复]+安全地解析验证结果
+        NSDictionary *verifyResult = nil;
+        NSError *jsonError = nil;
+        
+        if ([result isKindOfClass:[NSString class]]) {
+            NSData *jsonData = [(NSString *)result dataUsingEncoding:NSUTF8StringEncoding];
+            if (jsonData) {
+                verifyResult = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:&jsonError];
+            }
+        } else if ([result isKindOfClass:[NSDictionary class]]) {
+            verifyResult = (NSDictionary *)result;
+        } else {
+            NSLog(@"在局Claude Code[页面可见性修复]+验证返回意外类型: %@", NSStringFromClass([result class]));
+            return;
+        }
+        
+        if (jsonError || !verifyResult) {
+            NSLog(@"在局Claude Code[页面可见性修复]+验证结果解析失败");
+            return;
+        }
+        
+        BOOL bodyVisible = [verifyResult[@"bodyVisible"] boolValue];
+        BOOL hasContent = [verifyResult[@"hasContent"] boolValue];
+        NSInteger visibleElements = [verifyResult[@"visibleElements"] integerValue];
+        
+        if (bodyVisible && hasContent && visibleElements > 0) {
+            NSLog(@"在局Claude Code[页面可见性修复]+✅ 页面修复成功，当前状态正常");
+        } else {
+            NSLog(@"在局Claude Code[页面可见性修复]+❌ 页面修复后仍有问题，需要进一步排查");
+            // 如果修复后仍有问题，可以考虑重新加载页面
+            [self considerPageReload];
+        }
+    }];
+}
+
+// 在局Claude Code[Tab空白修复]+考虑重新加载页面
+- (void)considerPageReload {
+    // 避免频繁重新加载
+    static NSDate *lastReloadTime = nil;
+    NSDate *now = [NSDate date];
+    if (lastReloadTime && [now timeIntervalSinceDate:lastReloadTime] < 5.0) {
+        NSLog(@"在局Claude Code[页面可见性修复]+距离上次重新加载时间过短，跳过");
+        return;
+    }
+    lastReloadTime = now;
+    
+    NSLog(@"在局Claude Code[页面可见性修复]+页面修复失败，考虑重新加载页面");
+    
+    // 重置状态并重新加载
+    self.isLoading = NO;
+    self.isExist = NO;
+    
+    // 延迟重新加载，给当前操作一些时间完成
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (!self->_isDisappearing && self.webView) {
+            NSLog(@"在局Claude Code[页面可见性修复]+执行页面重新加载");
+            [self domainOperate];
+        }
+    });
+}
+
+// 检查页面是否正在消失的状态
+- (BOOL)isPageDisappearing {
+    return _isDisappearing;
 }
 
 @end

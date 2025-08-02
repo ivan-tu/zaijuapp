@@ -38,16 +38,30 @@
         method = @"POST";
     }
     
-    NSDictionary *originalParameters = dataDic[@"data"] ?: @{};
+    id originalParameters = dataDic[@"data"] ?: @{};
     NSDictionary *headers = dataDic[@"header"] ?: @{};
     
-    // 过滤掉null参数，但保留空字符串参数（某些API需要空字符串参数）
-    NSMutableDictionary *parameters = [NSMutableDictionary dictionary];
-    for (NSString *key in originalParameters) {
-        id value = originalParameters[key];
-        if (value && ![value isEqual:[NSNull null]]) {
-            parameters[key] = value;
+    // 支持数组和字典类型的参数
+    id parameters = nil;
+    
+    if ([originalParameters isKindOfClass:[NSArray class]]) {
+        // 如果是数组，直接使用，不进行null过滤
+        NSLog(@"在局Claude Code[数组参数]+请求参数是数组类型: %@", originalParameters);
+        parameters = originalParameters;
+    } else if ([originalParameters isKindOfClass:[NSDictionary class]]) {
+        // 如果是字典，过滤掉null参数，但保留空字符串参数
+        NSMutableDictionary *filteredParams = [NSMutableDictionary dictionary];
+        NSDictionary *dictParams = (NSDictionary *)originalParameters;
+        for (NSString *key in dictParams) {
+            id value = dictParams[key];
+            if (value && ![value isEqual:[NSNull null]]) {
+                filteredParams[key] = value;
+            }
         }
+        parameters = filteredParams;
+    } else {
+        // 其他类型，保持原样
+        parameters = originalParameters;
     }
     
     

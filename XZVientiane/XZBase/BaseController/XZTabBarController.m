@@ -223,6 +223,24 @@
                     
                     // 替换占位ViewController
                     [nav setViewControllers:@[homeVC] animated:NO];
+                    
+                    // 在局Claude Code[Tab懒加载修复]+使用正确的API触发视图控制器显示
+                    // 使用beginAppearanceTransition和endAppearanceTransition替代直接调用生命周期方法
+                    if (!homeVC.isViewLoaded) {
+                        // 强制加载视图
+                        [homeVC view];
+                    }
+                    
+                    // 使用系统推荐的appearance transition API
+                    [homeVC beginAppearanceTransition:YES animated:NO];
+                    [homeVC endAppearanceTransition];
+                    
+                    // 延迟触发WebView加载，确保视图已完全准备就绪
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        if ([homeVC respondsToSelector:@selector(domainOperate)]) {
+                            [homeVC domainOperate];
+                        }
+                    });
                 }
             }
         }
@@ -244,12 +262,34 @@
         if (nav.viewControllers.count > 0) {
             UIViewController *rootVC = nav.viewControllers[0];
             
+            // 在局Claude Code[Tab空白修复]+检查Tab页面是否需要重新加载
+            if ([rootVC isKindOfClass:[CFJClientH5Controller class]]) {
+                CFJClientH5Controller *h5Controller = (CFJClientH5Controller *)rootVC;
+                
+                // 延迟检查，给页面时间完成初始化
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    // 检查是否有有效的WebView内容
+                    if ([h5Controller respondsToSelector:@selector(hasValidWebViewContent)]) {
+                        BOOL hasContent = [h5Controller performSelector:@selector(hasValidWebViewContent)];
+                        if (!hasContent) {
+                            NSLog(@"在局Claude Code[Tab空白修复]+检测到Tab页面无内容，触发重新加载");
+                            // 触发页面加载
+                            if ([h5Controller respondsToSelector:@selector(domainOperate)]) {
+                                [h5Controller performSelector:@selector(domainOperate)];
+                            }
+                        } else {
+                            NSLog(@"在局Claude Code[Tab空白修复]+Tab页面已有内容，无需重新加载");
+                        }
+                    }
+                });
+            }
         }
     }
     
     dispatch_async(dispatch_get_main_queue(), ^{
         // 优化：只在重复点击同一个tab时才发送刷新通知
         if (isRepeatClick) {
+            // 在局Claude Code[Main Thread Checker修复]+已在主线程中，可以直接访问
             UIApplicationState state = [[UIApplication sharedApplication] applicationState];
             if (state == UIApplicationStateActive) {
                 [self sendRefreshNotification];
@@ -271,8 +311,15 @@
 }
 
 - (void)sendRefreshNotification {
-    // 再次检查应用状态
-    UIApplicationState state = [[UIApplication sharedApplication] applicationState];
+    // 在局Claude Code[Main Thread Checker修复]+确保在主线程访问UIApplication
+    __block UIApplicationState state;
+    if ([NSThread isMainThread]) {
+        state = [[UIApplication sharedApplication] applicationState];
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            state = [[UIApplication sharedApplication] applicationState];
+        });
+    }
     if (state == UIApplicationStateActive) {
         [[NSNotificationCenter defaultCenter]postNotificationName:@"refreshCurrentViewController" object:nil];
     }

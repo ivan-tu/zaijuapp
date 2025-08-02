@@ -1134,6 +1134,18 @@
     self.isAppConfigured = YES;
     //获取初始信息
     [self initData];
+    
+    // 🚀【性能优化】预加载HTML模板和WebView资源
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+        NSLog(@"在局Claude Code[性能优化]+开始预加载HTML模板");
+        // 预加载HTML模板到内存
+        [XZWKWebViewBaseController preloadHTMLTemplates];
+        
+        // 预热WebView池
+        [[XZWebViewPerformanceManager sharedManager] preloadWebViewResources];
+        NSLog(@"在局Claude Code[性能优化]+HTML模板和WebView预加载完成");
+    });
+    
     WEAK_SELF;
     dispatch_async(dispatch_get_global_queue(0, 0), ^{
         STRONG_SELF;

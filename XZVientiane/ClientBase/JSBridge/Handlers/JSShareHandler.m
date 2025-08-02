@@ -34,6 +34,8 @@
 #pragma mark - 分享处理
 
 - (void)handleShare:(id)data controller:(UIViewController *)controller {
+    NSLog(@"在局Claude Code[Share测试]+JSShareHandler收到share请求，data: %@", data);
+    
     if ([controller isKindOfClass:[CFJClientH5Controller class]]) {
         CFJClientH5Controller *cfController = (CFJClientH5Controller *)controller;
         [cfController shareContent:data presentedVC:controller];

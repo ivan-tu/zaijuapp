@@ -4,7 +4,7 @@
 
 ## 更新内容
 
-1. **CURRENT_PROJECT_VERSION**: 更新为当前日期时间（格式：YYYYMMDD.HHMM）
+1. **CURRENT_PROJECT_VERSION**: 更新为当前日期时间（格式：YYYYMMDDHHMM）
 2. **CFBundleShortVersionString**: 版本号自动加1
 3. **MARKETING_VERSION**: 版本号自动加1（与CFBundleShortVersionString保持一致）
 
@@ -21,7 +21,7 @@
 根据找到的版本号，执行以下更新：
 
 <Bash description="获取当前日期时间">
-date +"%Y%m%d.%H%M"
+date +"%Y%m%d%H%M"
 </Bash>
 
 <Grep pattern="CURRENT_PROJECT_VERSION|CFBundleShortVersionString|MARKETING_VERSION" path="XZVientiane.xcodeproj/project.pbxproj" output_mode="content" -n="true" -B="1" -A="1" />
@@ -29,7 +29,7 @@ date +"%Y%m%d.%H%M"
 <Task description="更新版本号">
 <prompt>
 1. 在 XZVientiane.xcodeproj/project.pbxproj 文件中：
-   - 将所有 CURRENT_PROJECT_VERSION 的值更新为当前日期时间格式（YYYYMMDD.HHMM）
+   - 将所有 CURRENT_PROJECT_VERSION 的值更新为当前日期时间格式（YYYYMMDDHHMM）
    - 将当前版本号（如 1.0.10）递增到下一个版本（1.0.11）
    - 更新所有 CFBundleShortVersionString 和 MARKETING_VERSION 为新版本号
 2. 在 XZVientiane/XZVientiane-Info.plist 文件中：

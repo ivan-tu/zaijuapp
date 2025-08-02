@@ -89,11 +89,12 @@
          */
 
         request(obj) {
-			if(obj.data&&typeof obj.data == 'string'){
+			if(obj.data && typeof obj.data == 'string'){
 				obj.data = JSON.parse(obj.data);
-			}else{
-				obj.data = {};
-			};
+			}
+			// 在局Claude Code[修复数组参数]+移除else分支，保留原始data
+			// 不要将undefined/null默认设置为{}，这会导致数组参数丢失
+			
             wx.app.call('request', {
                 success: obj.success,
                 fail: obj.fail,

@@ -138,6 +138,9 @@ typedef void(^NextPageDataBlock)(NSDictionary *dic);
 // 交互式转场后的WebView状态恢复
 - (void)restoreWebViewStateAfterInteractiveTransition;
 
+// 检查页面是否正在消失的状态
+- (BOOL)isPageDisappearing;
+
 @end
 
 NS_ASSUME_NONNULL_END 

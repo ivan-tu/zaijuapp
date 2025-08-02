@@ -14,6 +14,33 @@
 #import "NSString+addition.h"
 @implementation ClientJsonRequestManager
 
+// 在局Claude Code[缓存键生成]+安全的缓存键生成方法，支持数组和字典参数
+- (NSString *)safeCacheKeyWithParameters:(id)parameters andURL:(NSString *)URLString {
+    if ([parameters isKindOfClass:[NSDictionary class]]) {
+        return [NSString urlWithParam:parameters andHead:URLString];
+    } else {
+        // 对于数组参数或其他类型，使用JSON字符串
+        NSString *parametersString = @"";
+        if (parameters) {
+            NSError *error = nil;
+            NSData *jsonData = [NSJSONSerialization dataWithJSONObject:parameters options:0 error:&error];
+            if (!error && jsonData) {
+                parametersString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+                // 清理缓存键中的特殊字符
+                parametersString = [parametersString stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+                parametersString = [parametersString stringByReplacingOccurrencesOfString:@":" withString:@"_"];
+                parametersString = [parametersString stringByReplacingOccurrencesOfString:@"." withString:@"_"];
+                parametersString = [parametersString stringByReplacingOccurrencesOfString:@"-" withString:@"_"];
+                parametersString = [parametersString stringByReplacingOccurrencesOfString:@" " withString:@""];
+                parametersString = [parametersString stringByReplacingOccurrencesOfString:@"\n" withString:@""];
+            }
+        }
+        NSString *cacheKey = [NSString stringWithFormat:@"%@_%@", URLString, parametersString];
+        cacheKey = [cacheKey stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+        return cacheKey;
+    }
+}
+
 + (instancetype)sharedClient {
     static ClientJsonRequestManager *_sharedClient = nil;
     static dispatch_once_t onceToken;
@@ -90,7 +117,7 @@
     return NO;
 }
 - (void)GET:(NSString *)URLString parameters:(id)parameters block:(ClientCompletionBlock)block {
-    NSString *cacheKey = [NSString urlWithParam:parameters andHead:URLString];
+    NSString *cacheKey = [self safeCacheKeyWithParameters:parameters andURL:URLString];
     
     if ([self cachedDataWithKey:cacheKey block:block]) {
         return;
@@ -103,7 +130,7 @@
 }
 
 - (void)GET:(NSString *)URLString parameters:(id)parameters headers:(NSDictionary *)headers block:(ClientCompletionBlock)block {
-    if ([self cachedDataWithKey:[NSString urlWithParam:parameters andHead:URLString] block:block]) {
+    if ([self cachedDataWithKey:[self safeCacheKeyWithParameters:parameters andURL:URLString] block:block]) {
         return;
     }
     [self checkAppToken];
@@ -143,7 +170,7 @@
         }
         NSNumber *codenumber = [responseObject objectForKey:@"code"];
         NSAssert(codenumber.integerValue == 0, @"请求失败");
-        [[EGOCache globalCache] setObject:responseObject forKey:[NSString urlWithParam:parameters andHead:URLString]];
+        [[EGOCache globalCache] setObject:responseObject forKey:[self safeCacheKeyWithParameters:parameters andURL:URLString]];
         if (block) {
             block(responseObject, nil);
         }
@@ -168,11 +195,19 @@
 }
 
 - (void)POST:(NSString *)URLString parameters:(id)parameters headers:(NSDictionary *)headers block:(ClientCompletionBlock)block {
-    if ([self cachedDataWithKey:[NSString urlWithParam:parameters andHead:URLString] block:block]) {
+    if ([self cachedDataWithKey:[self safeCacheKeyWithParameters:parameters andURL:URLString] block:block]) {
         return;
     }
     [self checkAppToken];
     
+    // 在局Claude Code[请求跟踪]+记录请求详情
+    NSLog(@"在局Claude Code[POST请求]+URL: %@", URLString);
+    NSLog(@"在局Claude Code[POST参数类型]+%@", NSStringFromClass([parameters class]));
+    if ([parameters isKindOfClass:[NSArray class]]) {
+        NSLog(@"在局Claude Code[POST数组参数]+参数内容: %@", parameters);
+    } else if ([parameters isKindOfClass:[NSDictionary class]]) {
+        NSLog(@"在局Claude Code[POST字典参数]+参数内容: %@", parameters);
+    }
     
     // 设置请求序列化器为JSON格式
     AFJSONRequestSerializer *jsonSerializer = [AFJSONRequestSerializer serializer];
@@ -183,23 +218,32 @@
         for (NSString *key in headers) {
             [self.requestSerializer setValue:headers[key] forHTTPHeaderField:key];
         }
+        NSLog(@"在局Claude Code[POST请求头]+Headers: %@", headers);
     }
     
     
     [super POST:URLString parameters:parameters headers:nil progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)task.response;
         
+        // 在局Claude Code[响应跟踪]+记录响应状态
+        NSLog(@"在局Claude Code[POST响应]+URL: %@, HTTP状态码: %ld", URLString, (long)httpResponse.statusCode);
+        NSLog(@"在局Claude Code[POST响应数据]+%@", responseObject);
         
         if (!responseObject || ![responseObject isKindOfClass:[NSDictionary class]]) {
-            NSLog(@"POST响应数据格式错误，类型: %@", NSStringFromClass([responseObject class]));
+            NSLog(@"在局Claude Code[POST响应错误]+数据格式错误，类型: %@", NSStringFromClass([responseObject class]));
             if (block) {
                 block(nil, [NSError errorWithDomain:@"没有返回数据或数据格式错误" code:10000 userInfo:nil]);
             }
             return ;
         }
         NSNumber *codenumber = [responseObject objectForKey:@"code"];
+        if (codenumber.integerValue != 0) {
+            NSLog(@"在局Claude Code[业务错误]+code: %@, errorMessage: %@", codenumber, [responseObject objectForKey:@"errorMessage"]);
+        }
         NSAssert(codenumber.integerValue == 0, @"请求失败");
-        [[EGOCache globalCache] setObject:responseObject forKey:[NSString urlWithParam:parameters andHead:URLString]];
+        
+        // 在局Claude Code[修复缓存键生成]+使用统一的缓存键生成方法
+        [[EGOCache globalCache] setObject:responseObject forKey:[self safeCacheKeyWithParameters:parameters andURL:URLString]];
         
         // 恢复默认的请求序列化器
         self.requestSerializer = [AFHTTPRequestSerializer serializer];
@@ -209,7 +253,9 @@
         }
     } failure:^(NSURLSessionDataTask *task, NSError *error) {
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)task.response;
-        NSLog(@"POST请求失败: %@, HTTP状态码: %ld, 错误: %@", URLString, (long)httpResponse.statusCode, error.localizedDescription);
+        NSLog(@"在局Claude Code[POST请求失败]+URL: %@, HTTP状态码: %ld", URLString, (long)httpResponse.statusCode);
+        NSLog(@"在局Claude Code[POST错误详情]+错误域: %@, 错误码: %ld, 描述: %@", error.domain, (long)error.code, error.localizedDescription);
+        NSLog(@"在局Claude Code[POST请求参数]+失败时的参数: %@", parameters);
         
         // iOS 18修复：检查是否是网络权限问题
         if (error.code == -1009 && [error.domain isEqualToString:NSURLErrorDomain]) {
@@ -232,7 +278,7 @@
 
 - (void)POSTRPC:(NSString *)URLString parameters:(id)parameters block:(ClientCompletionBlock)block
 {
-    NSString *cacheKey = [NSString urlWithParam:parameters andHead:URLString];
+    NSString *cacheKey = [self safeCacheKeyWithParameters:parameters andURL:URLString];
     
     if ([self cachedDataWithKey:cacheKey block:block]) {
         return;
@@ -270,7 +316,7 @@
         NSNumber *codenumber = [responseObject objectForKey:@"code"];
         //        NSString *erromessage = [responseObject objectForKey:@"errorMessage"];
         NSAssert(codenumber.integerValue == 0, @"请求失败");
-        [[EGOCache globalCache] setObject:responseObject forKey:[NSString urlWithParam:parameters andHead:URLString]];
+        [[EGOCache globalCache] setObject:responseObject forKey:[self safeCacheKeyWithParameters:parameters andURL:URLString]];
         if (block) {
             block(responseObject, nil);
         }
@@ -305,10 +351,56 @@
         
         
         // 使用GET请求方式，与原项目保持一致
+        // 在局Claude Code[Token刷新修复]+完整URL编码处理所有特殊字符
+        NSLog(@"在局Claude Code[Token刷新修复]+原始AppId: %@", appId);
+        NSLog(@"在局Claude Code[Token刷新修复]+原始AppSecret: %@", appSecret);
+        
+        // 完整的URL编码函数，处理所有需要编码的字符
+        NSString* (^urlEncode)(NSString*) = ^NSString*(NSString *string) {
+            if (!string) return @"";
+            
+            NSString *encoded = string;
+            // 按照RFC 3986标准进行URL编码
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"%" withString:@"%25"]; // 先处理%
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"$" withString:@"%24"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"&" withString:@"%26"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"+" withString:@"%2B"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"," withString:@"%2C"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"/" withString:@"%2F"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@":" withString:@"%3A"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@";" withString:@"%3B"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"=" withString:@"%3D"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"?" withString:@"%3F"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"@" withString:@"%40"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@" " withString:@"%20"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"\"" withString:@"%22"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"<" withString:@"%3C"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@">" withString:@"%3E"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"#" withString:@"%23"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"{" withString:@"%7B"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"}" withString:@"%7D"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"|" withString:@"%7C"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"\\" withString:@"%5C"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"^" withString:@"%5E"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"~" withString:@"%7E"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"[" withString:@"%5B"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"]" withString:@"%5D"];
+            encoded = [encoded stringByReplacingOccurrencesOfString:@"`" withString:@"%60"];
+            return encoded;
+        };
+        
+        NSString *encodedAppId = urlEncode(appId);
+        NSString *encodedAppSecret = urlEncode(appSecret);
+        
+        NSLog(@"在局Claude Code[Token刷新修复]+编码后AppId: %@", encodedAppId);
+        NSLog(@"在局Claude Code[Token刷新修复]+编码后AppSecret: %@", encodedAppSecret);
+        
         NSString *urlString = [NSString stringWithFormat:@"%@/oauth/getAccessToken?appId=%@&appSecret=%@", 
                                                          [ClientSettingModel sharedInstance].domain,
-                                                         appId,
-                                                         appSecret];
+                                                         encodedAppId,
+                                                         encodedAppSecret];
+        
+        NSLog(@"在局Claude Code[Token刷新修复]+刷新URL: %@", urlString);
         
         
         // 使用异步请求避免阻塞主线程

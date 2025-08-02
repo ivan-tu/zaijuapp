@@ -136,8 +136,15 @@
         return;
     }
     
-    // 检查应用状态，避免在后台执行JavaScript
-    UIApplicationState state = [[UIApplication sharedApplication] applicationState];
+    // 在局Claude Code[Main Thread Checker修复]+确保在主线程访问UIApplication
+    __block UIApplicationState state;
+    if ([NSThread isMainThread]) {
+        state = [[UIApplication sharedApplication] applicationState];
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            state = [[UIApplication sharedApplication] applicationState];
+        });
+    }
     if (state != UIApplicationStateActive) {
         return;
     }
@@ -162,7 +169,7 @@
         BOOL jsHasSession = jsUserSession && [jsUserSession isKindOfClass:[NSString class]] && [(NSString*)jsUserSession length] > 0;
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            // 再次检查应用状态
+            // 在局Claude Code[Main Thread Checker修复]+在主线程中已经可以直接访问
             UIApplicationState currentState = [[UIApplication sharedApplication] applicationState];
             if (currentState != UIApplicationStateActive) {
                 return;
@@ -421,6 +428,21 @@
         [self handleBackToHome:note.object];
     }];
     [self.notificationObservers addObject:observer];
+    
+    // 在局Claude Code[修复标题栏]+监听外部链接导航通知
+    id universalLinkObserver = [[NSNotificationCenter defaultCenter] addObserverForName:@"UniversalLinkNavigation" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+        STRONG_SELF;
+        if (!self) return;
+        
+        NSLog(@"在局Claude Code[外部链接导航]+收到UniversalLinkNavigation通知");
+        
+        // 延迟执行，确保视图已经完全加载
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            // 重新设置导航栏状态
+            [self setNavMessage];
+        });
+    }];
+    [self.notificationObservers addObject:universalLinkObserver];
 }
 
 #pragma mark - 在局Claude Code[通知处理重构]+通知处理方法组
@@ -445,46 +467,131 @@
 - (void)executePageReloadStrategies {
     NSLog(@"在局Claude Code[页面恢复策略]+开始执行页面恢复");
     
+    // 🔧 新增：详细的页面状态诊断
+    NSLog(@"在局Claude Code[页面恢复策略]+WebView状态: 存在=%@, hidden=%@, alpha=%.2f, frame=%@", 
+          self.webView ? @"YES" : @"NO",
+          self.webView ? (self.webView.hidden ? @"YES" : @"NO") : @"N/A",
+          self.webView ? self.webView.alpha : 0.0,
+          self.webView ? NSStringFromCGRect(self.webView.frame) : @"N/A");
+    
+    NSLog(@"在局Claude Code[页面恢复策略]+控制器状态: isDisappearing=%@, tabbarShow=%@, pinUrl=%@", 
+          [self isPageDisappearing] ? @"YES" : @"NO",
+          self.isTabbarShow ? @"YES" : @"NO",
+          self.pinUrl ? self.pinUrl : @"N/A");
+    
+    // 先检查页面实际内容状态
+    [self safelyEvaluateJavaScript:@"(function(){"
+        "try {"
+            "var result = {"
+                "timestamp: Date.now(),"
+                "documentReady: document.readyState,"
+                "bodyExists: !!document.body,"
+                "bodyDisplay: document.body ? window.getComputedStyle(document.body).display : 'N/A',"
+                "bodyVisibility: document.body ? window.getComputedStyle(document.body).visibility : 'N/A',"
+                "bodyOpacity: document.body ? window.getComputedStyle(document.body).opacity : 'N/A',"
+                "bodyHeight: document.body ? document.body.offsetHeight : 0,"
+                "hasTextContent: document.body ? document.body.textContent.trim().length > 0 : false,"
+                "contentLength: document.body ? document.body.textContent.trim().length : 0,"
+                "contentPreview: document.body ? document.body.textContent.substring(0, 100) : 'N/A',"
+                "mainElementsCount: document.querySelectorAll('div, section, main, article, p').length,"
+                "visibleElementsCount: 0"
+            "};"
+            ""
+            "// 计算可见元素数量"
+            "var mainElements = document.querySelectorAll('div, section, main, article, p');"
+            "var visibleCount = 0;"
+            "for (var i = 0; i < mainElements.length; i++) {"
+                "var elem = mainElements[i];"
+                "var style = window.getComputedStyle(elem);"
+                "if (style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity) > 0) {"
+                    "visibleCount++;"
+                "}"
+            "}"
+            "result.visibleElementsCount = visibleCount;"
+            ""
+            "return JSON.stringify(result);"
+        "} catch(e) {"
+            "return JSON.stringify({error: e.message, timestamp: Date.now()});"
+        "}"
+    "})()" completionHandler:^(id result, NSError *error) {
+        if (error) {
+            NSLog(@"在局Claude Code[页面恢复策略]+页面状态检查失败: %@", error.localizedDescription);
+        } else {
+            NSLog(@"在局Claude Code[页面恢复策略]+页面状态检查结果: %@", result);
+        }
+    }];
+    
     // 策略0: 强制显示内容
+    NSLog(@"在局Claude Code[页面恢复策略]+执行策略0: 强制显示内容");
     [self safelyEvaluateJavaScript:@"(function(){"
         "document.body.style.display = 'block';"
         "document.body.style.visibility = 'visible';"
         "document.body.style.opacity = '1';"
         "var containers = document.querySelectorAll('.main, #main, .container, #container, .app, #app');"
+        "var affectedCount = 0;"
         "for (var i = 0; i < containers.length; i++) {"
             "containers[i].style.display = 'block';"
             "containers[i].style.visibility = 'visible';"
             "containers[i].style.opacity = '1';"
+            "affectedCount++;"
         "}"
-        "return 'content_made_visible';"
-    "})()" completionHandler:nil];
+        "return 'content_made_visible_' + affectedCount + '_containers';"
+    "})()" completionHandler:^(id result, NSError *error) {
+        if (error) {
+            NSLog(@"在局Claude Code[页面恢复策略]+策略0执行失败: %@", error.localizedDescription);
+        } else {
+            NSLog(@"在局Claude Code[页面恢复策略]+策略0执行结果: %@", result);
+        }
+    }];
     
     // 策略1: 尝试重新加载页面数据
+    NSLog(@"在局Claude Code[页面恢复策略]+执行策略1: 重新加载页面数据");
     [self safelyEvaluateJavaScript:@"(function(){"
         "if (typeof app !== 'undefined' && typeof app.reloadOtherPages === 'function') {"
             "app.reloadOtherPages(); return 'reloadOtherPages_called';"
         "} else if (typeof app !== 'undefined' && typeof app.getCurrentPages === 'function') {"
             "app.getCurrentPages(); return 'getCurrentPages_called';"
         "} else {"
-            "return 'no_suitable_method_found';"
+            "return 'no_suitable_method_found_app_is_' + (typeof app);"
         "}"
-    "})()" completionHandler:nil];
+    "})()" completionHandler:^(id result, NSError *error) {
+        if (error) {
+            NSLog(@"在局Claude Code[页面恢复策略]+策略1执行失败: %@", error.localizedDescription);
+        } else {
+            NSLog(@"在局Claude Code[页面恢复策略]+策略1执行结果: %@", result);
+        }
+    }];
     
     // 策略2: 触发页面事件
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self safelyEvaluateJavaScript:@"document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); 'events_fired'" completionHandler:nil];
+        NSLog(@"在局Claude Code[页面恢复策略]+执行策略2: 触发页面事件");
+        [self safelyEvaluateJavaScript:@"document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); 'events_fired'" completionHandler:^(id result, NSError *error) {
+            if (error) {
+                NSLog(@"在局Claude Code[页面恢复策略]+策略2执行失败: %@", error.localizedDescription);
+            } else {
+                NSLog(@"在局Claude Code[页面恢复策略]+策略2执行结果: %@", result);
+            }
+        }];
     });
     
     // 策略3: 模拟用户滚动交互
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self safelyEvaluateJavaScript:@"window.scrollTo(0, 1); window.scrollTo(0, 0); 'scroll_triggered'" completionHandler:nil];
+        NSLog(@"在局Claude Code[页面恢复策略]+执行策略3: 模拟滚动交互");
+        [self safelyEvaluateJavaScript:@"window.scrollTo(0, 1); window.scrollTo(0, 0); 'scroll_triggered'" completionHandler:^(id result, NSError *error) {
+            if (error) {
+                NSLog(@"在局Claude Code[页面恢复策略]+策略3执行失败: %@", error.localizedDescription);
+            } else {
+                NSLog(@"在局Claude Code[页面恢复策略]+策略3执行结果: %@", result);
+            }
+        }];
     });
     
     // 策略4: 触发pageShow事件
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSLog(@"在局Claude Code[页面恢复策略]+执行策略4: 触发pageShow事件");
         NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageShow" data:nil];
         [self objcCallJs:callJsDic];
-        NSLog(@"在局Claude Code[页面恢复策略]+触发pageShow事件");
+        NSLog(@"在局Claude Code[页面恢复策略]+策略4执行完成: pageShow事件已触发");
     });
 }
 
@@ -878,11 +985,24 @@
 }
 
 - (void)setNavMessage {
+    // 在局Claude Code[修复标题栏]+改进导航栏设置逻辑
+    
+    // 首先确保导航栏配置正确
     [self setUpNavWithDic:self.navDic];
     
     // 配置导航栏显示/隐藏
     BOOL shouldHide = [self isHaveNativeHeader:self.pinUrl];
-    [self.navigationController setNavigationBarHidden:shouldHide animated:NO];
+    
+    NSLog(@"在局Claude Code[导航栏状态]+URL: %@, shouldHide: %@", self.pinUrl, shouldHide ? @"YES" : @"NO");
+    
+    // 确保在主线程执行导航栏显示/隐藏操作
+    if ([NSThread isMainThread]) {
+        [self.navigationController setNavigationBarHidden:shouldHide animated:NO];
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.navigationController setNavigationBarHidden:shouldHide animated:NO];
+        });
+    }
     
     // 更新状态栏样式
     [self setNeedsStatusBarAppearanceUpdate];
@@ -1268,6 +1388,11 @@
         self.navigationController.interactivePopGestureRecognizer.enabled = YES;
     }
     
+    // 在局Claude Code[修复标题栏]+每次页面将要显示时重新设置导航栏状态
+    // 这样可以确保从外部打开或切换回来时导航栏状态正确
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self setNavMessage];
+    });
     
     // 延迟到viewDidAppear后设置圆角，避免影响Tab切换动画
     if (!(self.pushType == isPushNormal)) {
@@ -1744,8 +1869,15 @@
         return;
     }
     
-    // 检查App当前状态
-    UIApplicationState currentState = [[UIApplication sharedApplication] applicationState];
+    // 在局Claude Code[Main Thread Checker修复]+确保在主线程访问UIApplication
+    __block UIApplicationState currentState;
+    if ([NSThread isMainThread]) {
+        currentState = [[UIApplication sharedApplication] applicationState];
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            currentState = [[UIApplication sharedApplication] applicationState];
+        });
+    }
     
     if (currentState == UIApplicationStateActive) {
         // App已经在前台，直接执行回调
@@ -1855,6 +1987,7 @@
 
 //第三方分享
 - (void)shareContent:(NSDictionary *)dic presentedVC:(UIViewController *)vc {
+    NSLog(@"在局Claude Code[Share测试]+shareContent被调用，dic: %@", dic);
     NSString *type = [dic objectForKey:@"type"];
     NSInteger shareType = [[dic objectForKey:@"shareType"] integerValue];
     
@@ -3196,9 +3329,27 @@
     [self.navigationController pushViewController:qrVC animated:YES];
 }
 
-//判断是否开启定位权限
+//判断是否隐藏原生导航栏
 - (BOOL)isHaveNativeHeader:(NSString *)url{
-    BOOL shouldHide = [[XZPackageH5 sharedInstance].ulrArray containsObject:url];
+    // 在局Claude Code[修复标题栏]+改进导航栏隐藏判断逻辑
+    
+    // 确保URL不为空
+    if (!url || url.length == 0) {
+        NSLog(@"在局Claude Code[导航栏判断]+URL为空，不隐藏导航栏");
+        return NO;
+    }
+    
+    // 获取需要隐藏导航栏的URL数组
+    NSArray *hideNavURLs = [XZPackageH5 sharedInstance].ulrArray;
+    if (!hideNavURLs || hideNavURLs.count == 0) {
+        // 如果数组为空，默认显示导航栏
+        NSLog(@"在局Claude Code[导航栏判断]+隐藏URL数组为空，显示导航栏");
+        return NO;
+    }
+    
+    BOOL shouldHide = [hideNavURLs containsObject:url];
+    NSLog(@"在局Claude Code[导航栏判断]+URL: %@, 在隐藏列表中: %@", url, shouldHide ? @"YES" : @"NO");
+    
     return shouldHide;
 }
 
@@ -3349,6 +3500,7 @@
 // 重写父类的jsCallObjc方法，调用子类的业务逻辑
 - (void)jsCallObjc:(NSDictionary *)jsData jsCallBack:(WVJBResponseCallback)jsCallBack {
     NSString *action = jsData[@"action"];
+    NSLog(@"在局Claude Code[Share测试]+jsCallObjc收到action: %@, data: %@", action, jsData);
     
     // 定义只能在CFJClientH5Controller中处理的action列表
     NSSet *controllerOnlyActions = [NSSet setWithArray:@[

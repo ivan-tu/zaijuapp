@@ -109,8 +109,16 @@
 }
 
 - (void)handleReloadOtherPages:(UIViewController *)controller callback:(JSActionCallbackBlock)callback {
-    // 在发送通知前先检查状态
-    UIApplicationState state = [[UIApplication sharedApplication] applicationState];
+    // 在局Claude Code[Main Thread Checker修复]+确保在主线程访问UIApplication
+    __block UIApplicationState state;
+    if ([NSThread isMainThread]) {
+        state = [[UIApplication sharedApplication] applicationState];
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            state = [[UIApplication sharedApplication] applicationState];
+        });
+    }
+    
     if (state == UIApplicationStateActive) {
         // 智能检测登录状态变化
         if ([controller respondsToSelector:@selector(detectAndHandleLoginStateChange:)]) {

@@ -15,7 +15,7 @@
 @implementation JSMiscHandler
 
 - (NSArray<NSString *> *)supportedActions {
-    return @[@"reload", @"customReturn", @"openQRCode"];
+    return @[@"reload", @"customReturn", @"openQRCode", @"nativeLog"];
 }
 
 - (void)handleAction:(NSString *)action 
@@ -29,6 +29,8 @@
         [self handleCustomReturn:data controller:controller];
     } else if ([action isEqualToString:@"openQRCode"]) {
         [self handleOpenQRCode:controller callback:callback];
+    } else if ([action isEqualToString:@"nativeLog"]) {
+        [self handleNativeLog:data];
     }
 }
 
@@ -114,6 +116,14 @@
     // 保存回调
     if ([controller respondsToSelector:@selector(setWebviewBackCallBack:)]) {
         [controller performSelector:@selector(setWebviewBackCallBack:) withObject:callback];
+    }
+}
+
+- (void)handleNativeLog:(id)data {
+    NSDictionary *dataDic = (NSDictionary *)data;
+    NSString *message = [dataDic objectForKey:@"message"];
+    if (message) {
+        NSLog(@"%@", message);
     }
 }
 

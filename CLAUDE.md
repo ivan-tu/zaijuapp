@@ -18,6 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 通常不修改manifest中的代码，如果有必要需经过同意。
 - 禁止紧急解决，修改的代码需要稳定且优雅。
 - 在/Test/Docs/修复文档中保存了修复文档可作为参考
+- 禁止使用js的console来做调试日志
+- 若非必要禁止修改manifest！！
 
 ## 开发规范与记忆
 - 修改结束不要测试编译，让用户自己测试
@@ -30,12 +32,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 修改代码的过程中如果发现隐患，告诉用户
 - 禁止强制修复！！！
 - 添加的测试代码测试完了请删除
-- 修改完成后按时间生成简单的修改总结文档在/Test/Docs/修复文档 示例：[2025-07-31 19:18]修复xxx问题.md
 - 所有文档都存在/Test/Doc下自行归类
 - 所有脚本都存在/Test/Scripts下自行归类
 - 优化代码时注意有则改之无则加勉，不要刻意的优化
 
-## 常用命令
+## 命令行操作
+
+### 特殊路径处理
+- 检测到/success时，执行successs.md中的命令。检测到/update时，执行update.md中的命令
 
 ### 构建和运行
 ```bash
