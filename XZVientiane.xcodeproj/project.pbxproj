@@ -298,7 +298,6 @@
 		2CECB7722E24989F0038FFFE /* XZWKWebViewBaseController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XZWKWebViewBaseController.h; sourceTree = "<group>"; };
 		2CECB7732E24989F0038FFFE /* XZWKWebViewBaseController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = XZWKWebViewBaseController.m; sourceTree = "<group>"; };
 		2CECB7792E24994D0038FFFE /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
-		2CECB7A92E24B1E60038FFFE /* CFJWebViewMigrationAdapter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CFJWebViewMigrationAdapter.h; sourceTree = "<group>"; };
 		49ACB5A655D5CB263F269378 /* libPods-XZVientiane.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-XZVientiane.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		65E61D022F411E8195425A91 /* Pods-XZVientiane.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-XZVientiane.debug.xcconfig"; path = "Target Support Files/Pods-XZVientiane/Pods-XZVientiane.debug.xcconfig"; sourceTree = "<group>"; };
 		A50230BF201EB8870059C305 /* Reachability.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Reachability.m; sourceTree = "<group>"; };
@@ -467,7 +466,6 @@
 		A51DA3F720EE2C8B00E40549 /* EasyShowUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = EasyShowUtils.h; sourceTree = "<group>"; };
 		A51DA3F820EE2C8B00E40549 /* ShowAlertView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ShowAlertView.h; sourceTree = "<group>"; };
 		A529A20121140A860066EB3E /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = System/Library/Frameworks/CoreMotion.framework; sourceTree = SDKROOT; };
-		A53C27141FF3853C001B13B3 /* CFJWebViewBaseController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CFJWebViewBaseController.h; sourceTree = "<group>"; };
 		A53C27381FF388D7001B13B3 /* ZZCACircleProgress.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ZZCACircleProgress.m; sourceTree = "<group>"; };
 		A53C27391FF388D7001B13B3 /* NSTimer+timerBlock.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSTimer+timerBlock.m"; sourceTree = "<group>"; };
 		A53C273A1FF388D7001B13B3 /* ZZCircleProgress.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = ZZCircleProgress.bundle; sourceTree = "<group>"; };
@@ -1137,7 +1135,6 @@
 		A5550D551FB9AA0B00B010C4 /* BaseController */ = {
 			isa = PBXGroup;
 			children = (
-				2CECB7A92E24B1E60038FFFE /* CFJWebViewMigrationAdapter.h */,
 				2CECB7722E24989F0038FFFE /* XZWKWebViewBaseController.h */,
 				2CECB7732E24989F0038FFFE /* XZWKWebViewBaseController.m */,
 				CBD3B3072E01AEF200803613 /* CustomHybridProcessor.h */,
@@ -1152,7 +1149,6 @@
 				A505CAB01FDE2A0A00FBD4A3 /* XZJsonModel.m */,
 				A505CAAF1FDE2A0A00FBD4A3 /* XZNavigationController.h */,
 				A505CAB11FDE2A0A00FBD4A3 /* XZNavigationController.m */,
-				A53C27141FF3853C001B13B3 /* CFJWebViewBaseController.h */,
 				A505CAB51FDE2A0B00FBD4A3 /* XZPicNavBar.h */,
 				A505CAAB1FDE2A0900FBD4A3 /* XZPicNavBar.m */,
 				A505CAB91FDE2A0B00FBD4A3 /* XZViewController.h */,
