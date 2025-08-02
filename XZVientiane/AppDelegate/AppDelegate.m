@@ -161,41 +161,6 @@
 }
 
 
-// 基础网络测试方法
-- (void)testBasicNetworkConnectivity {
-    NSLog(@"在局Claude Code[基础网络测试]+开始测试");
-    
-    // 测试1：使用原生URLSession
-    NSURL *testURL = [NSURL URLWithString:@"https://www.apple.com"];
-    NSURLSession *session = [NSURLSession sharedSession];
-    NSURLSessionDataTask *task = [session dataTaskWithURL:testURL 
-                                         completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (error) {
-            NSLog(@"在局Claude Code[基础网络测试]+URLSession失败: %@", error);
-            NSLog(@"在局Claude Code[基础网络测试]+错误详情: %@", error.userInfo);
-        } else {
-            NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
-            NSLog(@"在局Claude Code[基础网络测试]+URLSession成功，状态码: %ld", (long)httpResponse.statusCode);
-        }
-    }];
-    [task resume];
-    
-    // 测试2：测试应用域名
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSURL *appURL = [NSURL URLWithString:@"https://zaiju.com"];
-        NSURLSessionDataTask *appTask = [session dataTaskWithURL:appURL 
-                                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-            if (error) {
-                NSLog(@"在局Claude Code[基础网络测试]+应用域名失败: %@", error);
-            } else {
-                NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
-                NSLog(@"在局Claude Code[基础网络测试]+应用域名成功，状态码: %ld", (long)httpResponse.statusCode);
-            }
-        }];
-        [appTask resume];
-    });
-}
-
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // 应用启动开始
     
@@ -982,8 +947,6 @@
     BOOL wasRestricted = self.networkRestricted;
     self.networkRestricted = NO;
     
-    // 添加基础网络测试
-    [self testBasicNetworkConnectivity];
     
     [self delayedInitialization:application launchOptions:launchOptions delay:0.3];
     
