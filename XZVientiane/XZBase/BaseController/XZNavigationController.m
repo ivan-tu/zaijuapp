@@ -299,15 +299,16 @@
                                 [toVC.view bringSubviewToFront:webView];
                                 NSLog(@"在局Claude Code[视图恢复]+确保WebView显示正常");
                                 
-                                // 🔧 新增：执行页面恢复策略
-                                if ([toVC respondsToSelector:@selector(executePageReloadStrategies)]) {
+                                // 🔧 修复：只对非Tab根页面执行恢复策略
+                                BOOL isTabRoot = toVC.tabBarController && !toVC.hidesBottomBarWhenPushed;
+                                if (!isTabRoot && [toVC respondsToSelector:@selector(executePageReloadStrategies)]) {
                                     SEL reloadSel = NSSelectorFromString(@"executePageReloadStrategies");
                                     NSMethodSignature *signature = [toVC methodSignatureForSelector:reloadSel];
                                     NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
                                     [invocation setTarget:toVC];
                                     [invocation setSelector:reloadSel];
                                     [invocation invoke];
-                                    NSLog(@"在局Claude Code[页面恢复]+执行页面重载策略");
+                                    NSLog(@"在局Claude Code[页面恢复]+执行页面重载策略（非Tab根页面）");
                                 }
                                 
                             }
@@ -677,15 +678,26 @@
         }
     }
     
-    // 对于手势返回到Tab根页面，不触发domainOperate
-    BOOL isInteractivePopToTabRoot = wasInteractiveTransition && 
-                                      !viewController.hidesBottomBarWhenPushed && 
-                                      viewController.tabBarController;
+    // 🔧 简化逻辑：Tab根页面永远不需要重新加载WebView
+    // Tab根页面的判断：有TabBarController且不隐藏TabBar
+    BOOL isTabRootPage = viewController.tabBarController && !viewController.hidesBottomBarWhenPushed;
     
-    // 只有在非Tab切换且非手势返回到Tab根页面时才处理WebView状态
+    // 🔧 关键修复：以下情况不处理WebView状态
+    // 1. Tab切换
+    // 2. Tab根页面（无论是否手势返回）
+    BOOL shouldSkipWebViewHandling = isTabSwitch || isTabRootPage;
+    
+    NSLog(@"在局Claude Code[WebView处理判断]+控制器: %@, isTabSwitch: %@, isTabRoot: %@, wasInteractive: %@, shouldSkip: %@",
+          NSStringFromClass([viewController class]),
+          isTabSwitch ? @"YES" : @"NO", 
+          isTabRootPage ? @"YES" : @"NO",
+          wasInteractiveTransition ? @"YES" : @"NO",
+          shouldSkipWebViewHandling ? @"YES" : @"NO");
+    
+    // 只有非Tab页面才需要处理WebView状态
     if ([viewController respondsToSelector:@selector(webView)] && 
         [viewController respondsToSelector:@selector(pinUrl)] &&
-        !isTabSwitch && !isInteractivePopToTabRoot) {
+        !shouldSkipWebViewHandling) {
         
         lastWebViewHandleTime = currentTime;
         dispatch_async(dispatch_get_main_queue(), ^{
