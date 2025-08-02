@@ -35,6 +35,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 所有文档都存在/Test/Doc下自行归类
 - 所有脚本都存在/Test/Scripts下自行归类
 - 优化代码时注意有则改之无则加勉，不要刻意的优化
+- 在不确定问题原因时不要轻易修改，而是确定问题原因！
+- 当你的修复不产生效果时，把修复的代码撤回
 
 ## 命令行操作
 

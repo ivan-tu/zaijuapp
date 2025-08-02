@@ -151,26 +151,20 @@
     // 对于返回到Tab根页面的情况，特殊处理
     BOOL isReturningToTabRoot = (toVC.tabBarController && !toVC.hidesBottomBarWhenPushed);
     
+    // 🔧 修复：统一处理所有页面，确保Tab页面在手势返回时也可见
+    // 将目标视图插入到容器视图中
+    if (toVC.view.superview != containerView) {
+        [containerView insertSubview:toVC.view belowSubview:fromVC.view];
+    }
+    
+    // 设置初始位置和透明度
+    CGRect backgroundInitialFrame = finalFrame;
+    backgroundInitialFrame.origin.x = -CGRectGetWidth(containerView.bounds) * self.backgroundOffsetRatio;
+    toVC.view.frame = backgroundInitialFrame;
+    toVC.view.alpha = 0.9;
+    
     if (isReturningToTabRoot) {
-        NSLog(@"在局Claude Code[转场修复]+检测到返回Tab根页面，特殊处理避免TabBar错位");
-        
-        // 对于Tab根页面，不要将其view添加到containerView
-        // 因为它已经在TabBarController的视图层级中了
-        // 我们只需要确保它可见
-        toVC.view.hidden = NO;
-        toVC.view.alpha = 1.0;
-        
-        // 不执行任何frame动画，保持原有位置
-    } else {
-        // 普通页面的处理
-        if (toVC.view.superview != containerView) {
-            [containerView insertSubview:toVC.view belowSubview:fromVC.view];
-        }
-        
-        CGRect backgroundInitialFrame = finalFrame;
-        backgroundInitialFrame.origin.x = -CGRectGetWidth(containerView.bounds) * self.backgroundOffsetRatio;
-        toVC.view.frame = backgroundInitialFrame;
-        toVC.view.alpha = 0.9;
+        NSLog(@"在局Claude Code[转场修复]+检测到返回Tab根页面，正常添加到动画容器");
     }
     
     
@@ -188,15 +182,10 @@
         exitFrame.origin.x = CGRectGetMaxX(containerView.bounds);
         fromVC.view.frame = exitFrame;
         
-        // 🔧 修复：根据是否返回Tab根页面使用不同的动画策略
-        if (isReturningToTabRoot) {
-            // Tab根页面已经在正确位置，只需要确保可见
-            toVC.view.alpha = 1.0;
-        } else {
-            // 普通页面执行滑动动画
-            toVC.view.frame = finalFrame;
-            toVC.view.alpha = 1.0;
-        }
+        // 🔧 修复：统一动画处理，确保所有页面都正常滑动
+        // 所有页面都执行相同的滑动动画
+        toVC.view.frame = finalFrame;
+        toVC.view.alpha = 1.0;
     };
     
     // 定义完成块
@@ -239,14 +228,9 @@
             });
         } else {
             // 🔧 修复：转场成功时确保视图状态正确
-            if (isReturningToTabRoot) {
-                // Tab根页面确保完全可见
-                toVC.view.alpha = 1.0;
-                toVC.view.hidden = NO;
-            } else {
-                toVC.view.frame = finalFrame;
-                toVC.view.alpha = 1.0;
-            }
+            toVC.view.frame = finalFrame;
+            toVC.view.alpha = 1.0;
+            toVC.view.hidden = NO;
             
             // 转场成功完成，确保fromVC的视图被正确移除
             // 这是关键：必须在动画完成后移除fromVC的视图
