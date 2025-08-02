@@ -272,13 +272,11 @@
                     if ([h5Controller respondsToSelector:@selector(hasValidWebViewContent)]) {
                         BOOL hasContent = [h5Controller performSelector:@selector(hasValidWebViewContent)];
                         if (!hasContent) {
-                            NSLog(@"在局Claude Code[Tab空白修复]+检测到Tab页面无内容，触发重新加载");
                             // 触发页面加载
                             if ([h5Controller respondsToSelector:@selector(domainOperate)]) {
                                 [h5Controller performSelector:@selector(domainOperate)];
                             }
                         } else {
-                            NSLog(@"在局Claude Code[Tab空白修复]+Tab页面已有内容，无需重新加载");
                         }
                     }
                 });

@@ -306,28 +306,6 @@
 
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo {
     [UMessage didReceiveRemoteNotification:userInfo];
-    
-    //    if(![[userInfo class] isSubclassOfClass:[NSDictionary class]] || ![userInfo objectForKey:@"extra"]) {
-    //        return;
-    //    }
-    //    NSString *extraStr = [userInfo objectForKey:@"extra"];
-    //    NSDictionary *extraDic = [NSJSONSerialization JSONObjectWithData:[extraStr dataUsingEncoding:NSUTF8StringEncoding] options:NSJSONReadingMutableLeaves error:nil];
-    //    NSDictionary *data = @{
-    //                           @"id": [extraDic objectForKey:@"id"],
-    //                           @"content": [extraDic objectForKey:@"content"],
-    //                           @"title": [extraDic objectForKey:@"title"],
-    //                           @"addtime": [extraDic objectForKey:@"addtime"],
-    //                           @"url": [extraDic objectForKey:@"url"]
-    //                           };
-    //    NSDictionary *dataDic = @{
-    //                              @"num": @(1),
-    //                              @"type": [extraDic objectForKey:@"type"],
-    //                              @"data": data
-    //                              };
-    //    NSDictionary *dic = @{
-    //                          @"action": @"noticemsg_addMsg",
-    //                          @"data": dataDic
-    //                          };
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application {
@@ -342,10 +320,6 @@
 //app将要进入前台
 - (void)applicationWillEnterForeground:(UIApplication *)application {
     [[UIApplication sharedApplication] endBackgroundTask: self.backgroundTaskIdentifier];
-
-//    [ManageCenter requestMessageNumber:^(id aResponseObject, NSError *anError) {
-//        [[NSNotificationCenter defaultCenter] postNotificationName:@"changeMessageNum" object:nil];
-//    }];
 }
 
 
@@ -873,7 +847,6 @@
 // 检查网络权限（iOS 9.0+）
 - (void)checkNetworkPermissionWithApplication:(UIApplication *)application launchOptions:(NSDictionary *)launchOptions {
     WEAK_SELF;
-    NSLog(@"在局Claude Code[网络权限]+开始检查网络权限, 时间: %@", [NSDate date]);
     
     // 创建信号量确保权限检查完成后再继续
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
@@ -883,7 +856,6 @@
         CTCellularData *cellularData = [[CTCellularData alloc] init];
         cellularData.cellularDataRestrictionDidUpdateNotifier = ^(CTCellularDataRestrictedState state) {
             STRONG_SELF;
-            NSLog(@"在局Claude Code[网络权限]+收到网络权限回调, 状态: %ld, 时间: %@", (long)state, [NSDate date]);
             
             // 标记已收到回调
             if (!hasReceivedCallback) {
@@ -987,7 +959,6 @@
 // 网络恢复后的处理
 - (void)handleNetworkRecovery {
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSLog(@"在局Claude Code[网络恢复]+开始处理网络恢复");
         if (!self.isLoadingViewRemoved) {
             [self removeGlobalLoadingViewWithReason:@"网络权限从受限恢复"];
         }
@@ -1020,18 +991,15 @@
                                   launchOptions:(NSDictionary *)launchOptions
                                       semaphore:(dispatch_semaphore_t)semaphore {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        NSLog(@"在局Claude Code[网络权限]+开始等待网络权限回调, 超时时间: 2秒");
         dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC));
         long result = dispatch_semaphore_wait(semaphore, timeout);
         
         if (result != 0) {
-            NSLog(@"在局Claude Code[网络权限]+等待超时, 假设网络权限已开启, 时间: %@", [NSDate date]);
             // 超时处理，假设网络权限已开启
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self addReachabilityManager:application didFinishLaunchingWithOptions:launchOptions];
             });
         } else {
-            NSLog(@"在局Claude Code[网络权限]+收到网络权限回调信号, 时间: %@", [NSDate date]);
         }
     });
 }
@@ -1100,13 +1068,11 @@
     
     // 🚀【性能优化】预加载HTML模板和WebView资源
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-        NSLog(@"在局Claude Code[性能优化]+开始预加载HTML模板");
         // 预加载HTML模板到内存
         [XZWKWebViewBaseController preloadHTMLTemplates];
         
         // 预热WebView池
         [[XZWebViewPerformanceManager sharedManager] preloadWebViewResources];
-        NSLog(@"在局Claude Code[性能优化]+HTML模板和WebView预加载完成");
     });
     
     WEAK_SELF;

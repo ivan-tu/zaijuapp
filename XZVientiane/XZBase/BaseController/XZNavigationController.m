@@ -134,18 +134,6 @@
                    finalFrameForToVC:(CGRect)finalFrame
                 initialFrameForFromVC:(CGRect)initialFrame {
     
-    NSLog(@"在局Claude Code[转场动画]+开始返回动画 fromVC: %@, toVC: %@", 
-          NSStringFromClass([fromVC class]), NSStringFromClass([toVC class]));
-    
-    // 🔧 新增：打印更多上下文信息
-    if ([fromVC respondsToSelector:@selector(hidesBottomBarWhenPushed)]) {
-        NSLog(@"在局Claude Code[转场动画]+fromVC.hidesBottomBarWhenPushed: %@", 
-              fromVC.hidesBottomBarWhenPushed ? @"YES" : @"NO");
-    }
-    if ([toVC respondsToSelector:@selector(hidesBottomBarWhenPushed)]) {
-        NSLog(@"在局Claude Code[转场动画]+toVC.hidesBottomBarWhenPushed: %@", 
-              toVC.hidesBottomBarWhenPushed ? @"YES" : @"NO");
-    }
     
     // 🔧 关键修复：检查视图层级并避免操作TabBarController
     // 对于返回到Tab根页面的情况，特殊处理
@@ -162,10 +150,6 @@
     backgroundInitialFrame.origin.x = -CGRectGetWidth(containerView.bounds) * self.backgroundOffsetRatio;
     toVC.view.frame = backgroundInitialFrame;
     toVC.view.alpha = 0.9;
-    
-    if (isReturningToTabRoot) {
-        NSLog(@"在局Claude Code[转场修复]+检测到返回Tab根页面，正常添加到动画容器");
-    }
     
     
     [self addShadowToView:fromVC.view];
@@ -216,8 +200,6 @@
             
             // 🔧 关键修复：转场取消后恢复视图状态
             dispatch_async(dispatch_get_main_queue(), ^{
-                NSLog(@"在局Claude Code[转场动画]+转场取消，恢复控制器状态: fromVC=%@, toVC=%@", 
-                      NSStringFromClass([fromVC class]), NSStringFromClass([toVC class]));
                 
                 
                 // 发送通知让导航控制器处理WebView状态恢复
@@ -237,18 +219,6 @@
             [fromVC.view removeFromSuperview];
             
             
-            // 只打印调试信息，不进行任何实际操作
-            if (toVC.tabBarController) {
-                NSLog(@"在局Claude Code[TabBar状态]+转场完成 fromVC: %@ (hidesBottom: %@) -> toVC: %@ (hidesBottom: %@)", 
-                      NSStringFromClass([fromVC class]), 
-                      fromVC.hidesBottomBarWhenPushed ? @"YES" : @"NO",
-                      NSStringFromClass([toVC class]), 
-                      toVC.hidesBottomBarWhenPushed ? @"YES" : @"NO");
-                
-                NSLog(@"在局Claude Code[TabBar状态]+TabBar当前状态: hidden=%@, frame=%@", 
-                      toVC.tabBarController.tabBar.hidden ? @"YES" : @"NO",
-                      NSStringFromCGRect(toVC.tabBarController.tabBar.frame));
-            }
         }
         
         // 对于交互式转场，即使finished为NO，如果没有被取消，仍然应该成功完成
@@ -297,7 +267,6 @@
                                 webView.userInteractionEnabled = YES;
                                 // 确保WebView在正确的位置
                                 [toVC.view bringSubviewToFront:webView];
-                                NSLog(@"在局Claude Code[视图恢复]+确保WebView显示正常");
                                 
                                 // 🔧 修复：只对非Tab根页面执行恢复策略
                                 BOOL isTabRoot = toVC.tabBarController && !toVC.hidesBottomBarWhenPushed;
@@ -308,7 +277,6 @@
                                     [invocation setTarget:toVC];
                                     [invocation setSelector:reloadSel];
                                     [invocation invoke];
-                                    NSLog(@"在局Claude Code[页面恢复]+执行页面重载策略（非Tab根页面）");
                                 }
                                 
                             }
@@ -322,7 +290,6 @@
                         [toVC.view setNeedsLayout];
                         [toVC.view layoutIfNeeded];
                         
-                        NSLog(@"在局Claude Code[TabBar恢复]+延迟检查，确保TabBar和内容视图正常");
                         
                     }
                 }
@@ -523,10 +490,6 @@
         CGRect tabBarFrame = tabBar.frame;
         tabBarFrame.origin.y = [UIScreen mainScreen].bounds.size.height;
         tabBar.frame = tabBarFrame;
-        NSLog(@"在局Claude Code[TabBar位置修改]+Push前将TabBar移出屏幕");
-        NSLog(@"在局Claude Code[TabBar位置修改]+原始frame: %@", NSStringFromCGRect(oldFrame));
-        NSLog(@"在局Claude Code[TabBar位置修改]+新的frame: %@", NSStringFromCGRect(tabBar.frame));
-        NSLog(@"在局Claude Code[TabBar位置修改]+屏幕高度: %.0f", [UIScreen mainScreen].bounds.size.height);
     }
     
     [super pushViewController:viewController animated:animated];
@@ -606,12 +569,7 @@
             CGRect tabBarFrame = tabBar.frame;
             tabBarFrame.origin.y = screenHeight;
             tabBar.frame = tabBarFrame;
-            NSLog(@"在局Claude Code[TabBar位置修改]+导航完成，将TabBar移出屏幕 (currentVC: %@)", NSStringFromClass([currentVC class]));
-            NSLog(@"在局Claude Code[TabBar位置修改]+原始frame: %@", NSStringFromCGRect(oldFrame));
-            NSLog(@"在局Claude Code[TabBar位置修改]+新的frame: %@", NSStringFromCGRect(tabBar.frame));
         } else {
-            // 当前页面需要显示TabBar - 恢复到正确位置
-            NSLog(@"在局Claude Code[TabBar恢复]+导航完成，准备恢复TabBar (currentVC: %@)", NSStringFromClass([currentVC class]));
             
             // 恢复所有属性
             tabBar.alpha = 1.0;
@@ -622,9 +580,6 @@
             CGRect oldFrame = tabBar.frame;
             CGRect tabBarFrame = tabBar.frame;
             tabBarFrame.origin.y = screenHeight - tabBarHeight;
-            
-            NSLog(@"在局Claude Code[TabBar恢复]+原始frame: %@", NSStringFromCGRect(oldFrame));
-            NSLog(@"在局Claude Code[TabBar恢复]+目标frame: %@", NSStringFromCGRect(tabBarFrame));
             
             // 使用动画平滑过渡
             [UIView animateWithDuration:0.25 animations:^{
@@ -637,9 +592,6 @@
                 if (tabBar.superview) {
                     [tabBar.superview bringSubviewToFront:tabBar];
                 }
-                NSLog(@"在局Claude Code[TabBar恢复]+动画完成，最终frame: %@, alpha: %.2f, userInteractionEnabled: %@", 
-                      NSStringFromCGRect(tabBar.frame), tabBar.alpha, 
-                      tabBar.userInteractionEnabled ? @"YES" : @"NO");
                 
                 // 确保TabBar的所有子视图也可以交互
                 for (UIView *subview in tabBar.subviews) {
@@ -661,7 +613,6 @@
     
     // 如果距离上次处理不到0.5秒，跳过处理
     if (currentTime - lastWebViewHandleTime < 0.5) {
-        NSLog(@"在局Claude Code[WebView处理]+跳过重复处理，避免首页空白");
         return;
     }
     
@@ -687,12 +638,6 @@
     // 2. Tab根页面（无论是否手势返回）
     BOOL shouldSkipWebViewHandling = isTabSwitch || isTabRootPage;
     
-    NSLog(@"在局Claude Code[WebView处理判断]+控制器: %@, isTabSwitch: %@, isTabRoot: %@, wasInteractive: %@, shouldSkip: %@",
-          NSStringFromClass([viewController class]),
-          isTabSwitch ? @"YES" : @"NO", 
-          isTabRootPage ? @"YES" : @"NO",
-          wasInteractiveTransition ? @"YES" : @"NO",
-          shouldSkipWebViewHandling ? @"YES" : @"NO");
     
     // 只有非Tab页面才需要处理WebView状态
     if ([viewController respondsToSelector:@selector(webView)] && 
@@ -859,14 +804,6 @@
     if (!viewController.tabBarController) {
         return;
     }
-    
-    // 只打印调试信息，不进行实际操作
-    NSLog(@"在局Claude Code[TabBar配置]+viewController: %@, hidesBottomBarWhenPushed: %@", 
-          NSStringFromClass([viewController class]), 
-          viewController.hidesBottomBarWhenPushed ? @"YES" : @"NO");
-    
-    // 移除手动设置TabBar hidden的逻辑
-    // iOS系统会自动处理
 }
 
 /**
@@ -938,7 +875,6 @@
         case UIGestureRecognizerStateBegan: {
             // 只在开始时检查导航栈，后续状态不检查
             if (self.viewControllers.count <= 1) {
-                NSLog(@"在局Claude Code[手势诊断]+导航栈只有一个控制器，取消手势");
                 return;
             }
             
@@ -949,41 +885,21 @@
                 toVC = [self.viewControllers objectAtIndex:self.viewControllers.count - 2];
             }
             
-            NSLog(@"在局Claude Code[手势诊断]+手势开始");
-            NSLog(@"在局Claude Code[手势诊断]+导航栈数量: %ld", (long)self.viewControllers.count);
-            NSLog(@"在局Claude Code[手势诊断]+当前控制器: %@ (hidesBottomBar: %@)", 
-                  NSStringFromClass([currentVC class]), 
-                  currentVC.hidesBottomBarWhenPushed ? @"YES" : @"NO");
-            NSLog(@"在局Claude Code[手势诊断]+目标控制器: %@ (hidesBottomBar: %@)", 
-                  NSStringFromClass([toVC class]), 
-                  toVC ? (toVC.hidesBottomBarWhenPushed ? @"YES" : @"NO") : @"NO");
             
             // 检查当前WebView的状态
             if ([currentVC respondsToSelector:@selector(webView)]) {
                 UIView *webView = [currentVC valueForKey:@"webView"];
-                NSLog(@"在局Claude Code[手势诊断]+当前WebView状态: 存在=%@, hidden=%@, alpha=%.2f, frame=%@", 
-                      webView ? @"YES" : @"NO",
-                      webView ? (webView.hidden ? @"YES" : @"NO") : @"N/A",
-                      webView ? webView.alpha : 0.0,
-                      webView ? NSStringFromCGRect(webView.frame) : @"N/A");
             }
             
             // 检查目标WebView的状态
             if ([toVC respondsToSelector:@selector(webView)]) {
                 UIView *webView = [toVC valueForKey:@"webView"];
-                NSLog(@"在局Claude Code[手势诊断]+目标WebView状态: 存在=%@, hidden=%@, alpha=%.2f, frame=%@", 
-                      webView ? @"YES" : @"NO",
-                      webView ? (webView.hidden ? @"YES" : @"NO") : @"N/A",
-                      webView ? webView.alpha : 0.0,
-                      webView ? NSStringFromCGRect(webView.frame) : @"N/A");
             }
             
             // 确保delegate被正确设置
             if (self.delegate != self) {
                 self.delegate = self;
-                NSLog(@"在局Claude Code[手势诊断]+设置delegate为self");
             } else {
-                NSLog(@"在局Claude Code[手势诊断]+delegate已正确设置");
             }
             
             // 🔧 关键修复：在手势开始时，检查是否需要临时移动TabBar
@@ -992,9 +908,6 @@
             if (currentVC.hidesBottomBarWhenPushed && toVC && !toVC.hidesBottomBarWhenPushed && self.tabBarController) {
                 UITabBar *tabBar = self.tabBarController.tabBar;
                 
-                NSLog(@"在局Claude Code[TabBar隐藏]+手势开始，准备隐藏TabBar");
-                NSLog(@"在局Claude Code[TabBar隐藏]+原始状态 - hidden: %@, alpha: %.2f, frame: %@", 
-                      tabBar.hidden ? @"YES" : @"NO", tabBar.alpha, NSStringFromCGRect(tabBar.frame));
                 
                 // 保存原始状态，用于恢复
                 objc_setAssociatedObject(tabBar, @"originalAlpha", @(tabBar.alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -1010,14 +923,8 @@
                 tabBarFrame.origin.y = screenHeight + 100;
                 tabBar.frame = tabBarFrame;
                 
-                // 🔧 移除层级调整，避免破坏视图结构
-                // [tabBar.superview sendSubviewToBack:tabBar];
-                
                 // 暂时禁用交互
                 tabBar.userInteractionEnabled = NO;
-                
-                NSLog(@"在局Claude Code[TabBar隐藏]+处理后状态 - hidden: %@, alpha: %.2f, frame: %@", 
-                      tabBar.hidden ? @"YES" : @"NO", tabBar.alpha, NSStringFromCGRect(tabBar.frame));
             }
             
             // 原生导航栈返回
@@ -1110,9 +1017,6 @@
                                 tabBarFrame.origin.y = screenHeight + 100;
                                 tabBar.frame = tabBarFrame;
                                 tabBar.userInteractionEnabled = NO;
-                                NSLog(@"在局Claude Code[TabBar手势取消]+保持TabBar隐藏");
-                                NSLog(@"在局Claude Code[TabBar手势取消]+frame: %@, hidden: %@, alpha: %.2f", 
-                                      NSStringFromCGRect(tabBar.frame), tabBar.hidden ? @"YES" : @"NO", tabBar.alpha);
                             } else {
                                 // 当前页面需要显示TabBar - 完全恢复
                                 tabBar.alpha = 1.0;
@@ -1120,9 +1024,6 @@
                                 tabBarFrame.origin.y = screenHeight - tabBarHeight;
                                 tabBar.frame = tabBarFrame;
                                 tabBar.userInteractionEnabled = YES;
-                                NSLog(@"在局Claude Code[TabBar手势取消]+恢复TabBar显示");
-                                NSLog(@"在局Claude Code[TabBar手势取消]+frame: %@, hidden: %@, alpha: %.2f", 
-                                      NSStringFromCGRect(tabBar.frame), tabBar.hidden ? @"YES" : @"NO", tabBar.alpha);
                             }
                         }
                     });
@@ -1130,11 +1031,6 @@
             } else {
             }
             
-            // 🔧 关键修复：延迟清理交互状态，确保didShowViewController能正确识别
-            // 不在这里立即清理，在didShowViewController中清理，确保状态能被正确识别
-            NSLog(@"在局Claude Code[手势诊断]+手势结束，转场状态: isInteractive=%@, transitionStarted=%@", 
-                  self.isInteractiveTransition ? @"YES" : @"NO",
-                  self.interactiveTransitionStarted ? @"YES" : @"NO");
             break;
         }
         default:

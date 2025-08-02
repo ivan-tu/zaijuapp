@@ -128,12 +128,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     }
     
     if (isFirstTab) {
-        NSLog(@"在局Claude Code[性能优化]+首页在viewDidLoad中提前创建WebView");
         // 立即创建WebView，不等待viewDidAppear
         [self createWebViewImmediately];
     } else {
-        // 在局Claude Code[首次安装优化]+非首页也提前创建WebView以减少切换延迟
-        NSLog(@"在局Claude Code[首次安装优化]+非首页也提前创建WebView以减少切换延迟");
         // 延迟很短时间后创建，避免阻塞主线程但又能减少切换延迟
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self createWebViewImmediately];
@@ -183,10 +180,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 🚀【性能优化】检查WebView是否已在viewDidLoad中创建
     if (self.webView && self.isWebViewPreCreated) {
-        NSLog(@"在局Claude Code[性能优化]+WebView已在viewDidLoad中创建，跳过重复创建");
         // WebView已创建，只需要检查是否需要加载内容
         if (![self hasValidWebViewContent] && self.pinUrl && self.pinUrl.length > 0) {
-            NSLog(@"在局Claude Code[性能优化]+WebView已创建但无内容，执行domainOperate");
             [self domainOperate];
         }
     } else {
@@ -469,11 +464,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             WKWebView *pooledWebView = [performanceManager getPrewarmedWebView];
             
             if (pooledWebView) {
-                NSLog(@"在局Claude Code[性能优化]+使用预热的WebView");
                 self.webView = pooledWebView;
                 self.webView.backgroundColor = [UIColor whiteColor];
             } else {
-                NSLog(@"在局Claude Code[性能优化]+WebView池为空，创建新实例");
                 // 创建优化的WebView配置
                 WKWebViewConfiguration *configuration = [self createOptimizedWebViewConfiguration];
                 
@@ -646,9 +639,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 [self.webView removeObserver:self forKeyPath:@"estimatedProgress"];
                 [self.webView removeObserver:self forKeyPath:@"title"];
                 self.isKVORegistered = NO;
-                NSLog(@"在局Claude Code[KVO崩溃修复]+已移除KVO观察者");
             } @catch (NSException *exception) {
-                NSLog(@"在局Claude Code[KVO崩溃修复]+移除KVO观察者异常: %@", exception);
             }
         }
         
@@ -924,9 +915,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         [self.webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:NULL];
         [self.webView addObserver:self forKeyPath:@"title" options:NSKeyValueObservingOptionNew context:NULL];
         self.isKVORegistered = YES;
-        NSLog(@"在局Claude Code[KVO崩溃修复]+已注册KVO观察者");
     } else {
-        NSLog(@"在局Claude Code[KVO崩溃修复]+KVO观察者已存在，跳过重复注册");
     }
     
     // 配置滚动视图属性
@@ -1222,7 +1211,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             
             // 5. 关键修复：如果页面之前已经加载完成或有有效内容，直接触发接口刷新而不是重新加载整个页面
             if (self.webView && (wasPageLoaded || hasValidContent)) {
-                NSLog(@"在局Claude Code[网络恢复]+页面已加载，只刷新数据不重新加载页面");
                 
                 // 触发JavaScript的网络恢复和数据刷新
                 NSString *refreshScript = @"(function() {"
@@ -1464,8 +1452,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 标记桥接已就绪
     self.isBridgeReady = YES;
     
-    // JavaScript桥接已就绪，可以执行待处理的脚本
-    NSLog(@"在局Claude Code[JavaScript桥接]+桥接初始化完成，可以开始执行JavaScript调用");
 }
 
 // 注册统一的桥接处理器
@@ -1514,11 +1500,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 
 
 - (void)domainOperate {
-    NSLog(@"在局Claude Code[domainOperate]+开始执行domainOperate, pinUrl: %@", self.pinUrl);
     
     // 强化防重复逻辑 - 如果WebView已有有效内容，不要重复加载
     if ([self hasValidWebViewContent]) {
-        NSLog(@"在局Claude Code[domainOperate]+WebView已有有效内容，只触发pageShow");
         // 如果已有内容，只触发pageShow事件
         if (self.webView) {
             NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageShow" data:nil];
@@ -1530,8 +1514,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 防止频繁调用（与loadHTMLContent共享时间检查），但如果WebView未创建则允许执行
     NSDate *now = [NSDate date];
     if (lastLoadTime && [now timeIntervalSinceDate:lastLoadTime] < 2.0 && self.webView != nil) {
-        NSLog(@"在局Claude Code[domainOperate]+防频繁调用拦截，距离上次加载时间: %.2f秒", 
-              [now timeIntervalSinceDate:lastLoadTime]);
         return;
     }
     
@@ -1589,7 +1571,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                     // 🚀【性能优化】为首页URL设置特殊的缓存策略
                     NSURLRequest *request;
                     if ([self.pinUrl containsString:@"zaiju.com/p/home/index/index"]) {
-                        NSLog(@"在局Claude Code[性能优化]+检测到首页URL，使用激进缓存策略");
                         // 首页使用缓存优先策略，减少网络请求
                         NSMutableURLRequest *mutableRequest = [NSMutableURLRequest requestWithURL:url];
                         mutableRequest.cachePolicy = NSURLRequestReturnCacheDataElseLoad; // 优先使用缓存，缓存不存在才请求网络
@@ -1599,7 +1580,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                         [mutableRequest setValue:@"max-age=300" forHTTPHeaderField:@"Cache-Control"]; // 缓存5分钟
                         request = [mutableRequest copy];
                     } else {
-                        NSLog(@"在局Claude Code[性能优化]+非首页URL，使用默认缓存策略");
                         // 其他页面使用默认缓存策略
                         request = [NSURLRequest requestWithURL:url 
                                             cachePolicy:NSURLRequestUseProtocolCachePolicy 
@@ -1776,10 +1756,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         // 直接数据模式
         
         if (self.pagetitle) {
-            NSLog(@"在局Claude Code[performHTMLLoading]+调用getnavigationBarTitleText，标题: %@", self.pagetitle);
             [self getnavigationBarTitleText:self.pagetitle];
         } else {
-            NSLog(@"在局Claude Code[performHTMLLoading]+pagetitle为空，未设置标题");
         }
         
         NSString *allHtmlStr = [self.htmlStr stringByReplacingOccurrencesOfString:@"{{body}}" withString:self.pinDataStr];
@@ -2969,7 +2947,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     static const NSInteger MAX_RETRY_COUNT = 5; // 最大重试次数
     
     if (retryCount >= MAX_RETRY_COUNT) {
-        NSLog(@"在局Claude Code[强制页面就绪]+已达到最大重试次数(%ld)，停止重试", (long)MAX_RETRY_COUNT);
         return;
     }
     
@@ -3006,7 +2983,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         }
         
         if (jsonError || !statusDict) {
-            NSLog(@"在局Claude Code[强制页面就绪]+检查结果解析失败: %@", jsonError.localizedDescription);
             return;
         }
         
@@ -3061,7 +3037,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             [self triggerNetworkRecoveryIfNeeded];
         } else {
             // 条件不满足，延迟重试（带重试次数控制）
-            NSLog(@"在局Claude Code[强制页面就绪]+条件不满足，延迟重试，当前重试次数: %ld", (long)retryCount);
             [self scheduleJavaScriptTask:^{
                 [self forceCheckAndTriggerPageReadyWithRetryCount:retryCount + 1];
             } afterDelay:1.0];
@@ -3122,7 +3097,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 页面加载完成后，再次尝试设置标题
     if (self.pagetitle && self.pagetitle.length > 0) {
-        NSLog(@"在局Claude Code[didFinishNavigation]+页面加载完成，设置标题: %@", self.pagetitle);
         [self getnavigationBarTitleText:self.pagetitle];
     }
     
@@ -3181,8 +3155,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-    NSLog(@"在局Claude Code[WebView导航失败]+导航失败: %@, 错误码: %ld, 错误域: %@", 
-          error.localizedDescription, (long)error.code, error.domain);
     
     // 隐藏loading指示器
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -3195,8 +3167,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
 }
 
 - (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-    NSLog(@"在局Claude Code[WebView预加载失败]+预加载失败: %@, 错误码: %ld, 错误域: %@, URL: %@", 
-          error.localizedDescription, (long)error.code, error.domain, error.userInfo[NSURLErrorFailingURLErrorKey]);
     
     // 隐藏loading指示器
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -3238,8 +3208,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     NSURL *url = navigationAction.request.URL;
     NSString *scheme = url.scheme.lowercaseString;
     
-    NSLog(@"在局Claude Code[WebView导航请求]+URL: %@, 类型: %ld", 
-          url.absoluteString, (long)navigationAction.navigationType);
     
     // 关键：允许WebViewJavascriptBridge的wvjbscheme://连接
     if ([scheme isEqualToString:@"wvjbscheme"]) {
@@ -3337,7 +3305,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 static BOOL hasTriggeredEarlyRemoval = NO;
                 if (!hasTriggeredEarlyRemoval) {
                     hasTriggeredEarlyRemoval = YES;
-                    NSLog(@"在局Claude Code[首次安装优化]+WebView加载进度达到%.0f%%，提前移除LoadingView", progress * 100);
                     
                     // 发送通知移除LoadingView
                     [[NSNotificationCenter defaultCenter] postNotificationName:@"showTabviewController" object:self];
@@ -3372,7 +3339,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         if (title && title.length > 0) {
             // 更新导航栏标题
             self.navigationItem.title = title;
-            NSLog(@"在局Claude Code[内页标题自动更新]+从WebView获取标题: %@", title);
         }
     } else {
         [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
@@ -3543,7 +3509,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 [self.webView removeObserver:self forKeyPath:@"title"];
                 self.isKVORegistered = NO;
             } @catch (NSException *exception) {
-                NSLog(@"在局Claude Code[KVO崩溃修复]+清理时移除KVO异常: %@", exception);
             }
         }
         
@@ -3697,7 +3662,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                 [self.webView removeObserver:self forKeyPath:@"title"];
                 self.isKVORegistered = NO;
             } @catch (NSException *exception) {
-                NSLog(@"在局Claude Code[KVO崩溃修复]+强制刷新时移除KVO异常: %@", exception);
             }
         }
         
@@ -4514,18 +4478,15 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         return;
     }
     
-    NSLog(@"在局Claude Code[性能优化]+开始立即创建WebView");
     
     // 🚀【性能优化】优先从WebView池获取预热的实例
     XZWebViewPerformanceManager *performanceManager = [XZWebViewPerformanceManager sharedManager];
     WKWebView *pooledWebView = [performanceManager getPrewarmedWebView];
     
     if (pooledWebView) {
-        NSLog(@"在局Claude Code[性能优化]+使用预热的WebView（viewDidLoad）");
         self.webView = pooledWebView;
         self.webView.backgroundColor = [UIColor whiteColor];
     } else {
-        NSLog(@"在局Claude Code[性能优化]+WebView池为空，创建新实例（viewDidLoad）");
         // 创建优化的WebView配置
         WKWebViewConfiguration *configuration = [self createOptimizedWebViewConfiguration];
         
@@ -4543,11 +4504,9 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 标记为已预创建
     self.isWebViewPreCreated = YES;
     
-    NSLog(@"在局Claude Code[性能优化]+WebView创建完成（viewDidLoad）");
     
     // 如果已经有URL，可以开始加载
     if (self.pinUrl && self.pinUrl.length > 0) {
-        NSLog(@"在局Claude Code[性能优化]+检测到pinUrl，准备domainOperate: %@", self.pinUrl);
         // 延迟一点执行，确保视图层级完全建立
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self domainOperate];
@@ -5226,25 +5185,17 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
  */
 - (BOOL)hasValidWebViewContent {
     if (!self.webView) {
-        NSLog(@"在局Claude Code[WebView内容检查]+WebView不存在");
         return NO;
     }
     
     // 如果页面已经标记为存在且已经收到pageReady，认为有效
     if (self.isExist && self.isLoading) {
-        NSLog(@"在局Claude Code[WebView内容检查]+页面已存在且已加载: isExist=%@, isLoading=%@", 
-              self.isExist ? @"YES" : @"NO", self.isLoading ? @"YES" : @"NO");
         
         // 在局Claude Code[Tab空白修复]+额外检查WebView的视图状态
         if (self.isTabbarShow && self.webView) {
-            NSLog(@"在局Claude Code[Tab空白修复]+WebView视图状态检查: hidden=%@, alpha=%.2f, superview=%@", 
-                  self.webView.hidden ? @"YES" : @"NO", 
-                  self.webView.alpha,
-                  self.webView.superview ? @"YES" : @"NO");
             
             // 确保WebView可见
             if (self.webView.hidden || self.webView.alpha < 1.0 || !self.webView.superview) {
-                NSLog(@"在局Claude Code[Tab空白修复]+WebView状态异常，强制修复");
                 dispatch_async(dispatch_get_main_queue(), ^{
                     self.webView.hidden = NO;
                     self.webView.alpha = 1.0;
@@ -5269,42 +5220,33 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         
         // 如果URL为空或about:blank，说明是新创建的控制器或WebView未加载
         if (!currentURL || [urlString isEqualToString:@"about:blank"] || urlString.length == 0) {
-            NSLog(@"在局Claude Code[WebView内容检查]+Tab页面WebView未加载: URL=%@", urlString);
             return NO;
         }
         
         // 如果isExist为NO，说明页面还没有收到pageReady事件
         if (!self.isExist) {
-            NSLog(@"在局Claude Code[WebView内容检查]+Tab页面未收到pageReady: isExist=NO");
             return NO;
         }
         
         // 如果URL是manifest路径，说明只加载了基础HTML，还需要加载真实内容
         if ([urlString containsString:@"manifest/"]) {
-            NSLog(@"在局Claude Code[WebView内容检查]+Tab页面只有基础HTML，需要加载真实内容: URL=%@", urlString);
             return NO;
         }
         
         // 如果URL是有效的网络地址且isExist为YES，认为有效
         if (self.isExist && ([urlString hasPrefix:@"http://"] || [urlString hasPrefix:@"https://"])) {
-            NSLog(@"在局Claude Code[WebView内容检查]+Tab页面有效: URL=%@, isExist=YES", urlString);
             return YES;
         }
-        
-        NSLog(@"在局Claude Code[WebView内容检查]+Tab页面需要重新加载: URL=%@, isExist=%@", 
-              urlString, self.isExist ? @"YES" : @"NO");
         return NO;
     }
     
     // 检查URL - 只有当URL完全无效时才返回NO
     NSURL *currentURL = self.webView.URL;
     if (!currentURL) {
-        NSLog(@"在局Claude Code[WebView内容检查]+WebView URL为空");
         return NO;
     }
     
     NSString *urlString = currentURL.absoluteString;
-    NSLog(@"在局Claude Code[WebView内容检查]+当前URL: %@", urlString);
     
     // 只有当URL是about:blank或者空的时候才认为无效
     if ([urlString isEqualToString:@"about:blank"] || urlString.length == 0) {
@@ -5478,7 +5420,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     // 确保WebView基本状态正确
     if (self.webView.hidden || self.webView.alpha < 1.0) {
-        NSLog(@"在局Claude Code[页面可见性修复]+WebView基本状态异常，先修复基本状态");
         self.webView.hidden = NO;
         self.webView.alpha = 1.0;
         [self.webView setNeedsLayout];
@@ -5544,9 +5485,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     [self safelyEvaluateJavaScript:visibilityCheckScript completionHandler:^(id result, NSError *error) {
         if (error) {
-            NSLog(@"在局Claude Code[页面可见性修复]+检查脚本执行失败: %@", error.localizedDescription);
             // 🔧 关键修复：JavaScript检查失败时，直接执行强制页面修复
-            NSLog(@"在局Claude Code[页面可见性修复]+JavaScript检查失败，执行强制修复");
             [self performPageVisibilityFix];
             return;
         }
@@ -5565,16 +5504,13 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
             // 如果返回的已经是字典，直接使用
             checkResult = (NSDictionary *)result;
         } else {
-            NSLog(@"在局Claude Code[页面可见性修复]+意外的返回类型: %@, 内容: %@", NSStringFromClass([result class]), result);
             return;
         }
         
         if (jsonError || !checkResult) {
-            NSLog(@"在局Claude Code[页面可见性修复]+检查结果解析失败: %@", jsonError.localizedDescription);
             return;
         }
         
-        NSLog(@"在局Claude Code[页面可见性修复]+检查结果: %@", checkResult);
         
         BOOL needsFix = [checkResult[@"needsFix"] boolValue];
         BOOL hasContent = [checkResult[@"hasContent"] boolValue];
@@ -5582,10 +5518,8 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         
         // 如果页面需要修复
         if (needsFix || (!hasContent && visibleElements == 0)) {
-            NSLog(@"在局Claude Code[页面可见性修复]+检测到页面显示异常，开始修复");
             [self performPageVisibilityFix];
         } else {
-            NSLog(@"在局Claude Code[页面可见性修复]+页面显示正常，无需修复");
         }
     }];
 }
@@ -5678,11 +5612,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     "})()";
     
     [self safelyEvaluateJavaScript:fixScript completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局Claude Code[页面可见性修复]+修复脚本执行失败: %@", error.localizedDescription);
-        } else {
-            NSLog(@"在局Claude Code[页面可见性修复]+修复脚本执行完成: %@", result);
-        }
         
         // 修复完成后，再次验证页面状态
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -5730,7 +5659,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     
     [self safelyEvaluateJavaScript:verifyScript completionHandler:^(id result, NSError *error) {
         if (error) {
-            NSLog(@"在局Claude Code[页面可见性修复]+验证脚本执行失败: %@", error.localizedDescription);
             return;
         }
         
@@ -5746,12 +5674,10 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         } else if ([result isKindOfClass:[NSDictionary class]]) {
             verifyResult = (NSDictionary *)result;
         } else {
-            NSLog(@"在局Claude Code[页面可见性修复]+验证返回意外类型: %@", NSStringFromClass([result class]));
             return;
         }
         
         if (jsonError || !verifyResult) {
-            NSLog(@"在局Claude Code[页面可见性修复]+验证结果解析失败");
             return;
         }
         
@@ -5760,9 +5686,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
         NSInteger visibleElements = [verifyResult[@"visibleElements"] integerValue];
         
         if (bodyVisible && hasContent && visibleElements > 0) {
-            NSLog(@"在局Claude Code[页面可见性修复]+✅ 页面修复成功，当前状态正常");
         } else {
-            NSLog(@"在局Claude Code[页面可见性修复]+❌ 页面修复后仍有问题，需要进一步排查");
             // 如果修复后仍有问题，可以考虑重新加载页面
             [self considerPageReload];
         }
@@ -5775,12 +5699,10 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     static NSDate *lastReloadTime = nil;
     NSDate *now = [NSDate date];
     if (lastReloadTime && [now timeIntervalSinceDate:lastReloadTime] < 5.0) {
-        NSLog(@"在局Claude Code[页面可见性修复]+距离上次重新加载时间过短，跳过");
         return;
     }
     lastReloadTime = now;
     
-    NSLog(@"在局Claude Code[页面可见性修复]+页面修复失败，考虑重新加载页面");
     
     // 重置状态并重新加载
     self.isLoading = NO;
@@ -5789,7 +5711,6 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
     // 延迟重新加载，给当前操作一些时间完成
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (!self->_isDisappearing && self.webView) {
-            NSLog(@"在局Claude Code[页面可见性修复]+执行页面重新加载");
             [self domainOperate];
         }
     });

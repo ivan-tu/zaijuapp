@@ -200,14 +200,6 @@
     }
     [self checkAppToken];
     
-    // 在局Claude Code[请求跟踪]+记录请求详情
-    NSLog(@"在局Claude Code[POST请求]+URL: %@", URLString);
-    NSLog(@"在局Claude Code[POST参数类型]+%@", NSStringFromClass([parameters class]));
-    if ([parameters isKindOfClass:[NSArray class]]) {
-        NSLog(@"在局Claude Code[POST数组参数]+参数内容: %@", parameters);
-    } else if ([parameters isKindOfClass:[NSDictionary class]]) {
-        NSLog(@"在局Claude Code[POST字典参数]+参数内容: %@", parameters);
-    }
     
     // 设置请求序列化器为JSON格式
     AFJSONRequestSerializer *jsonSerializer = [AFJSONRequestSerializer serializer];
@@ -218,28 +210,21 @@
         for (NSString *key in headers) {
             [self.requestSerializer setValue:headers[key] forHTTPHeaderField:key];
         }
-        NSLog(@"在局Claude Code[POST请求头]+Headers: %@", headers);
     }
     
     
     [super POST:URLString parameters:parameters headers:nil progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)task.response;
         
-        // 在局Claude Code[响应跟踪]+记录响应状态
-        NSLog(@"在局Claude Code[POST响应]+URL: %@, HTTP状态码: %ld", URLString, (long)httpResponse.statusCode);
-        NSLog(@"在局Claude Code[POST响应数据]+%@", responseObject);
+       
         
         if (!responseObject || ![responseObject isKindOfClass:[NSDictionary class]]) {
-            NSLog(@"在局Claude Code[POST响应错误]+数据格式错误，类型: %@", NSStringFromClass([responseObject class]));
             if (block) {
                 block(nil, [NSError errorWithDomain:@"没有返回数据或数据格式错误" code:10000 userInfo:nil]);
             }
             return ;
         }
         NSNumber *codenumber = [responseObject objectForKey:@"code"];
-        if (codenumber.integerValue != 0) {
-            NSLog(@"在局Claude Code[业务错误]+code: %@, errorMessage: %@", codenumber, [responseObject objectForKey:@"errorMessage"]);
-        }
         NSAssert(codenumber.integerValue == 0, @"请求失败");
         
         // 在局Claude Code[修复缓存键生成]+使用统一的缓存键生成方法
@@ -253,15 +238,11 @@
         }
     } failure:^(NSURLSessionDataTask *task, NSError *error) {
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)task.response;
-        NSLog(@"在局Claude Code[POST请求失败]+URL: %@, HTTP状态码: %ld", URLString, (long)httpResponse.statusCode);
-        NSLog(@"在局Claude Code[POST错误详情]+错误域: %@, 错误码: %ld, 描述: %@", error.domain, (long)error.code, error.localizedDescription);
-        NSLog(@"在局Claude Code[POST请求参数]+失败时的参数: %@", parameters);
         
         // iOS 18修复：检查是否是网络权限问题
         if (error.code == -1009 && [error.domain isEqualToString:NSURLErrorDomain]) {
             NSDictionary *userInfo = error.userInfo;
             if (userInfo[@"_NSURLErrorNWPathKey"]) {
-                NSLog(@"检测到iOS 18网络权限问题，可能需要用户在设置中授权");
                 // 发送通知给UI层处理
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"NetworkPermissionDenied" object:nil userInfo:@{@"error": error}];
             }
@@ -344,16 +325,11 @@
     NSDate *expireDate = [[NSUserDefaults standardUserDefaults] objectForKey:@"User_Token_Expire_Time"];
     
     if ([expireDate compare:[NSDate date]] != NSOrderedDescending) {
-        NSLog(@"Token已过期，开始刷新");
         // 获取原始的AppId和AppSecret
         NSString *appId = [ClientSettingModel sharedInstance].appId;
         NSString *appSecret = [ClientSettingModel sharedInstance].appSecret;
         
         
-        // 使用GET请求方式，与原项目保持一致
-        // 在局Claude Code[Token刷新修复]+完整URL编码处理所有特殊字符
-        NSLog(@"在局Claude Code[Token刷新修复]+原始AppId: %@", appId);
-        NSLog(@"在局Claude Code[Token刷新修复]+原始AppSecret: %@", appSecret);
         
         // 完整的URL编码函数，处理所有需要编码的字符
         NSString* (^urlEncode)(NSString*) = ^NSString*(NSString *string) {
@@ -392,15 +368,11 @@
         NSString *encodedAppId = urlEncode(appId);
         NSString *encodedAppSecret = urlEncode(appSecret);
         
-        NSLog(@"在局Claude Code[Token刷新修复]+编码后AppId: %@", encodedAppId);
-        NSLog(@"在局Claude Code[Token刷新修复]+编码后AppSecret: %@", encodedAppSecret);
-        
         NSString *urlString = [NSString stringWithFormat:@"%@/oauth/getAccessToken?appId=%@&appSecret=%@", 
                                                          [ClientSettingModel sharedInstance].domain,
                                                          encodedAppId,
                                                          encodedAppSecret];
         
-        NSLog(@"在局Claude Code[Token刷新修复]+刷新URL: %@", urlString);
         
         
         // 使用异步请求避免阻塞主线程

@@ -434,8 +434,6 @@
         STRONG_SELF;
         if (!self) return;
         
-        NSLog(@"在局Claude Code[外部链接导航]+收到UniversalLinkNavigation通知");
-        
         // 延迟执行，确保视图已经完全加载
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             // 重新设置导航栏状态
@@ -465,19 +463,7 @@
 
 // 执行页面重载策略
 - (void)executePageReloadStrategies {
-    NSLog(@"在局Claude Code[页面恢复策略]+开始执行页面恢复");
     
-    // 🔧 新增：详细的页面状态诊断
-    NSLog(@"在局Claude Code[页面恢复策略]+WebView状态: 存在=%@, hidden=%@, alpha=%.2f, frame=%@", 
-          self.webView ? @"YES" : @"NO",
-          self.webView ? (self.webView.hidden ? @"YES" : @"NO") : @"N/A",
-          self.webView ? self.webView.alpha : 0.0,
-          self.webView ? NSStringFromCGRect(self.webView.frame) : @"N/A");
-    
-    NSLog(@"在局Claude Code[页面恢复策略]+控制器状态: isDisappearing=%@, tabbarShow=%@, pinUrl=%@", 
-          [self isPageDisappearing] ? @"YES" : @"NO",
-          self.isTabbarShow ? @"YES" : @"NO",
-          self.pinUrl ? self.pinUrl : @"N/A");
     
     // 先检查页面实际内容状态
     [self safelyEvaluateJavaScript:@"(function(){"
@@ -514,15 +500,9 @@
             "return JSON.stringify({error: e.message, timestamp: Date.now()});"
         "}"
     "})()" completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局Claude Code[页面恢复策略]+页面状态检查失败: %@", error.localizedDescription);
-        } else {
-            NSLog(@"在局Claude Code[页面恢复策略]+页面状态检查结果: %@", result);
-        }
     }];
     
     // 策略0: 强制显示内容
-    NSLog(@"在局Claude Code[页面恢复策略]+执行策略0: 强制显示内容");
     [self safelyEvaluateJavaScript:@"(function(){"
         "document.body.style.display = 'block';"
         "document.body.style.visibility = 'visible';"
@@ -537,15 +517,9 @@
         "}"
         "return 'content_made_visible_' + affectedCount + '_containers';"
     "})()" completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局Claude Code[页面恢复策略]+策略0执行失败: %@", error.localizedDescription);
-        } else {
-            NSLog(@"在局Claude Code[页面恢复策略]+策略0执行结果: %@", result);
-        }
     }];
     
     // 策略1: 尝试重新加载页面数据
-    NSLog(@"在局Claude Code[页面恢复策略]+执行策略1: 重新加载页面数据");
     [self safelyEvaluateJavaScript:@"(function(){"
         "if (typeof app !== 'undefined' && typeof app.reloadOtherPages === 'function') {"
             "app.reloadOtherPages(); return 'reloadOtherPages_called';"
@@ -555,43 +529,24 @@
             "return 'no_suitable_method_found_app_is_' + (typeof app);"
         "}"
     "})()" completionHandler:^(id result, NSError *error) {
-        if (error) {
-            NSLog(@"在局Claude Code[页面恢复策略]+策略1执行失败: %@", error.localizedDescription);
-        } else {
-            NSLog(@"在局Claude Code[页面恢复策略]+策略1执行结果: %@", result);
-        }
     }];
     
     // 策略2: 触发页面事件
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSLog(@"在局Claude Code[页面恢复策略]+执行策略2: 触发页面事件");
         [self safelyEvaluateJavaScript:@"document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); 'events_fired'" completionHandler:^(id result, NSError *error) {
-            if (error) {
-                NSLog(@"在局Claude Code[页面恢复策略]+策略2执行失败: %@", error.localizedDescription);
-            } else {
-                NSLog(@"在局Claude Code[页面恢复策略]+策略2执行结果: %@", result);
-            }
         }];
     });
     
     // 策略3: 模拟用户滚动交互
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSLog(@"在局Claude Code[页面恢复策略]+执行策略3: 模拟滚动交互");
         [self safelyEvaluateJavaScript:@"window.scrollTo(0, 1); window.scrollTo(0, 0); 'scroll_triggered'" completionHandler:^(id result, NSError *error) {
-            if (error) {
-                NSLog(@"在局Claude Code[页面恢复策略]+策略3执行失败: %@", error.localizedDescription);
-            } else {
-                NSLog(@"在局Claude Code[页面恢复策略]+策略3执行结果: %@", result);
-            }
         }];
     });
     
     // 策略4: 触发pageShow事件
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSLog(@"在局Claude Code[页面恢复策略]+执行策略4: 触发pageShow事件");
         NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageShow" data:nil];
         [self objcCallJs:callJsDic];
-        NSLog(@"在局Claude Code[页面恢复策略]+策略4执行完成: pageShow事件已触发");
     });
 }
 
@@ -833,12 +788,6 @@
     
     [super viewDidAppear:animated];
     
-    // 🔍 诊断日志：记录出现后的状态
-    NSLog(@"在局Claude Code[Appear诊断]+============ viewDidAppear开始 ============");
-    NSLog(@"在局Claude Code[Appear诊断]+控制器: %@ (hidesBottomBar: %@)", 
-          NSStringFromClass([self class]), 
-          self.hidesBottomBarWhenPushed ? @"YES" : @"NO");
-    NSLog(@"在局Claude Code[Appear诊断]+URL: %@", self.pinUrl);
     
     // 🔍 检查是否是通过手势返回
     BOOL wasInteractiveTransition = NO;
@@ -849,15 +798,9 @@
             wasInteractiveTransition = [value boolValue];
         }
     }
-    NSLog(@"在局Claude Code[Appear诊断]+是否通过手势返回: %@", 
-          wasInteractiveTransition ? @"YES" : @"NO");
     
     // 🔍 记录WebView最终状态
     if (self.webView) {
-        NSLog(@"在局Claude Code[Appear诊断]+WebView最终状态: frame=%@, hidden=%@, alpha=%.2f",
-              NSStringFromCGRect(self.webView.frame),
-              self.webView.hidden ? @"YES" : @"NO",
-              self.webView.alpha);
         
         // 🔍 检查WebView内容
         if ([self.webView isKindOfClass:NSClassFromString(@"WKWebView")]) {
@@ -872,28 +815,20 @@
                 [inv setArgument:&jsCode atIndex:2];
                 
                 void (^completionHandler)(id, NSError *) = ^(id result, NSError *error) {
-                    if (!error && result) {
-                        NSLog(@"在局Claude Code[Appear诊断]+WebView内容状态: %@", result);
-                    }
+                    
                 };
                 [inv setArgument:&completionHandler atIndex:3];
                 [inv invoke];
             }
         }
     } else {
-        NSLog(@"在局Claude Code[Appear诊断]+WebView不存在，将要创建");
     }
     
     // 🔍 记录TabBar最终状态
     if (self.tabBarController) {
         UITabBar *tabBar = self.tabBarController.tabBar;
-        NSLog(@"在局Claude Code[Appear诊断]+TabBar最终状态: hidden=%@, alpha=%.2f, frame=%@",
-              tabBar.hidden ? @"YES" : @"NO",
-              tabBar.alpha,
-              NSStringFromCGRect(tabBar.frame));
     }
     
-    NSLog(@"在局Claude Code[Appear诊断]+============ viewDidAppear诊断完成 ============");
     
     // 使用优化的WebView加载逻辑
     if (!self.isWebViewLoading && !self.isLoading) {
@@ -923,21 +858,9 @@
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
+
+	 NSArray *viewControllers = self.navigationController.viewControllers;
     
-    // 🔍 诊断日志：记录消失前的状态
-    NSLog(@"在局Claude Code[Disappear诊断]+============ viewWillDisappear开始 ============");
-    NSLog(@"在局Claude Code[Disappear诊断]+控制器: %@ (hidesBottomBar: %@)", 
-          NSStringFromClass([self class]), 
-          self.hidesBottomBarWhenPushed ? @"YES" : @"NO");
-    NSLog(@"在局Claude Code[Disappear诊断]+URL: %@", self.pinUrl);
-    NSLog(@"在局Claude Code[Disappear诊断]+是否是Tab根页面: %@", 
-          (!self.hidesBottomBarWhenPushed && self.tabBarController) ? @"YES" : @"NO");
-    
-    // 🔍 检查导航栈状态
-    NSArray *viewControllers = self.navigationController.viewControllers;
-    NSLog(@"在局Claude Code[Disappear诊断]+导航栈数量: %ld", (long)viewControllers.count);
-    NSLog(@"在局Claude Code[Disappear诊断]+当前控制器在栈中位置: %ld", 
-          (long)[viewControllers indexOfObject:self]);
     
     // 🔍 检查交互式转场状态
     BOOL isInteractiveTransition = NO;
@@ -947,16 +870,7 @@
             isInteractiveTransition = [value boolValue];
         }
     }
-    NSLog(@"在局Claude Code[Disappear诊断]+是否交互式转场: %@", 
-          isInteractiveTransition ? @"YES" : @"NO");
     
-    // 🔍 记录WebView状态
-    if (self.webView) {
-        NSLog(@"在局Claude Code[Disappear诊断]+WebView状态: frame=%@, hidden=%@, alpha=%.2f",
-              NSStringFromCGRect(self.webView.frame),
-              self.webView.hidden ? @"YES" : @"NO",
-              self.webView.alpha);
-    }
     
     self.isCancel = YES;
     if (self.cancelSignal) {
@@ -965,7 +879,6 @@
     
     // 检查是否正在被pop（包括手势返回）
     if ([viewControllers indexOfObject:self] == NSNotFound) {
-        NSLog(@"在局Claude Code[Disappear诊断]+控制器正在被从导航栈移除");
         
         // 检查是否正在进行交互式转场
         if ([self.navigationController isKindOfClass:NSClassFromString(@"XZNavigationController")]) {
@@ -1030,30 +943,19 @@
 - (void)viewDidDisappear:(BOOL)animated {
     [super viewDidDisappear:animated];
     
-    // 🔍 诊断日志：记录消失后的状态
-    NSLog(@"在局Claude Code[Disappear诊断]+============ viewDidDisappear完成 ============");
-    NSLog(@"在局Claude Code[Disappear诊断]+控制器: %@", NSStringFromClass([self class]));
     
     // 🔍 检查导航栈最终状态
     NSArray *viewControllers = self.navigationController.viewControllers;
-    NSLog(@"在局Claude Code[Disappear诊断]+导航栈最终数量: %ld", (long)viewControllers.count);
-    NSLog(@"在局Claude Code[Disappear诊断]+控制器是否还在栈中: %@", 
-          [viewControllers containsObject:self] ? @"YES" : @"NO");
     
     // 🔍 检查目标页面（如果存在）
     if (viewControllers.count > 0) {
         UIViewController *topVC = [viewControllers lastObject];
-        NSLog(@"在局Claude Code[Disappear诊断]+当前栈顶控制器: %@ (hidesBottomBar: %@)", 
-              NSStringFromClass([topVC class]),
-              topVC.hidesBottomBarWhenPushed ? @"YES" : @"NO");
         
         if ([topVC respondsToSelector:@selector(pinUrl)]) {
             NSString *url = [topVC valueForKey:@"pinUrl"];
-            NSLog(@"在局Claude Code[Disappear诊断]+栈顶控制器URL: %@", url);
         }
     }
     
-    NSLog(@"在局Claude Code[Disappear诊断]+============ viewDidDisappear结束 ============");
 }
 
 - (void)viewDidLoad {
@@ -1109,7 +1011,6 @@
     // 配置导航栏显示/隐藏
     BOOL shouldHide = [self isHaveNativeHeader:self.pinUrl];
     
-    NSLog(@"在局Claude Code[导航栏状态]+URL: %@, shouldHide: %@", self.pinUrl, shouldHide ? @"YES" : @"NO");
     
     // 确保在主线程执行导航栏显示/隐藏操作
     if ([NSThread isMainThread]) {
@@ -1492,27 +1393,13 @@
     
     [super viewWillAppear:animated];
     
-    // 🔍 诊断日志：记录出现前的状态
-    NSLog(@"在局Claude Code[Appear诊断]+============ viewWillAppear开始 ============");
-    NSLog(@"在局Claude Code[Appear诊断]+控制器: %@ (hidesBottomBar: %@)", 
-          NSStringFromClass([self class]), 
-          self.hidesBottomBarWhenPushed ? @"YES" : @"NO");
-    NSLog(@"在局Claude Code[Appear诊断]+URL: %@", self.pinUrl);
-    NSLog(@"在局Claude Code[Appear诊断]+是否是Tab根页面: %@", 
-          (!self.hidesBottomBarWhenPushed && self.tabBarController) ? @"YES" : @"NO");
     
     // 🔍 检查导航栈状态
     NSArray *viewControllers = self.navigationController.viewControllers;
-    NSLog(@"在局Claude Code[Appear诊断]+导航栈数量: %ld", (long)viewControllers.count);
-    NSLog(@"在局Claude Code[Appear诊断]+当前控制器在栈中位置: %ld", 
-          (long)[viewControllers indexOfObject:self]);
     
     // 🔍 检查从哪个页面返回
     if (viewControllers.count >= 2 && [viewControllers lastObject] == self) {
         UIViewController *previousVC = [viewControllers objectAtIndex:viewControllers.count - 2];
-        NSLog(@"在局Claude Code[Appear诊断]+从页面返回: %@ (hidesBottomBar: %@)", 
-              NSStringFromClass([previousVC class]),
-              previousVC.hidesBottomBarWhenPushed ? @"YES" : @"NO");
     }
     
     // 🔍 检查交互式转场状态
@@ -1523,26 +1410,10 @@
             isInteractiveTransition = [value boolValue];
         }
     }
-    NSLog(@"在局Claude Code[Appear诊断]+是否交互式转场: %@", 
-          isInteractiveTransition ? @"YES" : @"NO");
-    
-    // 🔍 记录WebView状态
-    if (self.webView) {
-        NSLog(@"在局Claude Code[Appear诊断]+WebView存在，状态: frame=%@, hidden=%@, alpha=%.2f",
-              NSStringFromCGRect(self.webView.frame),
-              self.webView.hidden ? @"YES" : @"NO",
-              self.webView.alpha);
-    } else {
-        NSLog(@"在局Claude Code[Appear诊断]+WebView尚未创建");
-    }
     
     // 🔍 记录TabBar状态
     if (self.tabBarController) {
         UITabBar *tabBar = self.tabBarController.tabBar;
-        NSLog(@"在局Claude Code[Appear诊断]+TabBar状态: hidden=%@, alpha=%.2f, frame=%@",
-              tabBar.hidden ? @"YES" : @"NO",
-              tabBar.alpha,
-              NSStringFromCGRect(tabBar.frame));
     }
     
     // 检查view的状态
@@ -2155,7 +2026,6 @@
 
 //第三方分享
 - (void)shareContent:(NSDictionary *)dic presentedVC:(UIViewController *)vc {
-    NSLog(@"在局Claude Code[Share测试]+shareContent被调用，dic: %@", dic);
     NSString *type = [dic objectForKey:@"type"];
     NSInteger shareType = [[dic objectForKey:@"shareType"] integerValue];
     
@@ -3503,7 +3373,6 @@
     
     // 确保URL不为空
     if (!url || url.length == 0) {
-        NSLog(@"在局Claude Code[导航栏判断]+URL为空，不隐藏导航栏");
         return NO;
     }
     
@@ -3511,12 +3380,10 @@
     NSArray *hideNavURLs = [XZPackageH5 sharedInstance].ulrArray;
     if (!hideNavURLs || hideNavURLs.count == 0) {
         // 如果数组为空，默认显示导航栏
-        NSLog(@"在局Claude Code[导航栏判断]+隐藏URL数组为空，显示导航栏");
         return NO;
     }
     
     BOOL shouldHide = [hideNavURLs containsObject:url];
-    NSLog(@"在局Claude Code[导航栏判断]+URL: %@, 在隐藏列表中: %@", url, shouldHide ? @"YES" : @"NO");
     
     return shouldHide;
 }
@@ -3668,7 +3535,6 @@
 // 重写父类的jsCallObjc方法，调用子类的业务逻辑
 - (void)jsCallObjc:(NSDictionary *)jsData jsCallBack:(WVJBResponseCallback)jsCallBack {
     NSString *action = jsData[@"action"];
-    NSLog(@"在局Claude Code[Share测试]+jsCallObjc收到action: %@, data: %@", action, jsData);
     
     // 定义只能在CFJClientH5Controller中处理的action列表
     NSSet *controllerOnlyActions = [NSSet setWithArray:@[

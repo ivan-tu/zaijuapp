@@ -22,8 +22,6 @@ DEF_SINGLETON(ClientSettingModel)
     if (self = [super init]) {
         NSString *plistPath = [[NSBundle mainBundle] pathForResource:@"ClientSetting" ofType:@"plist"];
         self.settingDic = [[NSMutableDictionary alloc] initWithContentsOfFile:plistPath];
-        NSLog(@"在局Claude Code[配置加载]+ClientSetting.plist路径: %@", plistPath);
-        NSLog(@"在局Claude Code[配置加载]+加载的配置内容: %@", self.settingDic);
     }
     return self;
 }
@@ -65,11 +63,9 @@ DEF_SINGLETON(ClientSettingModel)
     NSString *appId = nil;
     if ([[self isDebug] intValue] == 1) {
         appId = [self.settingDic objectForKey:@"AppId"];
-        NSLog(@"在局Claude Code[配置读取]+调试模式AppId: %@", appId);
     }
     else {
         appId = [self.settingDic objectForKey:@"formalAppId"];
-        NSLog(@"在局Claude Code[配置读取]+正式模式AppId: %@", appId);
     }
     return appId;
 }
@@ -86,11 +82,9 @@ DEF_SINGLETON(ClientSettingModel)
     NSString *appSecret = nil;
     if ([[self isDebug] intValue] == 1) {
         appSecret = [self.settingDic objectForKey:@"AppSecret"];
-        NSLog(@"在局Claude Code[配置读取]+调试模式AppSecret: %@", appSecret);
     }
     else {
         appSecret = [self.settingDic objectForKey:@"formalAppSecret"];
-        NSLog(@"在局Claude Code[配置读取]+正式模式AppSecret: %@", appSecret);
     }
     return appSecret;
 }

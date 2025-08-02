@@ -46,7 +46,6 @@
     
     if ([originalParameters isKindOfClass:[NSArray class]]) {
         // 如果是数组，直接使用，不进行null过滤
-        NSLog(@"在局Claude Code[数组参数]+请求参数是数组类型: %@", originalParameters);
         parameters = originalParameters;
     } else if ([originalParameters isKindOfClass:[NSDictionary class]]) {
         // 如果是字典，过滤掉null参数，但保留空字符串参数
