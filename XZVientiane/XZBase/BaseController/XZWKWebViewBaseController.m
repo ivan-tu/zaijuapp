@@ -2538,6 +2538,7 @@ static NSOperationQueue *_sharedHTMLProcessingQueue = nil;
                                [javaScriptString containsString:@"document.readyState"] ||
                                [javaScriptString containsString:@"mainElementsCount"];
     
+    
     // 应用状态检查
     UIApplicationState appState = [[UIApplication sharedApplication] applicationState];
     BOOL isAppActive = (appState == UIApplicationStateActive);
