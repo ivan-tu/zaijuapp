@@ -97,7 +97,7 @@
                     isApp = app.config.client == 'app',
                     api = _this.getData().isWeixinMini ? 'bindAccountWxapp' : isApp ? 'bindAccountApp' : 'bindAccount',
                     formData = _this.getData().form,
-					code=formData.code;
+					mobileCode = formData.code;
 
                 if (!formData.mobile) {
                     msg = '请输入手机号码';
@@ -121,7 +121,8 @@
                     } else if (isApp) {
                         app.extend(formData, app.gData.weixinLoginData);
                     };
-					formData.code=code;
+					//加这句是因为app微信登录得到的weixinLoginData带了一个code
+					formData.code = mobileCode;
                     app.request('/user/userapi/' + api, formData, function(backData) {
                         // app.tips(app.toJSON(backData));
                         _this.successLogin(backData);

@@ -205,7 +205,7 @@
 					msg = '请输入银行卡号';
 				}else if (!form.bankname){
 					msg = '请输入开户行';
-				}else if (!this.getData().agreeMent){
+				}else if (form.banktype!='company'&&!this.getData().agreeMent){
 					msg = '请阅读并同意协议';
 				};
 				if (msg) {

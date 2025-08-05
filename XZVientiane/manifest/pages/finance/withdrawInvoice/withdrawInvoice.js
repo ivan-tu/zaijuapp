@@ -78,6 +78,38 @@
 					});
 				};
 			},
+			copyThis: function (e) {//复制内容
+				let client = app.config.client,
+					content = '公司名称：上海在局信息科技有限公司\n税号：91310120MAE6JMD71G\n地址：上海市奉贤区望园南路1288弄80号1904、1909室\n电话：021-80392125\n银行账号：1219 8013 0510 006\n开户银行：招商银行股份有限公司上海张江支行\n发票类型：3个点或者6个点增值税专用发票\n发票类目：服务费';
+				if (client == 'wx') {
+					wx.setClipboardData({
+						data: content,
+						success: function () {
+							app.tips('复制成功', 'error');
+						},
+					});
+				} else if (client == 'app') {
+					wx.app.call('copyLink', {
+						data: {
+							url: content
+						},
+						success: function (res) {
+							app.tips('复制成功', 'error');
+						}
+					});
+				} else {
+					$('body').append('<input class="readonlyInput" value="'+content+'" id="readonlyInput" readonly />');
+					  var originInput = document.querySelector('#readonlyInput');
+					  originInput.select();
+					  if(document.execCommand('copy')) {
+						  document.execCommand('copy');
+						  app.tips('复制成功','error');
+					  }else{
+						  app.tips('浏览器不支持，请手动复制','error');
+					  };
+					  originInput.remove();
+				};
+			},
 		}
 	});
 })();

@@ -1,12 +1,25 @@
 <div class="app-wrapper">
     <div wx:if="{{isUserLogin}}" class="app-main">
+        <p class="form-title">开票信息</p>
+        <div class="bgfff pd15 p12">
+            <p>公司名称：上海在局信息科技有限公司</p>
+            <p>税号：91310120MAE6JMD71G</p>
+            <p>地址：上海市奉贤区望园南路1288弄80号1904、1909室</p>
+            <p>电话：021-80392125</p>
+            <p>银行账号：1219 8013 0510 006</p>
+            <p>开户银行：招商银行股份有限公司上海张江支行</p>
+            <p>发票类型：3个点或者6个点增值税专用发票</p>
+            <p>发票类目：服务费</p>
+            <div class="tar mt5"><span class="yellowBtn" bindtap="copyThis">一键复制</span></div>
+		</div>
+        <p class="form-title">发票照片</p>
         <div class="bgfff pb20">
             <div class="form-list">
                 <div class="form-list-item">
                     <upload value="{{form.pic}}" class="user-upload" width="{{picWidth}}" height="{{picHeight}}" bindchange="uploadSuccess" id="uploadPic"></upload>
                 </div>
             </div>
-            <p class="mt5 p12 tac mt10">请上传电子发票照片</p>
+            <p class="mt5 p12 tac mt10">请上传发票照片</p>
         </div>
         <div class="xzui-btn-app">
             <button type="button" bindtap="submit" class="xzui-btn xzui-btn_b primary" size="large">提交</button>

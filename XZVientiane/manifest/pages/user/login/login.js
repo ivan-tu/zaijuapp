@@ -116,9 +116,7 @@
 
                 if (!formData.mobile) {
                     msg = '请输入手机号码';
-                } else if (!formData.mobile) {
-                    msg = '请输入验证码';
-                } else if (!_this.isPhones(formData.mobile)) {
+                }else if (!_this.isPhones(formData.mobile)) {
                     msg = '请输入正确的手机号码';
                 };
 
