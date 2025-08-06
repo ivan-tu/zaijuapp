@@ -107,10 +107,6 @@
 					});
 				});
 			},
-			toInvoice:function(){
-				let options = this.getData().options;
-				app.navTo('../../finance/withdrawInvoice/withdrawInvoice?id='+options.id);
-			},
 		}
 	});
 })();

@@ -72,12 +72,9 @@
                     </div>
                 </div>
             </div>
-            <div class="xzui-btn-app" wx:if="{{data.needInvoice==1||data.status==0}}">
+            <div class="xzui-btn-app" wx:if="{{data.status==0}}">
             	<div class="displayFlex">
-                	<div class="list withdrawDetail-footList" wx:if="{{data.needInvoice==1}}">
-                    	<button type="button" size="large" class="xzui-btn primary xzui-btn_b" bindtap="toInvoice">提交发票</button>
-                    </div>
-                    <div class="list withdrawDetail-footList" wx:if="{{data.status==0}}">
+                    <div class="list withdrawDetail-footList">
                     	<button type="button" size="large" class="xzui-btn primary xzui-btn_b" bindtap="toCancel">撤销提现</button>
                     </div>
                 </div>

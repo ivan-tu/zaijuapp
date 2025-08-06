@@ -26,6 +26,24 @@
                     <div class="c999 mt10" wx:if="{{tipText&&tipText.length}}">
                         <p wx:for="{{tipText}}">{{item}}</p>
                     </div>
+                    <div class="mt15 pt10 hasBorder top" wx:if="{{showFaPiao}}">
+                        <p class="c666">企业提现需提交发票照片</p>
+                        <div class="mt5">
+                            <upload value="{{form.pic}}" class="user-upload" width="{{picWidth}}" height="{{picHeight}}" bindchange="uploadSuccess" id="uploadPic"></upload>
+                        </div>
+                        <p class="c666 mt5 mb5">开票信息</p>
+                        <div class="p12">
+                            <p>公司名称：上海在局信息科技有限公司</p>
+                            <p>税号：91310120MAE6JMD71G</p>
+                            <p>地址：上海市奉贤区望园南路1288弄80号1904、1909室</p>
+                            <p>电话：021-80392125</p>
+                            <p>银行账号：1219 8013 0510 006</p>
+                            <p>开户银行：招商银行股份有限公司上海张江支行</p>
+                            <p>发票类型：3个点或者6个点增值税专用发票</p>
+                            <p>发票类目：服务费</p>
+                        </div>
+                        <div class="mt5"><span class="yellowBtn" bindtap="copyThis">一键复制</span></div>
+                    </div>
                     <div class="xzui-btn-app">
                     	<button type="button" size="large" bindtap="submit" class="xzui-btn xzui-btn_b primary">确认提现</button>
                     </div>

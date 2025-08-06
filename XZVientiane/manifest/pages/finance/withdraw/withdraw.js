@@ -18,6 +18,7 @@
 			client: app.config.client,
 			form: {
 				total:0,
+				pic:'',
 			},
 			canWithdraw:0,//可提现金额
 			minWidthdraw:0,//最低可提现金额
@@ -34,6 +35,9 @@
 			poundageTotal:0,//需要扣除的税费
 			agreeMement:true,
 			type:'',//user,club,shop,cityoffice
+			picWidth:(app.system.windowWidth>480?480:app.system.windowWidth)-80,
+			picHeight:((app.system.windowWidth>480?480:app.system.windowWidth)-80)/1.6,
+			showFaPiao:false,//是否需要发票
 		},
 		methods: {
 			onLoad: function(options) {
@@ -128,6 +132,11 @@
 							'withdrawInfo.id_card':res.id_card||'',
 							'withdrawInfo.bankcard':res.bankcard||'',
 						});
+						if(res.type=='clubdiamond'&&res.banktype=='company'){
+							_this.setData({
+								showFaPiao:true
+							});
+						};
 					};
 				});
 			},
@@ -148,6 +157,7 @@
 					withdrawInfo = this.getData().withdrawInfo,
 					canWithdraw = Number(this.getData().canWithdraw),
 					minWidthdraw = Number(this.getData().minWidthdraw),
+					showFaPiao = this.getData().showFaPiao,
 					msg = '';
 				if(options.clubdiamond==1){
 					form.type = 'clubdiamond';
@@ -170,6 +180,8 @@
 						msg = '最低提现' + minWidthdraw + '元';
 					}else if (form.total > canWithdraw) {
 						msg = '余额不足，最多提现' + canWithdraw + '元';
+					}else if (showFaPiao&&!form.pic) {
+						msg = '请上传发票照片';
 					};
 					if(msg){
 						app.tips(msg,'error');
@@ -177,7 +189,13 @@
 					}else{
 						app.request('//financeapi/applyWith', form, function(res) {
 							app.tips('提现申请成功');
-							_this.setData({'form.total':''});
+							_this.setData({
+								'form.total':'',
+								'form.pic':''
+							});
+							if(showFaPiao){
+								_this.selectComponent('#uploadPic').reset();
+							};
 							setTimeout(function(){
 								app.navTo('../../finance/withdrawDetail/withdrawDetail?ordernum=' + res.ordernum);
 							},600);
@@ -187,6 +205,43 @@
 					};
 				}else{
 					app.tips('请勿重复点击','error');
+				};
+			},
+			uploadSuccess: function(e) {
+				this.setData({
+					'form.pic': e.detail.src[0]
+				});
+            },
+			copyThis: function (e) {//复制内容
+				let client = app.config.client,
+					content = '公司名称：上海在局信息科技有限公司\n税号：91310120MAE6JMD71G\n地址：上海市奉贤区望园南路1288弄80号1904、1909室\n电话：021-80392125\n银行账号：1219 8013 0510 006\n开户银行：招商银行股份有限公司上海张江支行\n发票类型：3个点或者6个点增值税专用发票\n发票类目：服务费';
+				if (client == 'wx') {
+					wx.setClipboardData({
+						data: content,
+						success: function () {
+							app.tips('复制成功', 'error');
+						},
+					});
+				} else if (client == 'app') {
+					wx.app.call('copyLink', {
+						data: {
+							url: content
+						},
+						success: function (res) {
+							app.tips('复制成功', 'error');
+						}
+					});
+				} else {
+					$('body').append('<input class="readonlyInput" value="'+content+'" id="readonlyInput" readonly />');
+					  var originInput = document.querySelector('#readonlyInput');
+					  originInput.select();
+					  if(document.execCommand('copy')) {
+						  document.execCommand('copy');
+						  app.tips('复制成功','error');
+					  }else{
+						  app.tips('浏览器不支持，请手动复制','error');
+					  };
+					  originInput.remove();
 				};
 			},
 		}

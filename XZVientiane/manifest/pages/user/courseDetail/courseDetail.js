@@ -64,6 +64,9 @@
 						data:res,
 						showLoading:false,
 					});
+					setTimeout(function(){
+						_this.toPlay();
+					},1500);
 					//设置分享参数
 					let newData = {pocode: app.storage.get('pocode')};
 					newData = app.extend(newData, options);
