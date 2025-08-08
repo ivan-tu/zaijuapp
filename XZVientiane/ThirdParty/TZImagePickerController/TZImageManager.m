@@ -77,7 +77,17 @@ static dispatch_once_t onceToken;
 
 + (NSInteger)authorizationStatus {
     if (iOS8Later) {
-        return [PHPhotoLibrary authorizationStatus];
+        // iOS 14及以上版本需要检查特定访问级别的权限
+        if (@available(iOS 14, *)) {
+            PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatusForAccessLevel:PHAccessLevelReadWrite];
+            NSLog(@"在局Claude Code[权限状态检查]iOS 14+权限状态: %ld", (long)status);
+            return status;
+        } else {
+            // iOS 14以下版本使用旧方法
+            PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatus];
+            NSLog(@"在局Claude Code[权限状态检查]iOS 14以下权限状态: %ld", (long)status);
+            return status;
+        }
     }
     return NO;
 }
@@ -92,9 +102,19 @@ static dispatch_once_t onceToken;
     };
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-            callCompletionBlock();
-        }];
+        // iOS 14及以上版本使用新的权限请求方法
+        if (@available(iOS 14, *)) {
+            [PHPhotoLibrary requestAuthorizationForAccessLevel:PHAccessLevelReadWrite handler:^(PHAuthorizationStatus status) {
+                NSLog(@"在局Claude Code[相册权限请求]iOS 14+权限状态: %ld", (long)status);
+                callCompletionBlock();
+            }];
+        } else {
+            // iOS 14以下版本使用旧方法
+            [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
+                NSLog(@"在局Claude Code[相册权限请求]iOS 14以下权限状态: %ld", (long)status);
+                callCompletionBlock();
+            }];
+        }
     });
 }
 
