@@ -80,12 +80,10 @@ static dispatch_once_t onceToken;
         // iOS 14及以上版本需要检查特定访问级别的权限
         if (@available(iOS 14, *)) {
             PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatusForAccessLevel:PHAccessLevelReadWrite];
-            NSLog(@"在局Claude Code[权限状态检查]iOS 14+权限状态: %ld", (long)status);
             return status;
         } else {
             // iOS 14以下版本使用旧方法
             PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatus];
-            NSLog(@"在局Claude Code[权限状态检查]iOS 14以下权限状态: %ld", (long)status);
             return status;
         }
     }
@@ -105,13 +103,11 @@ static dispatch_once_t onceToken;
         // iOS 14及以上版本使用新的权限请求方法
         if (@available(iOS 14, *)) {
             [PHPhotoLibrary requestAuthorizationForAccessLevel:PHAccessLevelReadWrite handler:^(PHAuthorizationStatus status) {
-                NSLog(@"在局Claude Code[相册权限请求]iOS 14+权限状态: %ld", (long)status);
                 callCompletionBlock();
             }];
         } else {
             // iOS 14以下版本使用旧方法
             [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-                NSLog(@"在局Claude Code[相册权限请求]iOS 14以下权限状态: %ld", (long)status);
                 callCompletionBlock();
             }];
         }
@@ -147,7 +143,7 @@ static dispatch_once_t onceToken;
 }
 
 - (void)getAllAlbums:(BOOL)allowPickingVideo allowPickingImage:(BOOL)allowPickingImage needFetchAssets:(BOOL)needFetchAssets completion:(void (^)(NSArray<TZAlbumModel *> *))completion{
-    NSLog(@"在局Claude Code[TZImageManager]getAllAlbums开始, video=%d, image=%d", allowPickingVideo, allowPickingImage);
+    
     NSMutableArray *albumArr = [NSMutableArray array];
         PHFetchOptions *option = [[PHFetchOptions alloc] init];
         if (!allowPickingVideo) option.predicate = [NSPredicate predicateWithFormat:@"mediaType == %ld", PHAssetMediaTypeImage];
@@ -166,13 +162,13 @@ static dispatch_once_t onceToken;
         
         
         NSArray *allAlbums = @[myPhotoStreamAlbum,smartAlbums,topLevelUserCollections,syncedAlbums,sharedAlbums];
-        NSLog(@"在局Claude Code[TZImageManager]开始遍历相册，数量=%lu", (unsigned long)allAlbums.count);
+        
         for (PHFetchResult *fetchResult in allAlbums) {
-            NSLog(@"在局Claude Code[TZImageManager]处理fetchResult，count=%lu", (unsigned long)fetchResult.count);
+            
             for (PHAssetCollection *collection in fetchResult) {
                 // 有可能是PHCollectionList类的的对象，过滤掉
                 if (![collection isKindOfClass:[PHAssetCollection class]]) {
-                    NSLog(@"在局Claude Code[TZImageManager]过滤：不是PHAssetCollection");
+                    
                     continue;
                 }
                 // 过滤空相册
@@ -189,10 +185,10 @@ static dispatch_once_t onceToken;
                 if (collection.assetCollectionSubtype == PHAssetCollectionSubtypeSmartAlbumAllHidden) continue;
                 if (collection.assetCollectionSubtype == 1000000201) continue; //『最近删除』相册
                 if ([self isCameraRollAlbum:collection]) {
-                    NSLog(@"在局Claude Code[TZImageManager]添加相机胶卷：%@", collection.localizedTitle);
+                    
                     [albumArr insertObject:[self modelWithResult:fetchResult name:collection.localizedTitle isCameraRoll:YES needFetchAssets:needFetchAssets] atIndex:0];
                 } else {
-                    NSLog(@"在局Claude Code[TZImageManager]添加相册：%@", collection.localizedTitle);
+                    
                     [albumArr addObject:[self modelWithResult:fetchResult name:collection.localizedTitle isCameraRoll:NO needFetchAssets:needFetchAssets]];
                 }
             }
@@ -211,7 +207,7 @@ static dispatch_once_t onceToken;
 }
 
 - (void)getAssetsFromFetchResult:(PHFetchResult *)result allowPickingVideo:(BOOL)allowPickingVideo allowPickingImage:(BOOL)allowPickingImage completion:(void (^)(NSArray<TZAssetModel *> *))completion {
-    NSLog(@"在局Claude Code[TZImageManager]getAssetsFromFetchResult开始，count=%lu", (unsigned long)result.count);
+    
     NSMutableArray *photoArr = [NSMutableArray array];
         PHFetchResult *fetchResult = (PHFetchResult *)result;
         
@@ -228,11 +224,11 @@ static dispatch_once_t onceToken;
             processedCount++;
             // 每处理1000个资源，打印一次进度
             if (processedCount % 1000 == 0) {
-                NSLog(@"在局Claude Code[TZImageManager]处理进度: %lu/%lu", (unsigned long)processedCount, (unsigned long)totalCount);
+                
             }
         }];
         
-        NSLog(@"在局Claude Code[TZImageManager]getAssetsFromFetchResult完成，返回%lu个资源", (unsigned long)photoArr.count);
+        
         if (completion) completion(photoArr);
 }
 

@@ -95,19 +95,15 @@ static CGFloat itemMargin = 5;
 }
 
 - (void)fetchAssetModels {
-    NSLog(@"在局Claude Code[TZPhotoPickerController]fetchAssetModels开始, album=%@, count=%lu", _model.name, (unsigned long)_model.result.count);
     TZImagePickerController *tzImagePickerVc = (TZImagePickerController *)self.navigationController;
     if (_isFirstAppear) {
         [tzImagePickerVc showProgressHUD];
     }
     
     dispatch_async(dispatch_get_global_queue(0, 0), ^{
-        NSLog(@"在局Claude Code[TZPhotoPickerController]后台线程开始处理");
         
         if (!tzImagePickerVc.sortAscendingByModificationDate && self->_isFirstAppear && iOS8Later && self->_model.isCameraRoll) {
-            NSLog(@"在局Claude Code[TZPhotoPickerController]获取相机胶卷");
             [[TZImageManager manager] getCameraRollAlbum:tzImagePickerVc.allowPickingVideo allowPickingImage:tzImagePickerVc.allowPickingImage needFetchAssets:YES completion:^(TZAlbumModel *model) {
-                NSLog(@"在局Claude Code[TZPhotoPickerController]相机胶卷获取完成，照片数=%lu", (unsigned long)model.count);
                 self->_model = model;
                 // 在局Claude Code[分页优化] 不再预先创建所有models，使用懒加载
                 self->_models = nil;
@@ -117,7 +113,6 @@ static CGFloat itemMargin = 5;
         else {
             // 在局Claude Code[分页优化] 对于大量照片，使用懒加载策略
             NSUInteger totalCount = self->_model.result.count;
-            NSLog(@"在局Claude Code[TZPhotoPickerController]准备显示照片，总数=%lu", (unsigned long)totalCount);
             
             // 在局Claude Code[分页优化] 不再一次性加载所有照片
             self->_models = nil;
@@ -139,7 +134,6 @@ static CGFloat itemMargin = 5;
     dispatch_async(dispatch_get_main_queue(), ^{
         // 在局Claude Code[分页优化] 支持懒加载，models可能为nil
         NSInteger photoCount = self->_model.result ? self->_model.result.count : (self->_models ? self->_models.count : 0);
-        NSLog(@"在局Claude Code[TZPhotoPickerController]initSubviews开始，照片数量=%ld", (long)photoCount);
         TZImagePickerController *tzImagePickerVc = (TZImagePickerController *)self.navigationController;
         [tzImagePickerVc hideProgressHUD];
         
@@ -149,7 +143,6 @@ static CGFloat itemMargin = 5;
         [self configBottomToolBar];
         
         [self scrollCollectionViewToBottom];
-        NSLog(@"在局Claude Code[TZPhotoPickerController]initSubviews完成");
     });
 }
 
@@ -528,8 +521,6 @@ static CGFloat itemMargin = 5;
         // 如果PHFetchResult不可用，尝试使用缓存的models（兼容旧逻辑）
         model = _models[modelIndex];
     } else {
-        NSLog(@"在局Claude Code[TZPhotoPickerController]错误：无法获取model，modelIndex=%ld, models.count=%lu, result.count=%lu", 
-              (long)modelIndex, (unsigned long)(_models ? _models.count : 0), (unsigned long)(_model.result ? _model.result.count : 0));
         return cell;
     }
     cell.allowPickingGif = tzImagePickerVc.allowPickingGif;
@@ -618,7 +609,6 @@ static CGFloat itemMargin = 5;
         // 备用：从缓存的models获取
         model = _models[index];
     } else {
-        NSLog(@"在局Claude Code[TZPhotoPickerController]didSelectItem错误：无法获取model，index=%ld", (long)index);
         return;
     }
     if (model.type == TZAssetModelMediaTypeVideo && !tzImagePickerVc.allowPickingMultipleVideo) {
@@ -800,7 +790,6 @@ static CGFloat itemMargin = 5;
 - (void)scrollCollectionViewToBottom {
     // 在局Claude Code[分页优化] 支持懒加载
     NSInteger photoCount = _model.result ? _model.result.count : (_models ? _models.count : 0);
-    NSLog(@"在局Claude Code[TZPhotoPickerController]scrollCollectionViewToBottom, shouldScroll=%d, photoCount=%ld", _shouldScrollToBottom, (long)photoCount);
     TZImagePickerController *tzImagePickerVc = (TZImagePickerController *)self.navigationController;
     if (_shouldScrollToBottom && photoCount > 0) {
         NSInteger item = 0;
@@ -814,19 +803,16 @@ static CGFloat itemMargin = 5;
             [self->_collectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForItem:item inSection:0] atScrollPosition:UICollectionViewScrollPositionBottom animated:NO];
             self->_shouldScrollToBottom = NO;
             self->_collectionView.hidden = NO;
-            NSLog(@"在局Claude Code[TZPhotoPickerController]collectionView已显示（滚动后）");
         });
     }
     else {
         _collectionView.hidden = NO;
-        NSLog(@"在局Claude Code[TZPhotoPickerController]collectionView已显示（直接显示）");
     }
 }
 
 - (void)checkSelectedModels {
     // 在局Claude Code[分页优化] 懒加载模式下，选中状态在cellForItemAtIndexPath中动态检查
     if (!_models) {
-        NSLog(@"在局Claude Code[TZPhotoPickerController]懒加载模式，跳过checkSelectedModels");
         return;
     }
     
