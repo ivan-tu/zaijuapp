@@ -131,7 +131,7 @@ static dispatch_once_t onceToken;
         if (!self.sortAscendingByModificationDate) {
             option.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"creationDate" ascending:self.sortAscendingByModificationDate]];
         }
-        PHFetchResult *smartAlbums = [PHAssetCollection fetchAssetCollectionsWithType:PHAssetCollectionTypeSmartAlbum subtype:PHAssetCollectionSubtypeAlbumRegular options:nil];
+        PHFetchResult *smartAlbums = [PHAssetCollection fetchAssetCollectionsWithType:PHAssetCollectionTypeSmartAlbum subtype:PHAssetCollectionSubtypeAny options:nil];
         for (PHAssetCollection *collection in smartAlbums) {
             // 有可能是PHCollectionList类的的对象，过滤掉
             if (![collection isKindOfClass:[PHAssetCollection class]]) continue;
@@ -147,6 +147,7 @@ static dispatch_once_t onceToken;
 }
 
 - (void)getAllAlbums:(BOOL)allowPickingVideo allowPickingImage:(BOOL)allowPickingImage needFetchAssets:(BOOL)needFetchAssets completion:(void (^)(NSArray<TZAlbumModel *> *))completion{
+    NSLog(@"在局Claude Code[TZImageManager]getAllAlbums开始, video=%d, image=%d", allowPickingVideo, allowPickingImage);
     NSMutableArray *albumArr = [NSMutableArray array];
         PHFetchOptions *option = [[PHFetchOptions alloc] init];
         if (!allowPickingVideo) option.predicate = [NSPredicate predicateWithFormat:@"mediaType == %ld", PHAssetMediaTypeImage];
@@ -158,15 +159,22 @@ static dispatch_once_t onceToken;
         }
         // 我的照片流 1.6.10重新加入..
         PHFetchResult *myPhotoStreamAlbum = [PHAssetCollection fetchAssetCollectionsWithType:PHAssetCollectionTypeAlbum subtype:PHAssetCollectionSubtypeAlbumMyPhotoStream options:nil];
-        PHFetchResult *smartAlbums = [PHAssetCollection fetchAssetCollectionsWithType:PHAssetCollectionTypeSmartAlbum subtype:PHAssetCollectionSubtypeAlbumRegular options:nil];
+        PHFetchResult *smartAlbums = [PHAssetCollection fetchAssetCollectionsWithType:PHAssetCollectionTypeSmartAlbum subtype:PHAssetCollectionSubtypeAny options:nil];
         PHFetchResult *topLevelUserCollections = [PHCollectionList fetchTopLevelUserCollectionsWithOptions:nil];
         PHFetchResult *syncedAlbums = [PHAssetCollection fetchAssetCollectionsWithType:PHAssetCollectionTypeAlbum subtype:PHAssetCollectionSubtypeAlbumSyncedAlbum options:nil];
         PHFetchResult *sharedAlbums = [PHAssetCollection fetchAssetCollectionsWithType:PHAssetCollectionTypeAlbum subtype:PHAssetCollectionSubtypeAlbumCloudShared options:nil];
+        
+        
         NSArray *allAlbums = @[myPhotoStreamAlbum,smartAlbums,topLevelUserCollections,syncedAlbums,sharedAlbums];
+        NSLog(@"在局Claude Code[TZImageManager]开始遍历相册，数量=%lu", (unsigned long)allAlbums.count);
         for (PHFetchResult *fetchResult in allAlbums) {
+            NSLog(@"在局Claude Code[TZImageManager]处理fetchResult，count=%lu", (unsigned long)fetchResult.count);
             for (PHAssetCollection *collection in fetchResult) {
                 // 有可能是PHCollectionList类的的对象，过滤掉
-                if (![collection isKindOfClass:[PHAssetCollection class]]) continue;
+                if (![collection isKindOfClass:[PHAssetCollection class]]) {
+                    NSLog(@"在局Claude Code[TZImageManager]过滤：不是PHAssetCollection");
+                    continue;
+                }
                 // 过滤空相册
                 if (collection.estimatedAssetCount <= 0) continue;
                 PHFetchResult *fetchResult = [PHAsset fetchAssetsInAssetCollection:collection options:option];
@@ -181,13 +189,17 @@ static dispatch_once_t onceToken;
                 if (collection.assetCollectionSubtype == PHAssetCollectionSubtypeSmartAlbumAllHidden) continue;
                 if (collection.assetCollectionSubtype == 1000000201) continue; //『最近删除』相册
                 if ([self isCameraRollAlbum:collection]) {
+                    NSLog(@"在局Claude Code[TZImageManager]添加相机胶卷：%@", collection.localizedTitle);
                     [albumArr insertObject:[self modelWithResult:fetchResult name:collection.localizedTitle isCameraRoll:YES needFetchAssets:needFetchAssets] atIndex:0];
                 } else {
+                    NSLog(@"在局Claude Code[TZImageManager]添加相册：%@", collection.localizedTitle);
                     [albumArr addObject:[self modelWithResult:fetchResult name:collection.localizedTitle isCameraRoll:NO needFetchAssets:needFetchAssets]];
                 }
             }
         }
-        if (completion && albumArr.count > 0) completion(albumArr);
+        if (completion && albumArr) {
+            completion(albumArr);
+        }
 }
 
 #pragma mark - Get Assets
@@ -199,14 +211,28 @@ static dispatch_once_t onceToken;
 }
 
 - (void)getAssetsFromFetchResult:(PHFetchResult *)result allowPickingVideo:(BOOL)allowPickingVideo allowPickingImage:(BOOL)allowPickingImage completion:(void (^)(NSArray<TZAssetModel *> *))completion {
+    NSLog(@"在局Claude Code[TZImageManager]getAssetsFromFetchResult开始，count=%lu", (unsigned long)result.count);
     NSMutableArray *photoArr = [NSMutableArray array];
         PHFetchResult *fetchResult = (PHFetchResult *)result;
+        
+        // 在局Claude Code[性能优化] 对于大量照片，分批处理并定期让出CPU
+        NSUInteger totalCount = fetchResult.count;
+        __block NSUInteger processedCount = 0;
+        
         [fetchResult enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
             TZAssetModel *model = [self assetModelWithAsset:obj allowPickingVideo:allowPickingVideo allowPickingImage:allowPickingImage];
             if (model) {
                 [photoArr addObject:model];
             }
+            
+            processedCount++;
+            // 每处理1000个资源，打印一次进度
+            if (processedCount % 1000 == 0) {
+                NSLog(@"在局Claude Code[TZImageManager]处理进度: %lu/%lu", (unsigned long)processedCount, (unsigned long)totalCount);
+            }
         }];
+        
+        NSLog(@"在局Claude Code[TZImageManager]getAssetsFromFetchResult完成，返回%lu个资源", (unsigned long)photoArr.count);
         if (completion) completion(photoArr);
 }
 
@@ -264,16 +290,9 @@ static dispatch_once_t onceToken;
             if (iOS9_1Later) {
                 // if (asset.mediaSubtypes == PHAssetMediaSubtypePhotoLive) type = TZAssetModelMediaTypeLivePhoto;
             }
-            // Gif
-            // 使用PHAssetResource检查是否为GIF
-            NSArray<PHAssetResource *> *resources = [PHAssetResource assetResourcesForAsset:phAsset];
-            for (PHAssetResource *resource in resources) {
-                NSString *filename = resource.originalFilename.uppercaseString;
-                if ([filename hasSuffix:@"GIF"]) {
-                    type = TZAssetModelMediaTypePhotoGif;
-                    break;
-                }
-            }
+            // 在局Claude Code[性能优化] 避免在主线程获取PHAssetResource
+            // GIF检测移到后台线程或按需执行
+            type = TZAssetModelMediaTypePhoto;
         }
     }
     return type;

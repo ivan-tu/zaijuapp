@@ -45,6 +45,8 @@
 #import <Masonry.h>
 #import <QiniuSDK.h>
 #import <Photos/Photos.h>
+#import <PhotosUI/PhotosUI.h> // For PHPicker (iOS 14+)
+#import <MobileCoreServices/MobileCoreServices.h> // For kUTType constants
 #import "UIImage+tool.h"
 #import "JFLocation.h"
 #import "LBPhotoBrowserManager.h"
@@ -75,7 +77,11 @@
 #define ICONS  @[@"login",@"regist"]
 
 
-@interface CFJClientH5Controller ()<TZImagePickerControllerDelegate,YBPopupMenuDelegate,JFLocationDelegate,JFCityViewControllerDelegate>
+@interface CFJClientH5Controller ()<TZImagePickerControllerDelegate,YBPopupMenuDelegate,JFLocationDelegate,JFCityViewControllerDelegate
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 140000
+,PHPickerViewControllerDelegate
+#endif
+>
 {
     NSMutableArray *_selectedPhotos;
     NSMutableArray *_selectedAssets;
@@ -89,6 +95,9 @@
     
     CGFloat _itemWH;
     CGFloat _margin;
+    
+    // 在局Claude Code[iPad适配] 标记是否正在展示图片选择器
+    BOOL _isPresentingImagePicker;
 }
 
 // 通知观察者数组，用于正确移除
@@ -785,6 +794,7 @@
 }
 
 - (void)viewDidAppear:(BOOL)animated {
+    NSLog(@"在局Claude Code[生命周期]viewDidAppear 开始, _isPresentingImagePicker=%d", _isPresentingImagePicker);
     
     [super viewDidAppear:animated];
     
@@ -832,7 +842,13 @@
     
     // 使用优化的WebView加载逻辑
     if (!self.isWebViewLoading && !self.isLoading) {
-        [self optimizeWebViewLoading];
+        NSLog(@"在局Claude Code[生命周期]viewDidAppear 准备调用optimizeWebViewLoading");
+        // 在局Claude Code[iPad适配] 如果正在展示图片选择器，不要重新加载WebView
+        if (!_isPresentingImagePicker) {
+            [self optimizeWebViewLoading];
+        } else {
+            NSLog(@"在局Claude Code[生命周期]viewDidAppear 跳过optimizeWebViewLoading，因为正在展示图片选择器");
+        }
     }
     
     if (self.isCheck) {
@@ -931,9 +947,15 @@
         }
     }
     else {
-        //页面隐藏
-        NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageHide" data:nil];
-        [self objcCallJs:callJsDic];
+        // 在局Claude Code[iPad适配] 展示图片选择器时不触发pageHide
+        if (!_isPresentingImagePicker) {
+            NSLog(@"在局Claude Code[生命周期]触发pageHide");
+            //页面隐藏
+            NSDictionary *callJsDic = [CustomHybridProcessor custom_objcCallJsWithFn:@"pageHide" data:nil];
+            [self objcCallJs:callJsDic];
+        } else {
+            NSLog(@"在局Claude Code[生命周期]因为正在展示图片选择器，跳过pageHide");
+        }
     }
     //友盟页面统计
     NSString* cName = [NSString stringWithFormat:@"%@",self.navigationItem.title, nil];
@@ -1390,6 +1412,7 @@
 
 //页面出现
 - (void)viewWillAppear:(BOOL)animated {
+    NSLog(@"在局Claude Code[生命周期]viewWillAppear 开始, _isPresentingImagePicker=%d", _isPresentingImagePicker);
     
     [super viewWillAppear:animated];
     
@@ -2580,11 +2603,61 @@
 
 #pragma mark - TZImagePickerController
 - (void)pushTZImagePickerControllerWithDic:(NSDictionary *)dataDic {
+    // 在局Claude Code[调试] 防止重复调用
+    static int callCount = 0;
+    callCount++;
+    NSLog(@"在局Claude Code[相册选择器]pushTZImagePickerControllerWithDic被调用，调用次数: %d", callCount);
+    
+    // 在局Claude Code[调试] 打印调用堆栈
+    NSArray *callStack = [NSThread callStackSymbols];
+    if (callStack.count > 5) {
+        for (int i = 0; i < 5; i++) {
+            NSLog(@"在局Claude Code[调用堆栈]%@", callStack[i]);
+        }
+    }
     NSString *maxCount = [dataDic objectForKey:@"count"];
     if ([maxCount integerValue] <= 0) {
         return;
     }
-    TZImagePickerController *imagePickerVc = [[TZImagePickerController alloc] initWithMaxImagesCount:maxCount.integerValue columnNumber:4 delegate:self pushPhotoPickerVc:YES];
+    
+    // 在局Claude Code[iPad适配] 早期设备检测，避免创建TZImagePickerController
+    UIUserInterfaceIdiom idiom = [[UIDevice currentDevice] userInterfaceIdiom];
+    CGSize screenSize = [[UIScreen mainScreen] bounds].size;
+    NSString *deviceModel = [[UIDevice currentDevice] model];
+    NSString *systemVersion = [[UIDevice currentDevice] systemVersion];
+    
+    // 在局Claude Code[重要修复] 直接检查设备model字符串，因为iPad运行iPhone应用时idiom会返回0
+    BOOL isIPad = [deviceModel containsString:@"iPad"];
+    if (!isIPad) {
+        // 备用检查：检查idiom和屏幕尺寸
+        isIPad = (idiom == UIUserInterfaceIdiomPad) || 
+                 (idiom == UIUserInterfaceIdiomPhone && MIN(screenSize.width, screenSize.height) >= 768);
+    }
+    
+    NSLog(@"在局Claude Code[相册选择器]设备信息: idiom=%ld, screenSize=%.0fx%.0f, scale=%.0f, model=%@, iOS=%@, isIPad=%d", 
+          (long)idiom, screenSize.width, screenSize.height, [[UIScreen mainScreen] scale], deviceModel, systemVersion, isIPad);
+    
+    // 在局Claude Code[重要修复] iPad使用系统原生照片选择器，iPhone保持原有逻辑
+    if (isIPad) {
+        NSLog(@"在局Claude Code[相册选择器]iPad设备，使用系统原生照片选择器");
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self presentSystemImagePickerForIPadWithConfig:dataDic];
+        });
+        NSLog(@"在局Claude Code[相册选择器]调用presentSystemImagePickerForIPadWithConfig后返回");
+        return;
+    }
+    
+    // iPhone设备继续使用TZImagePickerController
+    NSLog(@"在局Claude Code[相册选择器]iPhone设备，使用TZImagePickerController");
+    
+    // 在局Claude Code[紧急防御] 再次检查是否是iPad
+    if (isIPad) {
+        NSLog(@"在局Claude Code[相册选择器]严重错误：iPad设备不应该执行这段代码！！！");
+        return;
+    }
+    
+    BOOL shouldPushPhotoPickerVc = YES; // iPhone恢复自动跳转
+    TZImagePickerController *imagePickerVc = [[TZImagePickerController alloc] initWithMaxImagesCount:maxCount.integerValue columnNumber:4 delegate:self pushPhotoPickerVc:shouldPushPhotoPickerVc];
     // imagePickerVc.navigationBar.translucent = NO;
     
 #pragma mark - 五类个性化设置，这些参数都可以不传，此时会走默认设置
@@ -2609,6 +2682,27 @@
     imagePickerVc.iconThemeColor = [UIColor colorWithRed:31 / 255.0 green:185 / 255.0 blue:34 / 255.0 alpha:1.0];
     imagePickerVc.showPhotoCannotSelectLayer = YES;
     imagePickerVc.cannotSelectLayerColor = [[UIColor whiteColor] colorWithAlphaComponent:0.8];
+    
+    // 在局Claude Code[导航栏修复] 确保导航栏按钮在白色背景下可见
+    if (@available(iOS 13.0, *)) {
+        // iOS 13+ 使用新的外观API
+        UINavigationBarAppearance *appearance = [[UINavigationBarAppearance alloc] init];
+        [appearance configureWithOpaqueBackground];
+        appearance.backgroundColor = [UIColor whiteColor];
+        appearance.titleTextAttributes = @{NSForegroundColorAttributeName: [UIColor blackColor]};
+        
+        imagePickerVc.navigationBar.standardAppearance = appearance;
+        imagePickerVc.navigationBar.scrollEdgeAppearance = appearance;
+        imagePickerVc.navigationBar.tintColor = [UIColor blackColor];
+    } else {
+        // iOS 13以下使用旧的API
+        imagePickerVc.navigationBar.barTintColor = [UIColor whiteColor];
+        imagePickerVc.navigationBar.tintColor = [UIColor blackColor];
+        imagePickerVc.navigationBar.titleTextAttributes = @{NSForegroundColorAttributeName: [UIColor blackColor]};
+    }
+    imagePickerVc.naviTitleColor = [UIColor blackColor];
+    imagePickerVc.barItemTextColor = [UIColor blackColor];
+    
     __weak typeof(imagePickerVc)weakImagePickerVc = imagePickerVc;
     [imagePickerVc setPhotoPickerPageUIConfigBlock:^(UICollectionView *collectionView, UIView *bottomToolBar, UIButton *previewButton, UIButton *originalPhotoButton, UILabel *originalPhotoLabel, UIButton *doneButton, UIImageView *numberImageView, UILabel *numberLabel, UIView *divideLine) {
         [doneButton setTitleColor:weakImagePickerVc.oKButtonTitleColorNormal forState:UIControlStateNormal];
@@ -2690,7 +2784,231 @@
         
     }];
     
-    [self presentViewController:imagePickerVc animated:YES completion:nil];
+    // 在局Claude Code[iPad适配] 设置展示模式
+    imagePickerVc.modalPresentationStyle = UIModalPresentationFullScreen;
+    NSLog(@"在局Claude Code[相册选择器]设置 modalPresentationStyle = UIModalPresentationFullScreen");
+    
+    // 在局Claude Code[iPad适配] 确保图片选择器的导航控制器正确配置
+    if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
+        NSLog(@"在局Claude Code[相册选择器]iPad设备，进行特殊配置");
+        // 延迟一下再展示，确保权限弹窗已经处理完成
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            // 强制刷新导航栏
+            [imagePickerVc.navigationBar setNeedsLayout];
+            [imagePickerVc.navigationBar layoutIfNeeded];
+        });
+    }
+    
+    // 在局Claude Code[iPad适配] 标记正在展示模态视图，避免触发pageHide
+    _isPresentingImagePicker = YES;
+    NSLog(@"在局Claude Code[相册选择器]开始展示，_isPresentingImagePicker = YES");
+    
+    // 检查WebView当前状态
+    NSLog(@"在局Claude Code[相册选择器]展示前WebView状态: hidden=%d, alpha=%f, userInteractionEnabled=%d", 
+          self.webView.hidden, self.webView.alpha, self.webView.userInteractionEnabled);
+    
+    [self presentViewController:imagePickerVc animated:YES completion:^{
+        NSLog(@"在局Claude Code[相册选择器]展示完成");
+        // 在iPad上检查WebView状态
+        if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
+            NSLog(@"在局Claude Code[相册选择器]展示后WebView状态: hidden=%d, alpha=%f", 
+                  self.webView.hidden, self.webView.alpha);
+        }
+    }];
+}
+
+#pragma mark - 在局Claude Code[iPad系统照片选择器]+系统原生照片选择器
+
+- (void)presentSystemImagePickerForIPadWithConfig:(NSDictionary *)dataDic {
+    NSLog(@"在局Claude Code[iPad照片选择器]进入presentSystemImagePickerForIPadWithConfig方法");
+    
+    // 在局Claude Code[重要] 检查是否已经有视图控制器在展示
+    if (self.presentedViewController) {
+        NSLog(@"在局Claude Code[iPad照片选择器]警告：已经有视图控制器在展示: %@", self.presentedViewController);
+        [self.presentedViewController dismissViewControllerAnimated:NO completion:^{
+            [self presentSystemImagePickerForIPadWithConfig:dataDic];
+        }];
+        return;
+    }
+    
+    NSString *maxCount = [dataDic objectForKey:@"count"];
+    NSInteger maxSelection = [maxCount integerValue] ?: 1;
+    NSLog(@"在局Claude Code[iPad照片选择器]最大选择数量: %ld", (long)maxSelection);
+    
+    // iOS 14+使用PHPickerViewController
+    if (@available(iOS 14, *)) {
+        NSLog(@"在局Claude Code[iPad照片选择器]使用PHPickerViewController");
+        
+        PHPickerConfiguration *configuration = [[PHPickerConfiguration alloc] init];
+        configuration.selectionLimit = maxSelection;
+        
+        // 根据mimeType设置过滤器
+        if ([[dataDic objectForKey:@"mimeType"] isEqualToString:@"video"]) {
+            configuration.filter = [PHPickerFilter videosFilter];
+        } else {
+            configuration.filter = [PHPickerFilter imagesFilter];
+        }
+        
+        PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:configuration];
+        picker.delegate = self;
+        
+        // iPad上以popover形式展示
+        if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
+            picker.modalPresentationStyle = UIModalPresentationPopover;
+            picker.popoverPresentationController.sourceView = self.view;
+            picker.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 0, 0);
+            picker.popoverPresentationController.permittedArrowDirections = UIPopoverArrowDirectionAny;
+        }
+        
+        NSLog(@"在局Claude Code[iPad照片选择器]准备present PHPickerViewController");
+        
+        // 在局Claude Code[调试] 检查当前显示的视图控制器
+        UIViewController *currentVC = self.presentedViewController;
+        NSLog(@"在局Claude Code[iPad照片选择器]present前的presentedViewController: %@", currentVC);
+        
+        [self presentViewController:picker animated:YES completion:^{
+            NSLog(@"在局Claude Code[iPad照片选择器]PHPickerViewController present完成");
+            
+            // 在局Claude Code[调试] 检查实际展示的视图控制器
+            UIViewController *presentedVC = self.presentedViewController;
+            NSLog(@"在局Claude Code[iPad照片选择器]实际展示的ViewController: %@", presentedVC);
+            NSLog(@"在局Claude Code[iPad照片选择器]是否是PHPickerViewController: %d", [presentedVC isKindOfClass:NSClassFromString(@"PHPickerViewController")]);
+            
+            // 在局Claude Code[调试] 延迟检查
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                UIViewController *delayedCheck = self.presentedViewController;
+                NSLog(@"在局Claude Code[iPad照片选择器]1秒后的presentedViewController: %@", delayedCheck);
+                if (!delayedCheck) {
+                    NSLog(@"在局Claude Code[iPad照片选择器]警告：没有任何视图控制器被展示！");
+                }
+            });
+        }];
+        
+    } else {
+        // iOS 14以下使用UIImagePickerController
+        NSLog(@"在局Claude Code[iPad照片选择器]使用UIImagePickerController");
+        
+        UIImagePickerController *picker = [[UIImagePickerController alloc] init];
+        picker.delegate = self;
+        picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
+        
+        if ([[dataDic objectForKey:@"mimeType"] isEqualToString:@"video"]) {
+            picker.mediaTypes = @[(NSString *)kUTTypeMovie];
+        } else {
+            picker.mediaTypes = @[(NSString *)kUTTypeImage];
+        }
+        
+        // iPad上以popover形式展示
+        if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
+            picker.modalPresentationStyle = UIModalPresentationPopover;
+            picker.popoverPresentationController.sourceView = self.view;
+            picker.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 0, 0);
+            picker.popoverPresentationController.permittedArrowDirections = UIPopoverArrowDirectionAny;
+        }
+        
+        [self presentViewController:picker animated:YES completion:nil];
+    }
+}
+
+#pragma mark - PHPickerViewControllerDelegate (iOS 14+)
+
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 140000
+- (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPickerResult *> *)results API_AVAILABLE(ios(14)) {
+    NSLog(@"在局Claude Code[PHPicker]选择完成，结果数量：%lu", (unsigned long)results.count);
+    
+    [picker dismissViewControllerAnimated:YES completion:nil];
+    
+    if (results.count == 0) {
+        NSLog(@"在局Claude Code[PHPicker]用户取消选择");
+        return;
+    }
+    
+    NSMutableArray *selectedImages = [NSMutableArray array];
+    NSMutableArray *dataArray = [NSMutableArray array];
+    __block NSInteger loadedCount = 0;
+    
+    for (NSInteger i = 0; i < results.count; i++) {
+        PHPickerResult *result = results[i];
+        
+        [result.itemProvider loadObjectOfClass:[UIImage class] completionHandler:^(__kindof id<NSItemProviderReading> _Nullable object, NSError * _Nullable error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (error) {
+                    NSLog(@"在局Claude Code[PHPicker]加载图片失败：%@", error);
+                    loadedCount++;
+                } else if ([object isKindOfClass:[UIImage class]]) {
+                    UIImage *image = (UIImage *)object;
+                    [selectedImages addObject:image];
+                    
+                    NSData *imageData = UIImageJPEGRepresentation(image, 0.8);
+                    NSDictionary *dic = @{
+                        @"name": [NSString stringWithFormat:@"%ld", (long)i],
+                        @"size": [self getBytesFromDataLength:imageData.length],
+                        @"type": @"image/jpeg",
+                        @"lastModified": @""
+                    };
+                    [dataArray addObject:dic];
+                    
+                    loadedCount++;
+                }
+                
+                // 所有图片加载完成
+                if (loadedCount == results.count) {
+                    self->_selectedPhotos = selectedImages;
+                    
+                    if (self.webviewBackCallBack) {
+                        NSDictionary *response = [self formatCallbackResponse:@"chooseFile"
+                                                                       data:dataArray
+                                                                    success:YES
+                                                               errorMessage:nil];
+                        self.webviewBackCallBack(response);
+                    }
+                }
+            });
+        }];
+    }
+}
+#endif
+
+#pragma mark - UIImagePickerControllerDelegate
+
+- (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *)info {
+    NSLog(@"在局Claude Code[UIImagePicker]选择完成");
+    
+    UIImage *image = info[UIImagePickerControllerOriginalImage];
+    if (!image) {
+        image = info[UIImagePickerControllerEditedImage];
+    }
+    
+    [picker dismissViewControllerAnimated:YES completion:nil];
+    
+    if (image) {
+        NSMutableArray *selectedImages = [NSMutableArray arrayWithObject:image];
+        NSMutableArray *dataArray = [NSMutableArray array];
+        
+        NSData *imageData = UIImageJPEGRepresentation(image, 0.8);
+        NSDictionary *dic = @{
+            @"name": @"0",
+            @"size": [self getBytesFromDataLength:imageData.length],
+            @"type": @"image/jpeg",
+            @"lastModified": @""
+        };
+        [dataArray addObject:dic];
+        
+        _selectedPhotos = selectedImages;
+        
+        if (self.webviewBackCallBack) {
+            NSDictionary *response = [self formatCallbackResponse:@"chooseFile"
+                                                           data:dataArray
+                                                        success:YES
+                                                   errorMessage:nil];
+            self.webviewBackCallBack(response);
+        }
+    }
+}
+
+- (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker {
+    NSLog(@"在局Claude Code[UIImagePicker]用户取消选择");
+    [picker dismissViewControllerAnimated:YES completion:nil];
 }
 
 #pragma mark - TZImagePickerControllerDelegate
@@ -2698,6 +3016,29 @@
 /// User click cancel button
 /// 用户点击了取消
 - (void)tz_imagePickerControllerDidCancel:(TZImagePickerController *)picker {
+    NSLog(@"在局Claude Code[相册选择器]用户取消选择");
+    
+    // 在局Claude Code[iPad适配] 重置标志
+    _isPresentingImagePicker = NO;
+    NSLog(@"在局Claude Code[相册选择器]重置标志 _isPresentingImagePicker = NO");
+    
+    // 在局Claude Code[iPad适配] 相册选择器取消后检查并恢复WebView状态
+    if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
+        NSLog(@"在局Claude Code[相册选择器]iPad设备，准备恢复WebView状态");
+        
+        // 立即检查WebView状态
+        NSLog(@"在局Claude Code[相册选择器]取消后WebView状态: hidden=%d, alpha=%f, superview=%@", 
+              self.webView.hidden, self.webView.alpha, self.webView.superview);
+        
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            NSLog(@"在局Claude Code[相册选择器]开始执行restoreWebViewStateAfterInteractiveTransition");
+            [self restoreWebViewStateAfterInteractiveTransition];
+            
+            // 再次检查状态
+            NSLog(@"在局Claude Code[相册选择器]恢复后WebView状态: hidden=%d, alpha=%f", 
+                  self.webView.hidden, self.webView.alpha);
+        });
+    }
 }
 
 // 这个照片选择器会自己dismiss，当选择器dismiss的时候，会执行下面的代理方法
@@ -2727,6 +3068,16 @@
                                                         success:YES 
                                                    errorMessage:nil];
             self.webviewBackCallBack(response);
+        }
+        
+        // 在局Claude Code[iPad适配] 重置标志
+        _isPresentingImagePicker = NO;
+        
+        // 在局Claude Code[iPad适配] 相册选择完成后检查并恢复WebView状态
+        if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self restoreWebViewStateAfterInteractiveTransition];
+            });
         }
     } else {
         // 3. 获取原图的示例，这样一次性获取很可能会导致内存飙升，建议获取1-2张，消费和释放掉，再获取剩下的
@@ -2762,6 +3113,16 @@
                                                                     success:YES 
                                                                errorMessage:nil];
                         self.webviewBackCallBack(response);
+                    }
+                    
+                    // 在局Claude Code[iPad适配] 重置标志
+                    self->_isPresentingImagePicker = NO;
+                    
+                    // 在局Claude Code[iPad适配] 原图选择完成后检查并恢复WebView状态
+                    if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
+                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                            [self restoreWebViewStateAfterInteractiveTransition];
+                        });
                     }
                 }
             }];
@@ -3449,6 +3810,7 @@
     //选择文件
     if ([function isEqualToString:@"chooseFile"]) {
         self.webviewBackCallBack = callback;
+        NSLog(@"在局Claude Code[相册选择器]接收到chooseFile请求");
         [self pushTZImagePickerControllerWithDic:dataDic];
     }
     //上传文件

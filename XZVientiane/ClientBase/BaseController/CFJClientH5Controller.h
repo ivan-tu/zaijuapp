@@ -12,7 +12,8 @@
 typedef void(^CallBackToNative)(id aResponseObject,NSString *function);
 
 // 在局Claude Code[修复未声明选择器警告]+实现支付回调协议
-@interface CFJClientH5Controller : XZWKWebViewBaseController <JSPaymentCallbackSupport>
+// 在局Claude Code[iPad照片选择器]+添加系统照片选择器协议
+@interface CFJClientH5Controller : XZWKWebViewBaseController <JSPaymentCallbackSupport, UIImagePickerControllerDelegate, UINavigationControllerDelegate>
 
 @property (nonatomic, assign) BOOL imVC;//判断是不是从聊天模块过来的，是的话不要显示messageBtn
 @property (nonatomic, assign) BOOL isCheck;//是否需要检查版本更新和初始化定位

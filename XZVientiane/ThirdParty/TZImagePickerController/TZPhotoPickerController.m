@@ -95,34 +95,51 @@ static CGFloat itemMargin = 5;
 }
 
 - (void)fetchAssetModels {
+    NSLog(@"在局Claude Code[TZPhotoPickerController]fetchAssetModels开始, album=%@, count=%lu", _model.name, (unsigned long)_model.result.count);
     TZImagePickerController *tzImagePickerVc = (TZImagePickerController *)self.navigationController;
-    if (_isFirstAppear && !_model.models.count) {
+    if (_isFirstAppear) {
         [tzImagePickerVc showProgressHUD];
     }
+    
     dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        NSLog(@"在局Claude Code[TZPhotoPickerController]后台线程开始处理");
+        
         if (!tzImagePickerVc.sortAscendingByModificationDate && self->_isFirstAppear && iOS8Later && self->_model.isCameraRoll) {
+            NSLog(@"在局Claude Code[TZPhotoPickerController]获取相机胶卷");
             [[TZImageManager manager] getCameraRollAlbum:tzImagePickerVc.allowPickingVideo allowPickingImage:tzImagePickerVc.allowPickingImage needFetchAssets:YES completion:^(TZAlbumModel *model) {
+                NSLog(@"在局Claude Code[TZPhotoPickerController]相机胶卷获取完成，照片数=%lu", (unsigned long)model.count);
                 self->_model = model;
-                self->_models = [NSMutableArray arrayWithArray:self->_model.models];
+                // 在局Claude Code[分页优化] 不再预先创建所有models，使用懒加载
+                self->_models = nil;
                 [self initSubviews];
             }];
         }
         else {
-            if (self->_showTakePhotoBtn || !iOS8Later || self->_isFirstAppear) {
-                [[TZImageManager manager] getAssetsFromFetchResult:self->_model.result completion:^(NSArray<TZAssetModel *> *models) {
-                    self->_models = [NSMutableArray arrayWithArray:models];
-                    [self initSubviews];
-                }];
-            } else {
-                self->_models = [NSMutableArray arrayWithArray:self->_model.models];
-                [self initSubviews];
+            // 在局Claude Code[分页优化] 对于大量照片，使用懒加载策略
+            NSUInteger totalCount = self->_model.result.count;
+            NSLog(@"在局Claude Code[TZPhotoPickerController]准备显示照片，总数=%lu", (unsigned long)totalCount);
+            
+            // 在局Claude Code[分页优化] 不再一次性加载所有照片
+            self->_models = nil;
+            
+            // 在局Claude Code[性能优化] 预取PHAsset的必要属性，避免主线程警告
+            if (self->_model.result && totalCount > 0) {
+                PHFetchOptions *options = [[PHFetchOptions alloc] init];
+                options.includeAssetSourceTypes = PHAssetSourceTypeUserLibrary | PHAssetSourceTypeCloudShared;
             }
+            
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self initSubviews];
+            });
         }
     });
 }
 
 - (void)initSubviews {
     dispatch_async(dispatch_get_main_queue(), ^{
+        // 在局Claude Code[分页优化] 支持懒加载，models可能为nil
+        NSInteger photoCount = self->_model.result ? self->_model.result.count : (self->_models ? self->_models.count : 0);
+        NSLog(@"在局Claude Code[TZPhotoPickerController]initSubviews开始，照片数量=%ld", (long)photoCount);
         TZImagePickerController *tzImagePickerVc = (TZImagePickerController *)self.navigationController;
         [tzImagePickerVc hideProgressHUD];
         
@@ -132,6 +149,7 @@ static CGFloat itemMargin = 5;
         [self configBottomToolBar];
         
         [self scrollCollectionViewToBottom];
+        NSLog(@"在局Claude Code[TZPhotoPickerController]initSubviews完成");
     });
 }
 
@@ -459,16 +477,19 @@ static CGFloat itemMargin = 5;
 #pragma mark - UICollectionViewDataSource && Delegate
 
 - (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section {
+    // 在局Claude Code[分页优化] 使用PHFetchResult的count，避免预先创建所有models
+    NSInteger photoCount = _model.result ? _model.result.count : (_models ? _models.count : 0);
     if (_showTakePhotoBtn) {
-        return _models.count + 1;
+        return photoCount + 1;
     }
-    return _models.count;
+    return photoCount;
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath {
     // the cell lead to take a picture / 去拍照的cell
     TZImagePickerController *tzImagePickerVc = (TZImagePickerController *)self.navigationController;
-    if (((tzImagePickerVc.sortAscendingByModificationDate && indexPath.item >= _models.count) || (!tzImagePickerVc.sortAscendingByModificationDate && indexPath.item == 0)) && _showTakePhotoBtn) {
+    NSInteger photoCount = _model.result ? _model.result.count : (_models ? _models.count : 0);
+    if (((tzImagePickerVc.sortAscendingByModificationDate && indexPath.item >= photoCount) || (!tzImagePickerVc.sortAscendingByModificationDate && indexPath.item == 0)) && _showTakePhotoBtn) {
         TZAssetCameraCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"TZAssetCameraCell" forIndexPath:indexPath];
         cell.imageView.image = tzImagePickerVc.takePictureImage;
         if ([tzImagePickerVc.takePictureImageName isEqualToString:@"takePicture80"]) {
@@ -489,10 +510,27 @@ static CGFloat itemMargin = 5;
     cell.assetCellDidSetModelBlock = tzImagePickerVc.assetCellDidSetModelBlock;
     cell.assetCellDidLayoutSubviewsBlock = tzImagePickerVc.assetCellDidLayoutSubviewsBlock;
     TZAssetModel *model;
-    if (tzImagePickerVc.sortAscendingByModificationDate || !_showTakePhotoBtn) {
-        model = _models[indexPath.item];
+    NSInteger modelIndex = (tzImagePickerVc.sortAscendingByModificationDate || !_showTakePhotoBtn) ? indexPath.item : (indexPath.item - 1);
+    
+    // 在局Claude Code[分页优化] 按需创建TZAssetModel，实现真正的懒加载
+    if (_model.result && modelIndex >= 0 && modelIndex < _model.result.count) {
+        // 优先从PHFetchResult按需创建（这是懒加载的核心）
+        PHAsset *asset = [_model.result objectAtIndex:modelIndex];
+        TZAssetModelMediaType type = [[TZImageManager manager] getAssetType:asset];
+        model = [TZAssetModel modelWithAsset:asset type:type];
+        
+        // 检查是否已选中
+        NSString *assetId = [[TZImageManager manager] getAssetIdentifier:asset];
+        if ([tzImagePickerVc.selectedAssetIds containsObject:assetId]) {
+            model.isSelected = YES;
+        }
+    } else if (_models && modelIndex < _models.count) {
+        // 如果PHFetchResult不可用，尝试使用缓存的models（兼容旧逻辑）
+        model = _models[modelIndex];
     } else {
-        model = _models[indexPath.item - 1];
+        NSLog(@"在局Claude Code[TZPhotoPickerController]错误：无法获取model，modelIndex=%ld, models.count=%lu, result.count=%lu", 
+              (long)modelIndex, (unsigned long)(_models ? _models.count : 0), (unsigned long)(_model.result ? _model.result.count : 0));
+        return cell;
     }
     cell.allowPickingGif = tzImagePickerVc.allowPickingGif;
     cell.model = model;
@@ -559,7 +597,8 @@ static CGFloat itemMargin = 5;
 - (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
     // take a photo / 去拍照
     TZImagePickerController *tzImagePickerVc = (TZImagePickerController *)self.navigationController;
-    if (((tzImagePickerVc.sortAscendingByModificationDate && indexPath.item >= _models.count) || (!tzImagePickerVc.sortAscendingByModificationDate && indexPath.item == 0)) && _showTakePhotoBtn)  {
+    NSInteger photoCount = _model.result ? _model.result.count : (_models ? _models.count : 0);
+    if (((tzImagePickerVc.sortAscendingByModificationDate && indexPath.item >= photoCount) || (!tzImagePickerVc.sortAscendingByModificationDate && indexPath.item == 0)) && _showTakePhotoBtn)  {
         [self takePhoto]; return;
     }
     // preview phote or video / 预览照片或视频
@@ -567,7 +606,21 @@ static CGFloat itemMargin = 5;
     if (!tzImagePickerVc.sortAscendingByModificationDate && _showTakePhotoBtn) {
         index = indexPath.item - 1;
     }
-    TZAssetModel *model = _models[index];
+    
+    // 在局Claude Code[分页优化] 按需获取model
+    TZAssetModel *model;
+    if (_model.result && index >= 0 && index < _model.result.count) {
+        // 优先从PHFetchResult获取
+        PHAsset *asset = [_model.result objectAtIndex:index];
+        TZAssetModelMediaType type = [[TZImageManager manager] getAssetType:asset];
+        model = [TZAssetModel modelWithAsset:asset type:type];
+    } else if (_models && index < _models.count) {
+        // 备用：从缓存的models获取
+        model = _models[index];
+    } else {
+        NSLog(@"在局Claude Code[TZPhotoPickerController]didSelectItem错误：无法获取model，index=%ld", (long)index);
+        return;
+    }
     if (model.type == TZAssetModelMediaTypeVideo && !tzImagePickerVc.allowPickingMultipleVideo) {
         if (tzImagePickerVc.selectedModels.count > 0) {
             TZImagePickerController *imagePickerVc = (TZImagePickerController *)self.navigationController;
@@ -589,7 +642,17 @@ static CGFloat itemMargin = 5;
     } else {
         TZPhotoPreviewController *photoPreviewVc = [[TZPhotoPreviewController alloc] init];
         photoPreviewVc.currentIndex = index;
-        photoPreviewVc.models = _models;
+        // 在局Claude Code[分页优化] 预览时需要传递PHFetchResult或创建所有models
+        if (_models && _models.count > 0) {
+            photoPreviewVc.models = _models;
+        } else if (_model.result) {
+            // 需要为预览创建所有models（预览需要完整数据）
+            [[TZImageManager manager] getAssetsFromFetchResult:_model.result completion:^(NSArray<TZAssetModel *> *models) {
+                photoPreviewVc.models = [NSMutableArray arrayWithArray:models];
+                [self pushPhotoPrevireViewController:photoPreviewVc];
+            }];
+            return;
+        }
         [self pushPhotoPrevireViewController:photoPreviewVc];
     }
 }
@@ -735,11 +798,14 @@ static CGFloat itemMargin = 5;
 }
 
 - (void)scrollCollectionViewToBottom {
+    // 在局Claude Code[分页优化] 支持懒加载
+    NSInteger photoCount = _model.result ? _model.result.count : (_models ? _models.count : 0);
+    NSLog(@"在局Claude Code[TZPhotoPickerController]scrollCollectionViewToBottom, shouldScroll=%d, photoCount=%ld", _shouldScrollToBottom, (long)photoCount);
     TZImagePickerController *tzImagePickerVc = (TZImagePickerController *)self.navigationController;
-    if (_shouldScrollToBottom && _models.count > 0) {
+    if (_shouldScrollToBottom && photoCount > 0) {
         NSInteger item = 0;
         if (tzImagePickerVc.sortAscendingByModificationDate) {
-            item = _models.count - 1;
+            item = photoCount - 1;
             if (_showTakePhotoBtn) {
                 item += 1;
             }
@@ -748,14 +814,22 @@ static CGFloat itemMargin = 5;
             [self->_collectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForItem:item inSection:0] atScrollPosition:UICollectionViewScrollPositionBottom animated:NO];
             self->_shouldScrollToBottom = NO;
             self->_collectionView.hidden = NO;
+            NSLog(@"在局Claude Code[TZPhotoPickerController]collectionView已显示（滚动后）");
         });
     }
     else {
         _collectionView.hidden = NO;
+        NSLog(@"在局Claude Code[TZPhotoPickerController]collectionView已显示（直接显示）");
     }
 }
 
 - (void)checkSelectedModels {
+    // 在局Claude Code[分页优化] 懒加载模式下，选中状态在cellForItemAtIndexPath中动态检查
+    if (!_models) {
+        NSLog(@"在局Claude Code[TZPhotoPickerController]懒加载模式，跳过checkSelectedModels");
+        return;
+    }
+    
     NSMutableArray *selectedAssets = [NSMutableArray array];
     TZImagePickerController *tzImagePickerVc = (TZImagePickerController *)self.navigationController;
     for (TZAssetModel *model in tzImagePickerVc.selectedModels) {
@@ -774,7 +848,12 @@ static CGFloat itemMargin = 5;
 - (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex {
     if (buttonIndex == 1) { // 去设置界面，开启相机访问权限
         if (iOS8Later) {
-            [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString]];
+            // 在局Claude Code[API更新] 使用新的open方法替代废弃的openURL
+            if (@available(iOS 10.0, *)) {
+                [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString] options:@{} completionHandler:nil];
+            } else {
+                [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString]];
+            }
         }
     }
 }
@@ -830,10 +909,19 @@ static CGFloat itemMargin = 5;
             if (tzImagePickerVc.maxImagesCount <= 1) {
                 if (tzImagePickerVc.allowCrop) {
                     TZPhotoPreviewController *photoPreviewVc = [[TZPhotoPreviewController alloc] init];
+                    NSInteger photoCount = self->_model.result ? self->_model.result.count : (self->_models ? self->_models.count : 0);
                     if (tzImagePickerVc.sortAscendingByModificationDate) {
-                        photoPreviewVc.currentIndex = self->_models.count - 1;
+                        photoPreviewVc.currentIndex = photoCount - 1;
                     } else {
                         photoPreviewVc.currentIndex = 0;
+                    }
+                    // 在局Claude Code[分页优化] 预览时需要创建models
+                    if (!self->_models && self->_model.result) {
+                        [[TZImageManager manager] getAssetsFromFetchResult:self->_model.result completion:^(NSArray<TZAssetModel *> *models) {
+                            photoPreviewVc.models = [NSMutableArray arrayWithArray:models];
+                            [self pushPhotoPrevireViewController:photoPreviewVc];
+                        }];
+                        return;
                     }
                     photoPreviewVc.models = self->_models;
                     [self pushPhotoPrevireViewController:photoPreviewVc];
@@ -959,9 +1047,19 @@ static CGFloat itemMargin = 5;
     
     NSMutableArray *assets = [NSMutableArray arrayWithCapacity:indexPaths.count];
     for (NSIndexPath *indexPath in indexPaths) {
-        if (indexPath.item < _models.count) {
-            TZAssetModel *model = _models[indexPath.item];
-            [assets addObject:model.asset];
+        NSInteger photoCount = _model.result ? _model.result.count : (_models ? _models.count : 0);
+        if (indexPath.item < photoCount) {
+            // 在局Claude Code[分页优化] 预取时直接使用PHAsset
+            PHAsset *asset = nil;
+            if (_models && indexPath.item < _models.count) {
+                TZAssetModel *model = _models[indexPath.item];
+                asset = model.asset;
+            } else if (_model.result && indexPath.item < _model.result.count) {
+                asset = [_model.result objectAtIndex:indexPath.item];
+            }
+            if (asset) {
+                [assets addObject:asset];
+            }
         }
     }
     

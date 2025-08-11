@@ -49,6 +49,7 @@
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 - (void)viewDidLoad {
     [super viewDidLoad];
+    NSLog(@"在局Claude Code[TZImagePickerController]viewDidLoad开始");
     self.needShowStatusBar = ![UIApplication sharedApplication].statusBarHidden;
     self.view.backgroundColor = [UIColor whiteColor];
     self.navigationBar.barStyle = UIBarStyleBlack;
@@ -66,6 +67,9 @@
         self.automaticallyAdjustsScrollViewInsets = NO;
         if (self.needShowStatusBar) [UIApplication sharedApplication].statusBarHidden = NO;
     }
+    
+    // 在局Claude Code[导航栏修复] 确保导航栏按钮可见
+    NSLog(@"在局Claude Code[TZImagePickerController]导航栏tintColor=%@", self.navigationBar.tintColor);
 }
 
 - (void)setNaviBgColor:(UIColor *)naviBgColor {
@@ -176,6 +180,7 @@
         self.autoDismiss = YES;
         self.columnNumber = columnNumber;
         [self configDefaultSetting];
+        [self configBarButtonItemAppearance];
         
         if (![[TZImageManager manager] authorizationStatusAuthorized]) {
             _tipLabel = [[UILabel alloc] init];
@@ -205,7 +210,10 @@
                 _timer = [NSTimer scheduledTimerWithTimeInterval:0.2 target:self selector:@selector(observeAuthrizationStatusChange) userInfo:nil repeats:NO];
             }
         } else {
-            [self pushPhotoPickerVc];
+            // 在局Claude Code[特殊处理] 初始化时也不自动跳转
+            NSLog(@"在局Claude Code[TZImagePickerController]初始化时跳过自动跳转");
+            // 注释掉自动跳转，让用户从相册列表选择
+            // [self pushPhotoPickerVc];
         }
     }
     return self;
@@ -364,26 +372,50 @@
         [_tipLabel removeFromSuperview];
         [_settingBtn removeFromSuperview];
 
-        [self pushPhotoPickerVc];
+        // 在局Claude Code[iPad适配] 权限授权后的处理
+        NSLog(@"在局Claude Code[TZImagePickerController]权限授权后，准备处理");
+        
+        // 在局Claude Code[特殊处理] 不自动跳转，只刷新相册列表
+        // 注释掉自动跳转，避免空白问题
+        // [self pushPhotoPickerVc];
         
         TZAlbumPickerController *albumPickerVc = (TZAlbumPickerController *)self.visibleViewController;
         if ([albumPickerVc isKindOfClass:[TZAlbumPickerController class]]) {
-            [albumPickerVc configTableView];
+            NSLog(@"在局Claude Code[TZImagePickerController]刷新相册列表");
+            // 在局Claude Code[重要修复] 延迟刷新，让Photos框架有时间加载数据
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                NSLog(@"在局Claude Code[TZImagePickerController]延迟后开始刷新相册列表");
+                [albumPickerVc configTableView];
+            });
         }
     }
 }
 
 - (void)pushPhotoPickerVc {
+    NSLog(@"在局Claude Code[TZImagePickerController]pushPhotoPickerVc开始, _pushPhotoPickerVc=%d", _pushPhotoPickerVc);
     _didPushPhotoPickerVc = NO;
     // 1.6.8 判断是否需要push到照片选择页，如果_pushPhotoPickerVc为NO,则不push
     if (!_didPushPhotoPickerVc && _pushPhotoPickerVc) {
+        // 在局Claude Code[iPad适配] iPad上跳过直接push，让用户从相册列表选择
+        if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
+            NSLog(@"在局Claude Code[TZImagePickerController]iPad设备，跳过自动push到照片选择页");
+            return;
+        }
+        
+        NSLog(@"在局Claude Code[TZImagePickerController]准备获取相机胶卷相册");
         TZPhotoPickerController *photoPickerVc = [[TZPhotoPickerController alloc] init];
         photoPickerVc.isFirstAppear = YES;
         photoPickerVc.columnNumber = self.columnNumber;
         [[TZImageManager manager] getCameraRollAlbum:self.allowPickingVideo allowPickingImage:self.allowPickingImage needFetchAssets:NO completion:^(TZAlbumModel *model) {
-            photoPickerVc.model = model;
-            [self pushViewController:photoPickerVc animated:YES];
-            self->_didPushPhotoPickerVc = YES;
+            NSLog(@"在局Claude Code[TZImagePickerController]获取相机胶卷完成回调");
+            if (model) {
+                NSLog(@"在局Claude Code[TZImagePickerController]相机胶卷model存在，count=%ld", (long)model.count);
+                photoPickerVc.model = model;
+                [self pushViewController:photoPickerVc animated:YES];
+                self->_didPushPhotoPickerVc = YES;
+            } else {
+                NSLog(@"在局Claude Code[TZImagePickerController]错误：相机胶卷model为nil");
+            }
         }];
     }
 }
@@ -591,7 +623,12 @@
 }
 
 - (void)settingBtnClick {
-    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString]];
+    // 在局Claude Code[API更新] 使用新的open方法替代废弃的openURL
+    if (@available(iOS 10.0, *)) {
+        [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString] options:@{} completionHandler:nil];
+    } else {
+        [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString]];
+    }
 }
 
 - (void)pushViewController:(UIViewController *)viewController animated:(BOOL)animated {
@@ -700,7 +737,9 @@
     self.view.backgroundColor = [UIColor whiteColor];
     
     TZImagePickerController *imagePickerVc = (TZImagePickerController *)self.navigationController;
+    NSLog(@"在局Claude Code[TZAlbumPicker]设置取消按钮，标题=%@", imagePickerVc.cancelBtnTitleStr);
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:imagePickerVc.cancelBtnTitleStr style:UIBarButtonItemStylePlain target:imagePickerVc action:@selector(cancelButtonClick)];
+    NSLog(@"在局Claude Code[TZAlbumPicker]取消按钮设置完成");
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -720,7 +759,9 @@
 }
 
 - (void)configTableView {
+    NSLog(@"在局Claude Code[TZAlbumPicker]configTableView开始");
     if (![[TZImageManager manager] authorizationStatusAuthorized]) {
+        NSLog(@"在局Claude Code[TZAlbumPicker]没有相册权限，返回");
         return;
     }
 
@@ -728,9 +769,11 @@
         TZImagePickerController *imagePickerVc = (TZImagePickerController *)self.navigationController;
         [imagePickerVc showProgressHUD];
     }
+    // 在局Claude Code[线程安全] 在主线程获取navigationController，避免后台线程访问UI
+    TZImagePickerController *imagePickerVc = (TZImagePickerController *)self.navigationController;
     dispatch_async(dispatch_get_global_queue(0, 0), ^{
-        TZImagePickerController *imagePickerVc = (TZImagePickerController *)self.navigationController;
         [[TZImageManager manager] getAllAlbums:imagePickerVc.allowPickingVideo allowPickingImage:imagePickerVc.allowPickingImage needFetchAssets:!self.isFirstAppear completion:^(NSArray<TZAlbumModel *> *models) {
+            NSLog(@"在局Claude Code[TZAlbumPicker]获取相册完成，相册数量: %lu", (unsigned long)models.count);
             dispatch_async(dispatch_get_main_queue(), ^{
                 self->_albumArr = [NSMutableArray arrayWithArray:models];
                 for (TZAlbumModel *albumModel in self->_albumArr) {
@@ -740,9 +783,13 @@
                 
                 if (self.isFirstAppear) {
                     self.isFirstAppear = NO;
+                    NSLog(@"在局Claude Code[TZAlbumPicker]第一次出现，再次调用configTableView");
                     [self configTableView];
                 }
+                
+                // 在局Claude Code[重要修复] 无论是否有相册都创建TableView
                 if (!self->_tableView) {
+                    NSLog(@"在局Claude Code[TZAlbumPicker]创建tableView");
                     self->_tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
                     self->_tableView.rowHeight = 70;
                     self->_tableView.tableFooterView = [[UIView alloc] init];
@@ -750,9 +797,23 @@
                     self->_tableView.delegate = self;
                     [self->_tableView registerClass:[TZAlbumCell class] forCellReuseIdentifier:@"TZAlbumCell"];
                     [self.view addSubview:self->_tableView];
+                    NSLog(@"在局Claude Code[TZAlbumPicker]tableView添加到视图");
                 }
                 else {
+                    NSLog(@"在局Claude Code[TZAlbumPicker]刷新tableView数据");
                     [self->_tableView reloadData];
+                }
+                
+                // 在局Claude Code[用户体验] 如果没有相册，显示提示
+                if (self->_albumArr.count == 0) {
+                    NSLog(@"在局Claude Code[TZAlbumPicker]没有相册，显示提示");
+                    UILabel *noAlbumLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 200, self.view.tz_width, 60)];
+                    noAlbumLabel.text = @"没有找到相册\n请在设置中允许访问所有照片";
+                    noAlbumLabel.numberOfLines = 2;
+                    noAlbumLabel.textAlignment = NSTextAlignmentCenter;
+                    noAlbumLabel.textColor = [UIColor grayColor];
+                    noAlbumLabel.font = [UIFont systemFontOfSize:16];
+                    [self.view addSubview:noAlbumLabel];
                 }
             });
         }];
@@ -779,7 +840,12 @@
     } else {
         tableViewHeight = self.view.tz_height;
     }
-    _tableView.frame = CGRectMake(0, top, self.view.tz_width, tableViewHeight);
+    
+    if (_tableView) {
+        _tableView.frame = CGRectMake(0, top, self.view.tz_width, tableViewHeight);
+        NSLog(@"在局Claude Code[TZAlbumPicker]布局tableView: frame=(%.0f,%.0f,%.0fx%.0f), rows=%ld", 
+              0.0, top, self.view.tz_width, tableViewHeight, (long)[self tableView:_tableView numberOfRowsInSection:0]);
+    }
 }
 
 #pragma mark - UITableViewDataSource && Delegate
