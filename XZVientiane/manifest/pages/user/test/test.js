@@ -41,21 +41,56 @@
 				name:'',
 				parent:'',
 				index:'',
+				isJu:0,
+				isTop:0,
+				isDown:0,
+				isTe:0,
+				isVp:0,
+				isZun:0,
 			},
-			manPic:'https://static.eshopshanghai.com/17271993280616278.jpg',//'https://statics.tuiya.cc/17166545355121645.jpg',
-			womanPic:'https://static.eshopshanghai.com/17271993530053168.jpg',//'https://statics.tuiya.cc/17169950364955179.jpg',
+			manPic:'https://statics.tuiya.cc/17166545355121645.jpg',//'https://static.eshopshanghai.com/17271993280616278.jpg',
+			womanPic:'https://statics.tuiya.cc/17169950364955179.jpg',//'https://static.eshopshanghai.com/17271993530053168.jpg',
+			manVpPic:'https://statics.tuiya.cc/17348723103503637.jpg',//'https://static.eshopshanghai.com/17348723505327880.jpg'
+			womanVpPic:'https://statics.tuiya.cc/17348723968423961.jpg',//https://static.eshopshanghai.com/17348724143778419.jpg
 			kongweiTips:'',
 			textColor:'#0066CC',
+			textStyle:[{
+				title:'正常字体',
+				value:'微软雅黑',
+			},{
+				title:'可爱字体',
+				value:'MaokenZhuyuanTi'
+			}],
+			fontFamily:'微软雅黑',
+			textSize:[{
+				title:'普通',
+				value:12,
+			},{
+				title:'中等',
+				value:13,
+			},{
+				title:'加大',
+				value:14,
+			},{
+				title:'最大',
+				value:15
+			}],
+			fontSize:12,
+			textWeight:[{
+				title:'普通',
+				value:'normal',
+			},{
+				title:'加粗',
+				value:'600'
+			}],
+			fontWeight:'normal',
+			tongjiTips:'',
         },
         methods: {
             onLoad: function(options) {
 				let _this = this;
 				$('title').html('队内专用随机器');
-				
-				if(app.system.windowWidth<=480){
-					this.setData({type:3});
-					this.getUserList();
-				};
+				xzSystem.loadSrcs(['https://chinese-fonts-cdn.netlify.app/packages/mkzyt/dist/猫啃珠圆体/result.css']);
 				var main = $('.app-wrapper'),
 					choseArray = [],//选人麦序
 					choseIndex = '',//第几轮选人
@@ -90,7 +125,6 @@
 						},i);
 					};
 					for(var i=0;i<narray.length;i++){
-						console.log(narray);
 						if(tar==1&&i%2==0){
 							//narray[i]+='<font class="duida">打</font>';
 						};
@@ -103,7 +137,6 @@
 						historyArry.push(narray);
 					};
 				};
-				
 				function set_teamLine(){
 					$('#team_result').find('.teamLine.active').removeClass('active');
 					$('#team_result').find('.teamLine').eq(choseIndex||0).addClass('active');
@@ -117,6 +150,7 @@
 							for(var a=0;a<item.length;a++){
 								html+='<span class="numberList">'+item[a]+'</span>';
 							};
+
 							html+='</p>';
 							$('#history_result').append(html);
 						});
@@ -127,6 +161,9 @@
 					var $this = $(this),
 						role = $this.attr('role'),
 						re = /^[+]{0,1}(\d+)$/;
+						
+					_this.addBeforeunload();
+					
 					switch(role){
 						case'captain_reSet':
 						$('#captain_result').text('');
@@ -139,7 +176,6 @@
 							captain_max = Number($('#captain_max').val()),
 							captain_length = Number($('#captain_length').val());
 						if(!re.test(captain_min)||!re.test(captain_max)||!re.test(captain_length)||captain_min>=captain_max||(captain_max-captain_min+1<captain_length)){
-
 							alert('数学老师哪年死的？')
 						}else{
 							var newArray = [],
@@ -370,9 +406,17 @@
 								lastName_b = item.name[item.name.length-2];
 							if(isNum.test(lastName_a)&&isNum.test(lastName_b)){
 								var c = lastName_b+''+lastName_a;
-								all[c].push(item);
+								if(!all[c]){
+									all['other'].push(item);
+								}else{
+									all[c].push(item);
+								};
 							}else if(isNum.test(lastName_a)){
-								all[lastName_a].push(item);
+								if(!all[lastName_a]){
+									all['other'].push(item);
+								}else{
+									all[lastName_a].push(item);
+								};
 							}else{
 								all['other'].push(item);
 							};
@@ -413,17 +457,55 @@
 					};
 				});
             },
-			checkKongweiData:function(){//检测一下是否有重复的情况
+			addBeforeunload:function(){//增加防止不小心刷新
+				window.addEventListener('beforeunload', function (e) {
+				  e.preventDefault();
+				  e.returnValue = '刷新数据会丢失，确定刷新吗？';
+				  return '刷新数据会丢失，确定刷新吗？';
+				});
+			},
+			checkKongweiData:function(){//检测一下是否有重复的情况，并且统计一下轮次
 				let _this = this,
+					isNum = /^[1-9]\d*$/,
 					kw = _this.getData().kongweiData,
 					checkList = [],
-					sameList = [];
+					sameList = [],
+					aArray = 0,//12轮
+					bArray = 0,//2轮
+					cArray = 0,//23轮
+					dArray = 0,//3轮
+					eArray = 0,//34轮
+					fArray = 0;//4-5轮
 				if(kw&&kw.length){
 					for(let i=0;i<kw.length;i++){
 						if(checkList.includes(kw[i].name)){
 							sameList.push(kw[i].name);
 						}else if(kw[i].name.length>0){
 							checkList.push(kw[i].name);
+						};
+						let a = kw[i].name[kw[i].name.length-1],
+							b = kw[i].name[kw[i].name.length-2];
+						if(isNum.test(a)&&isNum.test(b)){
+							var c = b+''+a;
+							if(c=='12'){
+								aArray++;
+							}else if(c=='23'){
+								cArray++;
+							}else if(c=='34'){
+								eArray++;
+							};
+						}else if(isNum.test(a)){
+							if(a=='1'){
+								aArray++;
+							}else if(a=='2'){
+								bArray++;
+							}else if(a=='3'){
+								dArray++;
+							}else if(a=='4'){
+								fArray++;
+							}else if(a=='5'){
+								fArray++;
+							};
 						};
 					};
 					if(sameList&&sameList.length){
@@ -435,6 +517,10 @@
 							kongweiTips:''
 						});
 					};
+					let tongjiTips = '1-12轮：'+aArray+'个，2轮：'+bArray+'个，23轮：'+cArray+'个，3轮：'+dArray+'个，34轮：'+eArray+'个，4-5轮：'+fArray+'个';
+					_this.setData({tongjiTips:tongjiTips});
+				}else{
+					_this.setData({tongjiTips:''});
 				};
 			},
 			changeKongweiData:function(data,type){//根据数据转换
@@ -688,7 +774,6 @@
 						};
 						str = newStr;
 					};
-					console.log(str);
 				}else{
 					str = str.replace(/\ +/g, ""); //去掉空格
 					str = str.replace(/[ ]/g, ""); //去掉空格
@@ -705,17 +790,30 @@
 				let kongweiList = this.getData().kongweiList,
 					parent = Number(app.eData(e).parent),
 					index = Number(app.eData(e).index);
-				kongweiList[parent][index].sex = kongweiList[parent][index].sex == 2?1:2;
+				kongweiList[parent][index].sex = Number(kongweiList[parent][index].sex);
+				if(kongweiList[parent][index].sex==4){
+					kongweiList[parent][index].sex = 1;
+				}else{
+					kongweiList[parent][index].sex = kongweiList[parent][index].sex+1;
+				};
 				this.setData({kongweiList:kongweiList});
 			},
 			changeThisUser:function(e){
-					parent = Number(app.eData(e).parent),
-					index = Number(app.eData(e).index);
+				let	parent = Number(app.eData(e).parent),
+					index = Number(app.eData(e).index),
+					kongweiList = this.getData().kongweiList,
+					itemData = kongweiList[parent][index];
 				this.setData({
 					'showNameForm.show':true,
 					'showNameForm.parent':parent,
 					'showNameForm.index':index,
-					'showNameForm.name':'',
+					'showNameForm.name':itemData['name'],
+					'showNameForm.isTop':itemData['isTop']||0,
+					'showNameForm.isJu':itemData['isJu']||0,
+					'showNameForm.isDown':itemData['isDown']||0,
+					'showNameForm.isTe':itemData['isTe']||0,
+					'showNameForm.isVp':itemData['isVp']||0,
+					'showNameForm.isZun':itemData['isZun']||0,
 				});
 			},
 			toHideNameForm:function(){
@@ -723,14 +821,42 @@
 			},
 			toConfirmNameForm:function(){
 				let kongweiList = this.getData().kongweiList,
-					showNameForm = this.getData().showNameForm;
+					showNameForm = this.getData().showNameForm,
+					parent = showNameForm.parent,
+					index = showNameForm.index;
 				kongweiList[parent][index].name = showNameForm.name;
+				kongweiList[parent][index].isTop = showNameForm.isTop;
+				kongweiList[parent][index].isJu = showNameForm.isJu;
+				kongweiList[parent][index].isDown = showNameForm.isDown;
+				kongweiList[parent][index].isTe = showNameForm.isTe;
+				kongweiList[parent][index].isVp = showNameForm.isVp;
+				kongweiList[parent][index].isZun = showNameForm.isZun;
 				this.setData({kongweiList:kongweiList});
 				this.checkKongweiData();
 				this.toHideNameForm();
 			},
 			colorChange:function(e){
 				this.setData({textColor:app.eValue(e)});
+			},
+
+			selectThisType:function(e){
+				let type = app.eData(e).type,
+					showNameForm = this.getData().showNameForm;
+				showNameForm[type] = showNameForm[type]==1?0:1;
+				this.setData({showNameForm:showNameForm});
+			},
+			selectChangeStyle:function(e){
+				let value = document.getElementById('kongwei_selectStyle').value;
+				console.log(value);
+				this.setData({'fontFamily':value});
+			},
+			selectChangeSize:function(e){
+				let value = document.getElementById('kongwei_selectSize').value;
+				this.setData({'fontSize':value});
+			},
+			selectChangeWeight:function(e){
+				let value = document.getElementById('kongwei_selectWeight').value;
+				this.setData({'fontWeight':value});
 			},
         }
     });

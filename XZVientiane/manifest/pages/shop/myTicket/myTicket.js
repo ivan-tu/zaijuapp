@@ -209,7 +209,7 @@
 						img: app.config.filePath+''+itemData.pic,
 						imageUrl: app.config.filePath+''+itemData.pic,
 						weixinH5Image: app.config.filePath+''+itemData.pic,
-						wxid: 'gh_26794a7a3c16',
+						wxid: 'gh_601692a29862',
 						showMini: true,
 						showQQ: false,
 						showWeibo: false,

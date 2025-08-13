@@ -1,3 +1,22 @@
+body {
+    font-family: "Kingnamype Yuanmo SC";
+    font-weight: normal;
+}
+
+body {
+    font-family: "ZeroGothic";
+    font-weight: normal;
+}
+
+body {
+    font-family: "AR PL UKai CN";
+    font-weight: normal;
+}
+
+body {
+    font-family: "CooperZhengKai";
+    font-weight: normal;
+}
 #pageWrapper{
 	max-width:1920px !important;
 }
@@ -39,7 +58,7 @@
 }
 .main{
 	box-shadow:0 0 5px #0066CC;
-	width:1280px;
+	width:1500px;
 	min-height:700px;
 	padding:20px;
 	margin:20px auto;
@@ -75,6 +94,7 @@
 	margin-left:10px;
 	margin-right:15px;
 	text-align:center;
+	vertical-align:middle;
 }
 .main h4{
 	text-align:center;
@@ -116,7 +136,7 @@ a.submit{
 }
 .result{
 	color:#0066CC;
-	font-size:36px;
+	font-size:30px;
 	font-weight:bold;
 	border-bottom:1px solid #0066CC;
 	padding:10px;
@@ -124,7 +144,7 @@ a.submit{
 	width:100%;
 	letter-spacing:6px;
 	vertical-align:middle;
-	font-family: Arial,Helvetica,sans-serif;
+	/*font-family: Arial,Helvetica,sans-serif;*/
 	text-shadow: 3px 4px 2px #ddd;
 	word-wrap:break-word;
 }
@@ -213,7 +233,7 @@ a.submit{
 	font-weight:bold;
 	color:#0066CC;
 	letter-spacing:4px;
-	font-family: Arial,Helvetica,sans-serif;
+	/*font-family: Arial,Helvetica,sans-serif;*/
 	text-shadow: 3px 4px 2px #ddd;
 }
 .history_result_list .numberList + .numberList:before{
@@ -474,7 +494,7 @@ a.submit{
 /*空位相关*/
 .kongweiBox{
 	padding:15px 0;
-	width:760px;
+	width:960px;
 	float:left;
 }
 .kongweiList .spanIndex{
@@ -494,20 +514,51 @@ a.submit{
 	float:left;
 }
 .kongweiList .itemBox{
-	margin-top:0.07em;
+	margin-top:1%;
 	font-size:0;
 }
 .kongweiList .itemBox .spanName{
 	font-size:12px;
 	color:#7310F7;
 	vertical-align:middle;
+	display:inline-block;
+	position:relative;
+	line-height:13px;
 	/*background-image:linear-gradient(to right,#4FE3C4,#6087FF,#EF435A);
 	-webkit-background-clip:text;
 	background-clip:text;
 	-webkit-text-fill-color:transparent;*/
 }
+.kongweiList .itemBox .spanJU{
+	font-size:10px;
+	position:absolute;
+	right:-12px;
+	top:-3px;
+	color:#DD0000;
+}
+.kongweiList .itemBox .spanJU:nth-child(2){
+	right:-25px;
+}
+.kongweiList .itemBox .spanJU:nth-child(3){
+	right:-35px;
+}
+.kongweiList .itemBox .spanJU:nth-child(4){
+	right:-45px;
+}
+.kongweiList .itemBox .spanJU:nth-child(5){
+	right:-55px;
+}
+.kongweiList .itemBox .spanJU +.spanText{
+	margin-right:-3px;
+}
+.kongweiList .itemBox .spanText +.spanText{
+	margin-right:-5px;
+}
+.kongweiList .itemBox .spanText +.spanText +.spanText{
+	margin-right:-9px;
+}
 .tianxieBox{
-	margin-left:770px;
+	margin-left:970px;
 }
 .tianxieBox .textareaBox{
 	border:1px solid #ccc;
@@ -537,4 +588,8 @@ a.submit{
 .tianxieBox .textareaBox textarea::-webkit-input-placeholder{
 	color: #999;
 	opacity:1;
+}
+.kongwei_select{
+	border:1px solid #ccc;
+	padding:5px 10px;
 }

@@ -98,7 +98,7 @@
 							img: sharePic,
 							imageUrl: sharePic,
 							weixinH5Image: sharePic,
-							wxid: 'gh_4a817d503791',
+							wxid: 'gh_601692a29862',
 							hideH5:true,
 							hideCopy:app.config.client=='web'?false:true,
 						},

@@ -129,7 +129,7 @@
 							imageUrl: sharePic,
 							weixinH5Image: sharePic,
 							wxid: 'gh_601692a29862',
-							showMini: false,
+							showMini: true,
 							hideCopy: app.config.client=='wx'?true:false,
 						},
 					}, 

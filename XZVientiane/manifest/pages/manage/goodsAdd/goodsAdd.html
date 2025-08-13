@@ -266,14 +266,15 @@
                           <input class="xzui-input" placeholder="填写名称" value="{{item.name}}" bindinput="setSku" data-index="{{index}}" data-name="name" type="text" />
                       </div>
                     </view>
-                    <view class="xzui-cell xzui-cell_access">
+                    <view class="xzui-cell xzui-cell_access" wx:for="{{item.priceList}}" wx:for-item="g" wx:for-index="l">
                       <div class="xzui-cell__hd must">
-                          <label class="xzui-label">售价</label>
+                          <label class="xzui-label">{{l}}</label>
                       </div>
                       <div class="xzui-cell__bd">
-                          <input class="xzui-input" placeholder="填写售价" value="{{item.price}}" bindinput="setSku" data-index="{{index}}" data-name="price" type="number" />
+                      	  <input class="xzui-input" bindchange="changePrice"
+								data-index="{{index}}" data-type="{{l}}" placeholder="请输入" value="{{g}}" type="digit" />
                       </div>
-                      <div class="xzui-cell__ft xzui-cell__ft_in-access">元</div>
+                      <div class="xzui-cell__ft">元</div>
                     </view>
                     <div class="xzui-cell xzui-cell_access">
                         <div class="xzui-cell__hd must">

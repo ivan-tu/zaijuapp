@@ -1,5 +1,5 @@
-<div class="app-wrapper" wx:if="{{type==1||type==2}}">
-    <div class="app-main" style="width:1300px;margin:auto;position:relative;">
+<div class="app-wrapper" wx:if="{{type==1||type==2}}" style="font-family:{{fontFamily}};">
+    <div class="app-main" style="width:1500px;margin:auto;position:relative;">
         <div class="main">
         	<a href="javascript:;" role="neiding" class="neiding" style="font-size:12px;color:#0066CC;"><i class="xzicon-setting"></i></a>
             <h4>CF对掏专用随机数生成器</h4>
@@ -49,22 +49,51 @@
             <div class="test_title">生成空位专用</div>
             <div class="inputBox">
                 <span>人数：</span><input type="text" class="testInput" id="kongwei_length" value="10" />
-                <span>性别：</span><div class="displayIB" data-sex="1" bindtap="changeSex"><span class="xzui-radio-new {{(sex==1?' active':'')}}"></span><span class="xzui-radioTitle-new  {{(sex==1?' active':'')}}">男马甲</span></div><div class="displayIB ml10" data-sex="2" bindtap="changeSex"><span class="xzui-radio-new  {{(sex==2?' active':'')}}"></span><span class="xzui-radioTitle-new">女马甲</span></div>
+                <span>性别：</span><div class="displayIB" data-sex="1" bindtap="changeSex"><span class="xzui-radio-new {{(sex==1?' active':'')}}"></span><span class="xzui-radioTitle-new  {{(sex==1?' active':'')}}">男马甲</span></div><div class="displayIB ml10" data-sex="2" bindtap="changeSex"><span class="xzui-radio-new  {{(sex==2?' active':'')}}"></span><span class="xzui-radioTitle-new">女马甲</span></div><div class="displayIB ml10" data-sex="3" bindtap="changeSex"><span class="xzui-radio-new  {{(sex==3?' active':'')}}"></span><span class="xzui-radioTitle-new">男VP</span></div><div class="displayIB ml10" data-sex="4" bindtap="changeSex"><span class="xzui-radio-new  {{(sex==4?' active':'')}}"></span><span class="xzui-radioTitle-new">女VP</span></div>
                 <a href="javascript:;" role="kongwei_reSet" class="reSet ml15">清空</a>
                 <a href="javascript:;" role="kongwei_submit" class="submit">生成</a>
                 <a href="javascript:;" role="kongwei_zhuanhuan" class="submit" style="background:#339999;">转换</a>
                 <a href="javascript:;" role="kongwei_sort" class="submit" style="background:#0066CC;">排序</a>
-                <div class="displayIB ml10">文字颜色调整：<input type="color" id="colorPicker" value="{{textColor}}" bindinput="colorChange" /></a>
+                <div class="displayIB ml10">文字颜色调整：<input type="color" id="colorPicker" value="{{textColor}}" bindinput="colorChange" /></div>
+                <div class="displayIB ml10">
+                	<p>文字字体调整：</p>
+                	<div>
+                    	<select class="kongwei_select" bindchange="selectChangeStyle" id="kongwei_selectStyle">
+                    		<option value="{{item.value}}" wx:for="{{textStyle}}">{{item.title}}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="displayIB ml10">
+                	<p>文字大小调整：</p>
+                	<div>
+                    	<select class="kongwei_select" bindchange="selectChangeSize" id="kongwei_selectSize">
+                    		<option value="{{item.value}}" wx:for="{{textSize}}">{{item.title}}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="displayIB ml10">
+                	<p>文字粗细调整：</p>
+                	<div>
+                    	<select class="kongwei_select" bindchange="selectChangeWeight" id="kongwei_selectWeight">
+                    		<option value="{{item.value}}" wx:for="{{textWeight}}">{{item.title}}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="kongweiTips ptb10" wx:if="{{tongjiTips}}">
+            	<p>{{tongjiTips}}</p>
             </div>
             <div class="kongweiTips cRed ptb10" wx:if="{{kongweiTips}}">{{kongweiTips}}</div>
             <div class="clearfix">
                 <div class="kongweiBox clearfix" wx:if="{{kongweiList&&kongweiList.length}}">
                     <div class="kongweiList" wx:for="{{kongweiList}}" wx:for-item="b" wx:for-index="a">
                         <div class="itemBox" wx:for="{{b}}" wx:for-item="item" wx:for-index="index">
-                            <div class="spanIndex" style="color:{{textColor}};" bindtap="changeThisSex" data-parent="{{a}}"data-index="{{index}}">{{item.index}}<span class="spanRound">.</span></div>
-                            <image bindtap="changeThisSex" data-parent="{{a}}" data-index="{{index}}" wx:if="{{item.sex==2}}" src="{{womanPic}}" mode="widthFix" />
-                            <image bindtap="changeThisSex" data-parent="{{a}}" data-index="{{index}}" wx:else src="{{manPic}}" mode="widthFix" />
-                            <span class="spanName" style="color:{{textColor}};" bindtap="changeThisUser" data-parent="{{a}}" data-index="{{index}}">{{item.name}}</span>
+                            <div class="spanIndex" style="color:{{textColor}};font-size:{{fontSize}}px;font-weight:{{fontWeight}};" bindtap="changeThisSex" data-parent="{{a}}"data-index="{{index}}">{{item.index}}<span class="spanRound">.</span></div>
+                            <image bindtap="changeThisSex" data-parent="{{a}}" data-index="{{index}}" data-value="4" wx:if="{{item.sex==4}}" src="{{womanVpPic}}" mode="widthFix" />
+                            <image bindtap="changeThisSex" data-parent="{{a}}" data-index="{{index}}" data-value="3" wx:elif="{{item.sex==3}}" src="{{manVpPic}}" mode="widthFix" />
+                            <image bindtap="changeThisSex" data-parent="{{a}}" data-index="{{index}}" data-value="2" wx:elif="{{item.sex==2}}" src="{{womanPic}}" mode="widthFix" />
+                            <image bindtap="changeThisSex" data-parent="{{a}}" data-index="{{index}}" data-value="1" wx:else src="{{manPic}}" mode="widthFix" />
+                            <div class="spanName" style="color:{{textColor}};font-size:{{fontSize}}px;font-weight:{{fontWeight}};" bindtap="changeThisUser" data-parent="{{a}}" data-index="{{index}}">{{item.name}}<span class="spanJU spanText" wx:if="{{item.isJu==1}}">狙</span><span class="spanJU" wx:if="{{item.isTop==1}}"><i class="xzicon-arrowup"></i></span><span class="spanJU" wx:if="{{item.isDown==1}}"><i class="xzicon-arrowdown"></i></span><span class="spanJU spanText" wx:if="{{item.isTe==1}}">特</span><span class="spanJU spanText" wx:if="{{item.isVp==1}}">VP</span><span class="spanJU spanText" wx:if="{{item.isZun==1}}">尊</span></div>
                         </div>
                     </div>
                 </div>
@@ -78,45 +107,8 @@
                     </div>
                 </div>
             </div>
-            <p class="copyRight">有事联系：小池 QQ：121787045</p>
+            <p class="copyRight">有事联系：小池 wx：121787045</p>
         </div>
-        <!--广告位-->
-        <!--<div class="advertBox left">
-        	<a href="javascript:;" role="advertList" class="list clearfix">
-            	<div class="picBox"><image src="https://static.gedian.shop/15979392735123474.png" /></div>
-                <div class="textBox">
-                	<p class="advertTitle">街拍</p>
-                    <p class="advertTitle">YY:15610</p>
-                	<p class="advertContent">东部大区 5元bo1</p>
-                </div>
-            </a>
-            <a href="javascript:;" role="advertList" class="list clearfix">
-            	<div class="picBox"><image src="https://static.gedian.shop/15979364613109719.png" /></div>
-                <div class="textBox">
-                	<p class="advertTitle">共享</p>
-                    <p class="advertTitle">YY:7196</p>
-                	<p class="advertContent">东部大区 8元bo1</p>
-                </div>
-            </a>
-        </div>
-        <div class="advertBox right">
-        	<a href="javascript:;" role="advertList" class="list clearfix">
-            	<div class="picBox"><image src="https://static.gedian.shop/15979325861825600.png" /></div>
-                <div class="textBox">
-                	<p class="advertTitle">听客</p>
-                    <p class="advertTitle">YY:8570</p>
-                	<p class="advertContent">东部大区 6元bo3</p>
-                </div>
-            </a>
-            <a href="javascript:;" role="advertList" class="list clearfix">
-            	<div class="picBox"><image src="https://static.gedian.shop/15979368666097864.png" /></div>
-                <div class="textBox">
-                	<p class="advertTitle">全民赛事</p>
-                    <p class="advertTitle">YY:47293</p>
-                	<p class="advertContent">东部大区 6元bo1</p>
-                </div>
-            </a>
-        </div>-->
     </div>
 </div>
 <div class="app-wrapper" wx:if="{{type==3||type==4}}">
@@ -249,6 +241,18 @@
                             data-model="showNameForm.name" placeholder="请输入人名" class="textInput"
                             style="border:1px solid #ddd;padding:0 10px;height:32px;" />
                     </div>
+                </div>
+                <div class="form-list tal noBorder pb0">
+                    <div class="form-list-item">
+                        <div class="displayIB" data-type="isJu" bindtap="selectThisType"><span class="xzui-checkbox-new small {{(showNameForm.isJu==1?' active':'')}}"></span><span class="xzui-checkboxTitle-new small">狙击手</span></div>
+                        <div class="displayIB ml5" data-type="isTop" bindtap="selectThisType"><span class="xzui-checkbox-new small {{(showNameForm.isTop==1?' active':'')}}"></span><span class="xzui-checkboxTitle-new small">该轮次顶尖</span></div>
+                        <div class="displayIB ml5" data-type="isDown" bindtap="selectThisType"><span class="xzui-checkbox-new small {{(showNameForm.isDown==1?' active':'')}}"></span><span class="xzui-checkboxTitle-new small">该轮次垫底</span></div>
+                    </div>
+                </div>
+                <div class="form-list tal noBorder">
+                	<div class="displayIB" data-type="isTe" bindtap="selectThisType"><span class="xzui-checkbox-new small {{(showNameForm.isTe==1?' active':'')}}"></span><span class="xzui-checkboxTitle-new small">特权</span></div>
+                    <div class="displayIB ml10" data-type="isVp" bindtap="selectThisType"><span class="xzui-checkbox-new small {{(showNameForm.isVp==1?' active':'')}}"></span><span class="xzui-checkboxTitle-new small">VP</span></div>
+                    <div class="displayIB ml10" data-type="isZun" bindtap="selectThisType"><span class="xzui-checkbox-new small {{(showNameForm.isZun==1?' active':'')}}"></span><span class="xzui-checkboxTitle-new small">至尊</span></div>
                 </div>
             </div>
         </div>

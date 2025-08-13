@@ -441,6 +441,21 @@
 								}else{
 									_this.setData({clubLevelList:[]});
 								};
+								//更新一下会员等级，避免会员等级有改动
+								if(res.tickets && res.tickets.length){
+									app.each(res.tickets,function(i,item){
+										let newPriceList = app.deepCopy(defaultPriceList);
+										app.each(newPriceList,function(a,b){
+											if(item.priceList[a]){
+												newPriceList[a] = item.priceList[a];
+											}else{
+												newPriceList[a] = '';
+											};
+										});
+										res.tickets[i].priceList = newPriceList;
+									});
+									_this.setData({'form.tickets':res.tickets});
+								};
 								_this.setData({
 									defaultPriceList:defaultPriceList,
 									defaultPriceName:defaultPriceName,

@@ -268,7 +268,7 @@
 							imageUrl: data.activity_sharepic,
 							weixinH5Image: data.activity_sharepic,
 							wxid: 'gh_601692a29862',
-							showMini: false,
+							showMini: true,
 							hideCopy: app.config.client=='wx'?true:false,
 						},
 						loadPicData: {

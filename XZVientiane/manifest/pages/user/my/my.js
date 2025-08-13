@@ -35,6 +35,7 @@
 				customerWxPic:'',
 				height:430,
 			},
+			showExperBtn:false,
         },
         methods: {
             onLoad: function(options) {
@@ -90,6 +91,11 @@
 					};
 					if(res.invitationNum){
 						app.storage.set('pocode',res.invitationNum);
+					};
+					if(res.account=='13800000001'){
+						_this.setData({showExperBtn:false});
+					}else{
+						_this.setData({showExperBtn:true});
 					};
 					res.balance = Number(app.getPrice(res.balance));
 					res.todayTotal = Number(app.getPrice(res.todayTotal));
@@ -157,7 +163,7 @@
 								imageUrl: sharePic,
 								weixinH5Image: sharePic,
 								wxid: 'gh_601692a29862',
-								showMini: false,
+								showMini: true,
 								hideCopy: app.config.client=='wx'?true:false,
 							},
 						}, 
