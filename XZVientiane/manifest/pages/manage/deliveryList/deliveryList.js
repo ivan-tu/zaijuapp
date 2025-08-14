@@ -1,7 +1,7 @@
 /**
  *模块组件构造器
  */
-import kuaidi100 from '../../../static/common/kuaidi100.js';
+//import kuaidi100 from '../../../static/common/kuaidi100.js';/*小程序用*/
 (function () {
 
 	let app = getApp();
@@ -28,7 +28,7 @@ import kuaidi100 from '../../../static/common/kuaidi100.js';
 		methods: {
 			onLoad: function (options) {
 				let _this = this;
-				if(app.config.client=='web'){
+				if(app.config.client=='web'||app.config.client=='app'){
 					require(app.config.staticPath + 'common/kuaidi100.js');
 					register('kuaidi100', () => {
 						_this.getList();

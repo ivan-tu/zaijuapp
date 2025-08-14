@@ -185,25 +185,25 @@ UIViewController
 - 当前使用开发环境推送证书
 - 生产环境需要上传推送证书到友盟后台
 
-### 已知问题和解决方案
-1. ~~`jsCallObjc` 方法过长（500+行），需要重构~~ ✅ 已通过JSBridge模块化解决
-2. ~~存在大量重复的iOS版本检查代码~~ ✅ 已通过XZiOSVersionManager统一管理
-3. 注释代码和调试日志需要清理
-4. 导航栏显示时机问题可能导致闪烁
-5. `selectLocation:` 方法缺失导致首页地区选择崩溃（需要修复）
 
 ## 测试
 目前测试框架已搭建但未实现具体测试用例：
 - 单元测试: XZVientianeTests
 - UI测试: XZVientianeUITests
 
+## 已知问题
+1. 注释代码和调试日志需要清理
+2. 导航栏显示时机问题可能导致闪烁
+3. `selectLocation:` 方法缺失导致首页地区选择崩溃（需要修复）
+
 ## 文档资源
-项目包含详细的文档在 `项目文档/` 目录下：
+项目包含详细的文档在 `Test/Docs/` 目录下：
 - 功能文档/: WebView、支付、分享、定位等功能说明
 - 代码解释/: 主要类的方法说明
 - 优化建议/: 代码优化方案
-- 任务文档/: 开发任务和需求文档
-- 优化文档/: 2025年优化记录、JSBridge优化文档
+- 修复文档/: 各类问题的修复记录
+- 架构文档/: 项目架构概览
+- 升级到Swift/: Swift升级计划和API文档
 
 ## 关键文件路径
 - 主控制器: `XZVientiane/ClientBase/BaseController/CFJClientH5Controller.m`
