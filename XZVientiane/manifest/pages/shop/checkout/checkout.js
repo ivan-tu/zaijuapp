@@ -12,7 +12,7 @@
 				freight1: 0,//按件运费
 				nodelivery:'',//是否有不在配送范围内的商品，是的话为一个数组['商品A']
 				freightData:[],//获取运费的时候返回的商品数组，用来计算最后的运费价格
-				data: []
+				data: [],
 			},
 			options: {},
 			settings: {},

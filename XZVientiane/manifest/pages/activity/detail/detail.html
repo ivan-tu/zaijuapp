@@ -217,7 +217,7 @@
                     <view class="ptb15 tac c999" hidden="{{!showNoData}}">报名后可发布评价</view>
                 </div>
                 <!--礼物部分-->
-				<div class="ptb10 plr15" id="divGift" wx:if="{{data.acceptGift==1}}">
+				<div class="ptb10 plr15" id="divGift" wx:if="{{client!='app'&&data.acceptGift==1}}">
                 	<div class="clearfix">
                 		<p class="activityDetail_divTitle fl">礼物<span class="p12">（共{{activityGiftCount}}次）</span></p>
                         <span class="activityDetail_publishBtn yellowBtn fr" bindtap="toSendGift">我要送礼</span>

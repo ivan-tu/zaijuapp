@@ -420,7 +420,7 @@
 					_this.getList();
 					
 					//获取收礼记录
-					if(res.acceptGift==1){
+					if(app.config.client!='app'&&res.acceptGift==1){
 						_this.getGiftList();
 					};
 					

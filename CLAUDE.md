@@ -93,8 +93,6 @@ manifest/
 
 ## 命令行操作
 
-### 特殊路径处理
-- 检测到/success时，执行successs.md中的命令。检测到/update时，执行update.md中的命令
 
 ### 构建和运行
 ```bash

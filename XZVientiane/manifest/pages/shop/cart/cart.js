@@ -316,7 +316,8 @@
 			submit:function(){
 				let _this=this,
 					data=_this.getData().data.data,
-					attrs=[];
+					attrs=[],
+					canDiamondpayLength=0;
 				app.each(data,function(a,b){
 					app.each(b.data,function(i,item){
 						if(item.checked){
@@ -327,12 +328,19 @@
 								weight:item.sku.weight||'',
 								cartId:item.id,
 							});
+							if(item.diamondpay==1){
+								canDiamondpayLength++;
+							};	
 						};
 					});
 				});		
 				if(attrs.length){
-					app.storage.set('checkoutData',attrs);		
-					app.navTo('../../shop/checkout/checkout?cart=1');
+					if(canDiamondpayLength==0||canDiamondpayLength==attrs.length){
+						app.storage.set('checkoutData',attrs);		
+						app.navTo('../../shop/checkout/checkout?cart=1');
+					}else{
+						app.tips('钻石支付商品需要分开结算','error');
+					};
 				}else{
 					app.tips('还没有选择商品');
 				};

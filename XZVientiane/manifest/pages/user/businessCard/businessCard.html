@@ -17,7 +17,7 @@
                 <p wx:if="{{data.desctext}}" class="p12 c666 mt15">{{data.desctext}}</p>
             </div>
             <div class="businessCard_friendBtn" wx:if="{{data.ismy!=1}}">
-            	<span bindtap="toSendGift" class="btnList">赠送礼物</span>
+            	<span bindtap="toSendGift" class="btnList" wx:if="{{client!='app'}}">赠送礼物</span>
                 <span wx:if="{{!data.isfriend}}" bindtap="addFriend" class="btnList">加为好友</span>
                 <span wx:else bindtap="sendMsg" class="btnList">发送私信</span>
             </div>
