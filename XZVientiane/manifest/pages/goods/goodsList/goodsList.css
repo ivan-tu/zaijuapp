@@ -1,0 +1,65 @@
+.goodsIndexList_head{
+	position:relative;
+	padding:10px 35px 10px 10px;
+}
+.goodsIndexList_head .xzicon-search1{
+	position:absolute;
+	left:9px;
+	top:8px;
+	color:#7A797B;
+}
+.goodsIndexList_head .searchInput{
+	width:100%;
+	border:0 none;
+	background-color: #f4f4f4;
+	font-size:12px;
+	color:#7A797B;
+	height:25px;
+	line-height:25px;
+	outline: 0;
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+}
+.goodsIndexList_head .screenBtn{
+	margin:0;
+	padding:0;
+	display:inline-block;
+	position:absolute;
+	z-index:2;
+	right:10px;
+	top:50%;
+	margin-top:-9px;
+	width:18px;
+	height:18px;
+}
+.goodsIndexList_head .screenBtn .pic{
+	vertical-align:top;
+}
+.goodsIndexList_head .searchBox{
+    border-radius: 20px;
+	background-color: #f4f4f4;
+	padding:5px 30px 5px 27px;
+	position:relative;
+}
+.goodsIndexList_head .closeBtn{
+	position:absolute;
+	z-index:2;
+	right:10px;
+	font-size:14px;
+	line-height:14px;
+	top:50%;
+	margin-top:-7px;
+	color:#888;
+}
+.goodsIndexList_headBox{
+	position:fixed;
+	top:0;
+	left:0;
+	width:100%;
+	z-index:3;
+	background:#fff;
+}
+.goodsIndexList-container{
+	padding-top:60px;
+}

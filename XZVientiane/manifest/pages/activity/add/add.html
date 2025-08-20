@@ -235,7 +235,7 @@
             <div class="form-list">
 				<div class="form-list-item title c333 p14 long">报名人员</div>
 				<div class="form-list-item">
-					<picker range="{{levelList}}" class="picker-region" bindchange="bindLevelChange" value="{{form.levelset}}"
+					<picker range="{{levelList}}" class="picker-region" bindchange="bindLevelSetChange" value="{{form.levelset}}"
 						id="pickerLevel">
 						<view class="picker c666" wx:if="{{levelList[form.levelset]}}">{{levelList[form.levelset]}}</view>
 						<view class="picker c999" wx:else>请选择</view>

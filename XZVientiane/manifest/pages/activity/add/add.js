@@ -1116,7 +1116,7 @@
 					}
 				});
 			},
-			bindLevelChange:function(e){
+			bindLevelSetChange:function(e){
 				this.setData({'form.levelset':e.detail.value});
 			},
 			selectClub:function(e){

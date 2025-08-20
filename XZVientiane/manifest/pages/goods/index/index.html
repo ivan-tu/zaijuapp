@@ -70,7 +70,7 @@
         <view class="marketCenter_div plr15 mt10" wx:if="{{hotGoodsList&&hotGoodsList.length}}">
         	<div class="marketCenter_title clearfix">
                 <p class="fl text">热门商品</p>
-                <navigator class="fr moreBtn" url="../../shop/goodsList/goodsList?allhot=1">更多 <i class="xzicon-right"></i></navigator>
+                <navigator class="fr moreBtn" url="../../goods/goodsList/goodsList?allhot=1">更多 <i class="xzicon-right"></i></navigator>
             </div>
             <div class="pt10">
                 <div class="public_goodsContainer2 clearfix">
@@ -105,7 +105,7 @@
             <view class="marketCenter_div plr15 mt10" wx:for="{{settingData.tagsList}}" wx:if="{{item.goodsList&&item.goodsList.length}}">
                 <div class="marketCenter_title clearfix">
                     <p class="fl text">{{item.title}}<span class="tips" style="color:#4C4C4C;">{{item.tips}}</span></p>
-                    <navigator class="fr moreBtn" url="../../shop/goodsList/goodsList?tags={{item.title}}">更多 <i class="xzicon-right"></i></navigator>
+                    <navigator class="fr moreBtn" url="../../goods/goodsList/goodsList?tags={{item.title}}">更多 <i class="xzicon-right"></i></navigator>
                 </div>
                 <div class="pt10">
                     <div class="public_goodsContainer2 clearfix">
@@ -127,7 +127,7 @@
         <view class="marketCenter_div plr15 mt10 pb20">
         	<div class="marketCenter_title clearfix">
                 <p class="fl text">推荐商品</p>
-                <navigator class="fr moreBtn" url="../../shop/goodsList/goodsList?allrecommend=1">更多 <i class="xzicon-right"></i></navigator>
+                <navigator class="fr moreBtn" url="../../goods/goodsList/goodsList?allrecommend=1">更多 <i class="xzicon-right"></i></navigator>
             </div>
             <div wx:if="{{goodsList&&goodsList.length}}" class="pt10">
                 <div class="public_goodsContainer2 clearfix">
@@ -157,10 +157,6 @@
 	<navigator url="../../home/index/index" class="xzui-tabbar_item index">
         <span class="xzui-tabbar_label">在局</span>
     </navigator>
-    <!--
-    <navigator url="../../store/index/index" class="xzui-tabbar_item store">
-        <span class="xzui-tabbar_label">在店</span>
-    </navigator>-->
     <navigator url="../../suboffice/index/index" class="xzui-tabbar_item group">
         <span class="xzui-tabbar_label">俱乐部</span>
     </navigator>

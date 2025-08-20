@@ -33,10 +33,11 @@
 					<span class="p14 cRed">¥</span>
 					<span class="p24 cRed bold">{{data.sku[selectedIndex].realPrice}}</span>
 				</div>
+                <div class="fr p12 c999" wx:if="{{data.salecount}}">已售 {{data.salecount}}</div>
 			</div>
 			<div class="hasBorder top mlr15 mt10 pt10 c999 p12">
 				<div class="goodsDetail_tagBox">
-                    <span class="list" wx:if="{{data.diamondpay==1}}"><i class="xzicon-checkcircleo"></i> 允许钻石支付</span>
+                    <span class="list" wx:if="{{data.diamondpay==1}}"><i class="xzicon-checkcircleo"></i> 允许钻石支付{{data.diamondlimit}}件</span>
 					<!--退款方式-->
 					<span class="list"><i class="xzicon-checkcircleo"></i> {{data.refundType==1?'7天可退款':'不可退款'}}</span>
 					<!--是否限购-->

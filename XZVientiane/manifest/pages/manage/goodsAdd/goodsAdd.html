@@ -485,6 +485,28 @@
                   </div>
                 </div>
                 <!--限购数量设置结束-->
+                <!--升级会员设置开始-->
+                <div class="mt10">
+                	<div class="xzui-cells">
+                    	<view class="xzui-cell xzui-cell_access">
+                        	<div class="xzui-cell__hd">升级会员</div>
+                            <div class="xzui-cell__bd">
+                            	<picker range="{{clubLevelList}}" class="picker-region" bindchange="bindLevelChange" range-key="name" id="pickerLevel">
+                                    <view class="picker c666" wx:if="{{form.upgradeToLevelname}}">{{form.upgradeToLevelname}}</view>
+                                    <view class="picker c999" wx:else>请选择</view>
+                                </picker>
+                            </div>
+                        </view>
+                        <view class="xzui-cell xzui-cell_access">
+                        	<div class="xzui-cell__hd">会员天数</div>
+                            <div class="xzui-cell__bd">
+                            	<input class="xzui-input" placeholder="设置会员天数，不填默认永久" value="{{form.upgradeToLevelday}}" bindinput="model" data-model="form.upgradeToLevelday"  type="number"  />
+                            </div>
+                            <div class="xzui-cell__ft">天</div>
+                        </view>
+                    </div>
+                </div>
+                <!--升级会员设置结束-->
             </div>
            <!--保存按钮-->
             <div class="xzui-btn-app {{(options.type=='addSupply'?'':' positionBottom')}}">

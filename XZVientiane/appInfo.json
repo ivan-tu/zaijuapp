@@ -24,6 +24,14 @@
         },
         {
             "active" : "0",
+            "icon" : "icon_goods",
+            "name" : "商城",
+            "activeIcon" : "icon_xiaoxiSelect",
+            "url" : "https://zaiju.com/p/goods/index/index",
+            "isCheck":"0"
+        },
+        {
+            "active" : "0",
             "icon" : "icon_userCenter",
             "name" : "我的",
             "activeIcon" : "icon_userCenterSelect",

@@ -42,6 +42,9 @@
 				ticketsType:1,//票券类型，1-核销券，2-提货券
 				pickBeginDate:'',
 				pickEndDate:'',
+				upgradeToLevelid:'',//升级会员id
+				upgradeToLevelname:'',//升级会员名称
+				upgradeToLevelday:'',//升级会员天数
 			},
 			showInfoData: {
 				deliveryTempName: '', //配送区域模板名称
@@ -191,6 +194,9 @@
 									form:formData,
 									skuDefault:skuDefault,
 								});
+								setTimeout(function () {
+									_this.selectComponent('#pickerLevel').reset();
+								}, 100);
 							});
 						};
 					});
@@ -212,6 +218,9 @@
 								skuDefault:skuDefault
 							});
 							_this.addSku();
+							setTimeout(function () {
+								_this.selectComponent('#pickerLevel').reset();
+							}, 100);
 						});
 					}else{
 						this.addSku();
@@ -829,6 +838,17 @@
 				formData.sku[index].priceList[type] = app.eValue(e);
 				this.setData({
 					form: formData
+				});
+			},
+			bindLevelChange:function(e){
+				let value = Number(e.detail.value),
+					formData = app.deepCopy(this.getData().form),
+					clubLevelList = app.deepCopy(this.getData().clubLevelList);
+				formData.upgradeToLevelid = clubLevelList[value]._id;
+				formData.upgradeToLevelname = clubLevelList[value].name;
+				formData.upgradeToLevelday = '';
+				this.setData({
+					form:formData
 				});
 			},
 		}

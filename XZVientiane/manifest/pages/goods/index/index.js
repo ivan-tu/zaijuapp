@@ -17,6 +17,7 @@
 				goodsTypeid:'',
 				allrecommend:'1',//推荐
 				sort:'top',
+				diamondpay:1,
 			},
 			//banner图片宽度
 			bannerWidth:(app.system.windowWidth>480?480:app.system.windowWidth),
@@ -310,6 +311,7 @@
 									size:4,
 									tags:item.title,
 									sort:'top',
+									diamondpay:1,
 								},function(data){
 									let tagsList = _this.getData().settingData.tagsList;
 									if(data&&data.length){
@@ -340,7 +342,7 @@
 				this.getList();*/
 				let keyword = this.getData().keyword;
 				if(keyword){
-					app.navTo('../../shop/goodsList/goodsList?keyword='+keyword);
+					app.navTo('../../goods/goodsList/goodsList?keyword='+keyword);
 				};
 			},
 			screenCategory:function(e){//筛选分类
@@ -378,7 +380,7 @@
 			},
 			getHotGoodsList:function(){//获取热门商品列表
 				let _this = this;
-				app.request('//shopapi/getAllGoodsList',{page:1,size:4,sort:'top',allhot:1},function(backData){
+				app.request('//shopapi/getAllGoodsList',{page:1,size:4,sort:'top',allhot:1,diamondpay:1},function(backData){
 					if(backData.data&&backData.data.length){
 						app.each(backData.data,function(i,item){
 							item.pic = app.image.crop(item.pic,_this.getData().goodsPicWidth,_this.getData().goodsPicHeight);
